@@ -31,6 +31,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
+from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+import actionlib
 import rospy
 import tf
 
@@ -121,18 +123,54 @@ def bezier_derivatives_control_points(control_points, n_derivatives):
 
 class BezierPlanner(object):
 
+    # create messages that are used to publish feedback/result
+    _feedback = MoveBaseFeedback()
+    _result = MoveBaseResult()
+
     def callback(self, pose_msg):
 
         self.nav_goal = pose_msg.pose
-        path = self.plan()
+        path, pose = self.plan()
         self.pub.publish(path)
+    
+    def execute_cb(self, goal):
+        # helper variables
+        #r = rospy.Rate(1)
+        success = True
+        self.nav_goal = goal.target_pose.pose
+        
+        # append the seeds for the fibonacci sequence
+        #self._feedback.base_position.header.frame_id = "/world"
+        
+        # publish info to the console for the user
+        #rospy.loginfo('%s: Executing, creating fibonacci sequence of order %i with seeds %i, %i' % (self._action_name, goal.order, self._feedback.sequence[0], self._feedback.sequence[1]))
+        
+        r = rospy.Rate(0.1) # 10hz
+        while not rospy.is_shutdown() and self.nav_goal is not None:
+            if self._as.is_preempt_requested():
+                rospy.loginfo('%s: Preempted' % self._action_name)
+                self._as.set_preempted()
+                success = False
+                self.nav_goal = None
+                break
+            path, pose = self.plan()
+            self.pub.publish(path)
+            self._feedback.base_position = pose
+            self._feedback.base_position.header.stamp = rospy.get_rostime()
+            self._as.publish_feedback(self._feedback)
+            r.sleep()
+
+        if success:
+            #self._result.sequence = self._feedback.sequence
+            rospy.loginfo('%s: Succeeded' % self._action_name)
+            self._as.set_succeeded(self._result)
 
     def plan(self):
 
         try:
             (trans, rot) = self.listener.lookupTransform("/world", self.base_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            return Path()
+            return Path(), PoseStamped()
 
         start_pos = np.array(trans)
         euler = tf.transformations.euler_from_quaternion(rot)
@@ -166,7 +204,12 @@ class BezierPlanner(object):
             pose.pose.position.z = curve.T[2][i]
             path.poses.append(pose)
 
-        return path
+        pose = PoseStamped()
+        pose.pose.position.x = start_pos[0]
+        pose.pose.position.y = start_pos[1]
+        pose.pose.position.z = start_pos[2]
+
+        return path, pose
 
     def timer_callback(self, event):
 
@@ -189,9 +232,10 @@ class BezierPlanner(object):
         else:
             print("Did not reach nav goal!")
 
-    def __init__(self):
+    def __init__(self, name):
         
         """Plot an example bezier curve."""
+        self._action_name = name
         
         self.heading_offset = rospy.get_param('~heading_offsets', 5.)
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
@@ -205,16 +249,19 @@ class BezierPlanner(object):
         rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback)
 
         rospy.Timer(rospy.Duration(1), self.timer_callback)
+
+        self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
+        self._as.start()
+        rospy.loginfo("Announced action server with name: %s", self._action_name)
         
         r = rospy.Rate(0.1) # 10hz
         while not rospy.is_shutdown():
            if self.nav_goal is not None:
-               path = self.plan()
+               path, pose = self.plan()
                self.pub.publish(path)
            r.sleep()
-        rospy.spin()
 
 if __name__ == '__main__':
 
     rospy.init_node('bezier_planner')
-    planner = BezierPlanner()
+    planner = BezierPlanner(rospy.get_name())
