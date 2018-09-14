@@ -15,131 +15,149 @@ from smarc_msgs.msg import SMTask
 from smarc_msgs.srv import AddTask
 import threading
 
-class InitState(smach.State):
+class TaskInitialization(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['outcome1','outcome2'])
+        smach.State.__init__(self, outcomes=['succeeded'])
 
     def execute(self, userdata):
-        rospy.loginfo('Executing state INIT')
-        if self.counter < 3:
-            return 'outcome1'
-        else:
-            return 'outcome2'
+        rospy.loginfo('State initialization')
+        return 'succeeded'
 
-class IdleState(smach.State):
+class TaskSucceeded(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['outcome1','outcome2'])
+        smach.State.__init__(self, outcomes=['succeeded'])
 
     def execute(self, userdata):
-        rospy.loginfo('Executing state END')
-        if self.counter < 3:
-            self.counter += 1
-            return 'outcome1'
-        else:
-            return 'outcome2'
-
-class ErrorState(smach.State):
+        rospy.loginfo('State succeeded')
+        return 'succeeded'
+   
+class TaskCancelled(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['outcome1'])
+        smach.State.__init__(self, outcomes=['preempted'])
 
     def execute(self, userdata):
-        rospy.loginfo('Executing state ERROR')
-        return 'outcome1'
+        rospy.loginfo('State preempted')
+        return 'preempted'
 
-# State for calling action servers
-class CallActState(smach.State):
-    def __init__(self, act_name):
-        smach.State.__init__(self, outcomes=['outcome1','outcome2'])
-        self.counter = 0
+class TaskFailed(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=['aborted'])
 
     def execute(self, userdata):
-        rospy.loginfo('Executing state CallActState')
-        if self.counter < 3:
-            self.counter += 1
-            return 'outcome1'
-        else:
-            return 'outcome2'
+        rospy.loginfo('State aborted')
+        return 'aborted'
 
+class TaskExecution(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, 
+            outcomes=['succeeded, preempted, aborted'],
+            input_keys=['task'])
+
+    def execute(self, userdata):
+        rospy.loginfo('State task execution')
+        # Create action client and wait for server
+        self.act_client = actionlib.SimpleActionClient(userdata.task.action, MoveBaseAction)
+        self.assert(self.act_client.wait_for_server(rospy.Duration(10)))
+
+        # Create new action goal
+        mb_goal = MoveBaseGoal()
+        mb_goal.target_pose.header.frame_id = "world"
+        mb_goal.target_pose.header.stamp = rospy.Time.now()
+        mb_goal.target_pose.pose.position.x = userdata.task.x
+        mb_goal.target_pose.pose.position.y = userdata.task.y
+        mb_goal.target_pose.pose.position.z = userdata.task.depth
+        mb_goal.target_pose.pose.orientation.x = 0.0    # TODO: add yaw
+        mb_goal.target_pose.pose.orientation.y = 0.0
+        mb_goal.target_pose.pose.orientation.z = 0.0
+        mb_goal.target_pose.pose.orientation.w = 1.0
+
+        # Sends the goal to the action server.
+        self.act_client.send_goal(mb_goal)
+
+        # Check periodically state of AUV to preempt goal when needed
+        t_before = rospy.Time.now()
+        rate = rospy.Rate(1)
+        task_result = "running"
+        while not rospy.is_shutdown() and abs(t_after - t_before) < userdata.task.max_duration and task_result == "running":
+            # TODO: check pose of AUV from topics and compare to goal manually
+                        
+            # Check state from server side
+            goal_state = self.act_client.get_state()
+            if goal_state == GoalStatus.REJECTED || goal_state == GoalStatus.ABORTED:
+                task_result = "aborted"
+            else if goal_state == GoalStatus.PREEMPTED:
+                task_result = "preempted"
+
+            t_after = rospy.Time.now()
+            rate.sleep()
+
+        # Result of executing the action 
+        return task_result
 
 class SmachServer():
     def __init__(self):
+        self.task_sm = None
         self.tasks = Queue()
         self.tasks_run = 0;
-        
-        # Create a SMACH state machine
-        self.task_sm = smach.StateMachine(outcomes=['succeeded','aborted','preempted'])
-
-        # Add error state
-        with self.task_sm:
-            smach.StateMachine.add('ERROR', ErrorState(), transitions={'outcome1':'aborted'})
 
         # Add states to the queue to build the sm
         rospy.Service("/task_executor/" + "add_state", AddTask, self.add_state_srv)
-        
+       
         # Run loop
         self.run_sm()
+
+    def reset_sm(self):
+        self.task_sm = None
 
     def add_state_srv(self, TaskReq):
         self.tasks.put(TaskReq.task)
 
+    def execute_task(self, task):
+        rospy.loginfo('Execution of task %s was requested' % task.task_id)
+
+        # Reset SM object
+        self.reset_sm()
+
+        # Create the state machine necessary to execute this task        
+        self.task_sm = smach.StateMachine(['succeeded','aborted','preempted'])
+
+        # Update the userdata with the new task
+        self.task_sm.userdata.task = task
+
+        with self.task_sm:
+
+            # Initialise task data
+            init_transition = 'TASK_EXECUTION'
+            smach.StateMachine.add('TASK_INITIALISATION', TaskInitialisation(self), transitions={'succeeded': 'TASK_EXECUTION'})
+            
+            # Final task outcomes
+            smach.StateMachine.add('TASK_SUCCEEDED', TaskSucceeded(self), transitions={'succeeded':'succeeded'})
+            smach.StateMachine.add('TASK_CANCELLED', TaskCancelled(self), transitions={'preempted':'preempted'})
+            smach.StateMachine.add('TASK_FAILED', TaskFailed(self), transitions={'aborted':'aborted'})
+            smach.StateMachine.add('TASK_EXECUTION', TaskExecution(self), 
+                transitions={'preempted':'TASK_CANCELLED', 'aborted':'TASK_FAILED', 'succeeded':'TASK_SUCCEEDED'})
+
+        # Execute SM
+        self.task_sm.execute()
+
     def run_sm(self):
-        # Create INIT state and add to buffer
-        init_task = SMTask()
-        init_task.state   = "INIT"
-        init_task.task_id = 1
-        self.tasks_run = 1
-        task_buff = init_task
+        r = rospy.Rate(1)
 
         # Construct the state machine from the list of tasks
-        r = rospy.Rate(1) # 1hz
         while not rospy.is_shutdown():
             self.tasks_run += 1;
             try:
-                task_current = task_buff
                 task_next = self.tasks.get(False)
-                task_next.state = "ACTION"
+                rospy.loginfo("Executing task %s", self.tasks_run)
+                self.execute_task(task_next)
             except Empty, e:
                 # If final state reached, add IDDLE state
-                iddle_task = SMTask()
-                iddle_task.state   = "IDLE"
-                task_next = iddle_task
+                rospy.loginfo("Waiting for new tasks")
+                pass
 
-            task_next.task_id = self.tasks_run
-            self.add_task_sm(task_current, task_next)
-            task_buff = task_next
-
-            r.sleep()
-
-            # Execute state machine when all states from the queue are set
-            if self.tasks.empty():
-                self.task_sm.execute()
-
-    def goal_callback(userdata, default_goal):
-        mb_goal = MoveBaseGoal()
-        goal.goal = 2
-        return goal
-
-    def add_task_sm(self, task_current, task_next):
-
-        with self.task_sm:
-            if task_current.state == "ACTION":
-                action_name = ""    # TODO
-                task_cb = smach_ros.SimpleActionState(action_name, MoveBaseAction, MoveBaseGoal())
-            else if task_current.state == "IDLE":
-                task_cb = IdleState()
-            else if task_current.state == "INIT":
-                task_cb = InitState()
-            else: 
-                # Error handling 
-                task_cb = ErrorState()
-                task_current.task_id = 666
-                task_current.task_id = 667
-
-            # Create new state
-            smach.StateMachine.add('state_' + task_current.task_id, task_cb, 
-                transitions={'outcome1': task_next.state, 'outcome2':'ERROR'})
+            r.sleep()             
 
 
 if __name__ == '__main__':
-    rospy.init_node('smach_example_state_machine')
+    rospy.init_node('smach_state_machine')
     sm_server = SmachServer()
