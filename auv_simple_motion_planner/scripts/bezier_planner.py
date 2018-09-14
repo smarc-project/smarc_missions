@@ -159,6 +159,8 @@ class BezierPlanner(object):
             self._feedback.base_position.header.stamp = rospy.get_rostime()
             self._as.publish_feedback(self._feedback)
             r.sleep()
+        
+        self.pub.publish(Path())
 
         if success:
             #self._result.sequence = self._feedback.sequence
@@ -214,7 +216,7 @@ class BezierPlanner(object):
     def timer_callback(self, event):
 
         if self.nav_goal is None:
-            print("Nav goal is None!")
+            #print("Nav goal is None!")
             return
         
         try:
@@ -222,15 +224,15 @@ class BezierPlanner(object):
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             return
 
-        print("Checking if nav goal is reached!")
+        #print("Checking if nav goal is reached!")
 
         start_pos = np.array(trans)
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, -85.])
         if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
-        else:
-            print("Did not reach nav goal!")
+        #else:
+        #    print("Did not reach nav goal!")
 
     def __init__(self, name):
         
