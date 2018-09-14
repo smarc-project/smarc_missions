@@ -22,7 +22,8 @@ class BezierController(object):
 
     def control(self):
 
-        if self.current_path is None:
+        if self.current_path is None or len(self.current_path) == 0:
+            self.current_path = None
             return 0., 0.
 
         try:
@@ -34,6 +35,13 @@ class BezierController(object):
         euler = tf.transformations.euler_from_quaternion(rot)
         pitch = euler[1]
         yaw = euler[2]
+        heading = np.array([np.cos(yaw)*np.cos(pitch), np.sin(yaw)*np.cos(pitch), np.sin(pitch)])
+        lq = np.array([self.current_path[-1].pose.position.x,
+                       self.current_path[-1].pose.position.y,
+                       self.current_path[-1].pose.position.z])
+        if (lq - p).dot(heading) < 0.:
+            self.current_path = None
+            return 0., 0.
     
         j = min(self.path_idx, len(self.current_path)-1)
         while True:
@@ -45,8 +53,13 @@ class BezierController(object):
             j = j + 1
         self.path_idx = j
         
+        # This is probably the way to go for stopping when we have a better planner
+        #if (q - p).dot(heading) < 0.:
+        #    self.current_path = None
+        #    return 0., 0.
+
         dist = np.linalg.norm(p - q)
-        fp = p + dist*np.array([np.cos(yaw)*np.cos(pitch), np.sin(yaw)*np.cos(pitch), np.sin(pitch)])
+        fp = p + dist*heading
 
         target_pose = PoseStamped()
         target_pose.header.frame_id = "/world"
@@ -137,8 +150,12 @@ class BezierController(object):
            lateral_offset, z_offset = self.control()
            lateral_offset_pub.publish(lateral_offset)
            z_offset_pub.publish(z_offset)
-           thruster0.publish(header, self.thrust_level)
-           thruster1.publish(header, self.thrust_level)
+           if self.current_path is None:
+               thruster0.publish(header, 0.)
+               thruster1.publish(header, 0.)
+           else:
+               thruster0.publish(header, self.thrust_level)
+               thruster1.publish(header, self.thrust_level)
            r.sleep()
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@
   <arg name="thrust_level" default="200."/>
   <arg name="heading_offsets" default="5."/>
   <arg name="trajectory_points" default="100"/>
+  <arg name="goal_tolerance" default="3."/>
 
   <node name="carrot_controller" pkg="auv_simple_motion_planner" type="carrot_controller.py" output="screen">
     <param name="carrot_dist" value="$(arg carrot_dist)" />
@@ -13,6 +14,7 @@
   </node>
 
   <node name="bezier_planner" pkg="auv_simple_motion_planner" type="bezier_planner.py" output="screen">
+    <param name="goal_tolerance" value="$(arg goal_tolerance)" />
     <param name="heading_offsets" value="$(arg heading_offsets)" />
     <param name="base_frame" value="$(arg base_frame)" />
     <param name="number_points" value="$(arg trajectory_points)" />
