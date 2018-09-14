@@ -140,6 +140,12 @@ class BezierPlanner(object):
         start_yaw = euler[2] # np.radians(180.0)  # [rad]
 
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, -85.])
+
+        #if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
+        #    rospy.loginfo("Reached goal!")
+        #    self.nav_goal = None
+        #    return Path()
+
         end_rot = [self.nav_goal.orientation.x, self.nav_goal.orientation.y, self.nav_goal.orientation.z, self.nav_goal.orientation.w]
         euler = tf.transformations.euler_from_quaternion(end_rot)
         end_pitch = euler[1]
@@ -162,11 +168,33 @@ class BezierPlanner(object):
 
         return path
 
+    def timer_callback(self, event):
+
+        if self.nav_goal is None:
+            print("Nav goal is None!")
+            return
+        
+        try:
+            (trans, rot) = self.listener.lookupTransform("/world", self.base_frame, rospy.Time(0))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            return
+
+        print("Checking if nav goal is reached!")
+
+        start_pos = np.array(trans)
+        end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, -85.])
+        if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
+            rospy.loginfo("Reached goal!")
+            self.nav_goal = None
+        else:
+            print("Did not reach nav goal!")
+
     def __init__(self):
         
         """Plot an example bezier curve."""
         
         self.heading_offset = rospy.get_param('~heading_offsets', 5.)
+        self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
         self.n_points = rospy.get_param('~number_points', 100)
         self.base_frame = rospy.get_param('~base_frame', "lolo_auv_1/base_link")
 
@@ -175,6 +203,8 @@ class BezierPlanner(object):
         self.listener = tf.TransformListener()
         self.pub = rospy.Publisher('/global_plan', Path, queue_size=10)
         rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback)
+
+        rospy.Timer(rospy.Duration(1), self.timer_callback)
         
         r = rospy.Rate(0.1) # 10hz
         while not rospy.is_shutdown():
@@ -182,6 +212,7 @@ class BezierPlanner(object):
                path = self.plan()
                self.pub.publish(path)
            r.sleep()
+        rospy.spin()
 
 if __name__ == '__main__':
 
