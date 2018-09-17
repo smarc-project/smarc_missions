@@ -7,43 +7,17 @@
   <arg name="trajectory_points" default="100"/>
   <arg name="goal_tolerance" default="3."/>
 
-  <node name="carrot_controller" pkg="auv_simple_motion_planner" type="carrot_controller.py" output="screen">
-    <param name="carrot_dist" value="$(arg carrot_dist)" />
-    <param name="base_frame" value="$(arg base_frame)" />
-    <param name="thrust_level" value="$(arg thrust_level)" />
-  </node>
+  <include file="$(find auv_simple_motion_planner)/launch/controller.launch">
+    <arg name="carrot_dist" value="$(arg carrot_dist)" />
+    <arg name="base_frame" value="$(arg base_frame)" />
+    <arg name="thrust_level" value="$(arg thrust_level)" />
+  </include>
 
   <node name="bezier_planner" pkg="auv_simple_motion_planner" type="bezier_planner.py" output="screen">
     <param name="goal_tolerance" value="$(arg goal_tolerance)" />
     <param name="heading_offsets" value="$(arg heading_offsets)" />
     <param name="base_frame" value="$(arg base_frame)" />
     <param name="number_points" value="$(arg trajectory_points)" />
-  </node>
-
-  <node name="controller" pkg="pid" type="controller" ns="vertical_fins" output="screen" respawn="true">
-    <param name="node_name" value="vertical_fins_pid" />
-    <param name="Kp" value="5.0" />
-    <param name="Ki" value="0.0" />
-    <param name="Kd" value="0.1" />
-    <param name="upper_limit" value="60" />
-    <param name="lower_limit" value="-60" />
-    <param name="windup_limit" value="1000" />
-    <param name="max_loop_frequency" value="100.0" />
-    <param name="min_loop_frequency" value="1.0" />
-    <remap from="setpoint" to="/setpoint" />
-  </node>
-
-  <node name="controller" pkg="pid" type="controller" ns="horizontal_fins" output="screen" respawn="true">
-    <param name="node_name" value="horizontal_fins_pid" />
-    <param name="Kp" value="5.0" />
-    <param name="Ki" value="0.0" />
-    <param name="Kd" value="0.1" />
-    <param name="upper_limit" value="60" />
-    <param name="lower_limit" value="-60" />
-    <param name="windup_limit" value="1000" />
-    <param name="max_loop_frequency" value="100.0" />
-    <param name="min_loop_frequency" value="1.0" />
-    <remap from="setpoint" to="/setpoint" />
   </node>
 
 </launch>
