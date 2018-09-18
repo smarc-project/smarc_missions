@@ -97,11 +97,20 @@ class TaskExecution(smach.State):
         t_before = rospy.Time.now()
         rate = rospy.Rate(1)
         task_result = "running"
+        do_cancel = False
         while not rospy.is_shutdown() and task_result == "running":
             # Check pose of AUV  and compare to goal for terminating condition
-            task_result = self.end_condition(mb_goal)
-            if task_result == "succeeded":
+            t_after = rospy.Time.now()
+            if t_after - t_before > userdata.task.max_duration:
+                rospy.loginfo("Time limit reached")
+                do_cancel = True
+                task_result = "preempted"
+                break
+
+            if self.end_condition(mb_goal):
                 rospy.loginfo("Success!")
+                do_cancel = True
+                task_result = "succeeded"
                 break
 
             # Check state from server side
@@ -112,23 +121,22 @@ class TaskExecution(smach.State):
             elif goal_state == GoalStatus.PREEMPTED:
                 rospy.loginfo("Action preempted!")                
                 task_result = "preempted"
+            elif goal_state == GoalStatus.SUCCEEDED:
+                rospy.loginfo("Action returned success!")
+                task_result = "succeeded"
 
-            t_after = rospy.Time.now()
-            if t_after - t_before > userdata.task.max_duration:
-                rospy.loginfo("Time limit reached")                                
-                task_result = "preempted"
-                break
 
             rate.sleep()
 
-        rospy.loginfo("task_result %s", task_result)
-        if task_result != "succeeded":
+        if do_cancel:
             self.act_client.cancel_all_goals()
+            while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED:
+                goal_state = self.act_client.get_state()
+                rospy.loginfo("Waiting for server to preempt task")
+                rospy.Rate(0.5).sleep()
 
-        while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED:
-            goal_state = self.act_client.get_state()
-            rospy.loginfo("Waiting for server to preempt task")
-            rospy.Rate(0.5).sleep()
+
+        rospy.loginfo("task_result %s", task_result)
 
         # Result of executing the action 
         return task_result
@@ -186,21 +194,19 @@ class TaskExecution(smach.State):
 
     def end_condition(self, mb_goal):
 
-        goal_state = "running"
-
         try:
             (trans, rot) = NodeState.listener.lookupTransform("/world", NodeState.base_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            return goal_state
+            return False
 
         # Check distance to navigation goal
         start_pos = np.array(trans)
         end_pos = np.array([mb_goal.target_pose.pose.position.x, mb_goal.target_pose.pose.position.y, mb_goal.target_pose.pose.position.z])
         if np.linalg.norm(start_pos - end_pos) < NodeState.goal_tolerance:
             rospy.loginfo("Reached goal!")
-            goal_state = "succeeded"
+            return True
             
-        return goal_state
+        return False
 
 class SmachServer():
     def __init__(self):
