@@ -46,11 +46,11 @@
     <remap from="setpoint" to="/setpoint" />
   </node>
 
-  <node name="smach_state_machine" pkg="state_machine" type="smach_example.py" output="screen">
+<!--   <node name="smach_state_machine" pkg="state_machine" type="smach_sm.py" output="screen">
     <param name="goal_tolerance" value="$(arg goal_tolerance)" />
     <param name="heading_offsets" value="$(arg heading_offsets)" />
     <param name="base_frame" value="$(arg base_frame)" />
     <param name="add_task_srv" value="/task_executor/add_state" />
-  </node>
+  </node> -->
 
 </launch>

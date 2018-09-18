@@ -7,6 +7,8 @@ from smach_ros import SimpleActionState, IntrospectionServer
 import rospy
 import actionlib
 import tf
+from std_msgs.msg import Header
+from geometry_msgs.msg import PoseStamped
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
@@ -15,6 +17,10 @@ from std_msgs.msg import String
 from smarc_msgs.msg import SMTask
 from smarc_msgs.srv import AddTask
 import threading
+
+import mongodb_store.util as dc_util
+from mongodb_store.message_store import MessageStoreProxy
+
 
 import numpy as np
 
@@ -67,26 +73,25 @@ class TaskExecution(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo('State task execution')
+
+        # Create action client and goal dynamically. Based on mongodb
+        (action_string, goal_string) = self.get_task_types(userdata.task.action_topic)
+        action_clz = dc_util.load_class(dc_util.type_to_class_string(action_string))
+        rospy.loginfo("Action string %s and goal string %s", action_string, goal_string)
+
+        goal_clz = dc_util.load_class(dc_util.type_to_class_string(goal_string))
+        argument_list = self.get_arguments(userdata.task.action_arguments)
+        mb_goal = goal_clz(*argument_list)         
+
         # Create action client and wait for server
-        self.act_client = actionlib.SimpleActionClient(userdata.task.action_topic, MoveBaseAction)
+        self.act_client = actionlib.SimpleActionClient(userdata.task.action_topic, action_clz)
+        rospy.loginfo("Waiting for server %s with action class %s", userdata.task.action_topic, action_clz)
         self.act_client.wait_for_server(rospy.Duration(10))
-
         rospy.loginfo("Action server connected!")
-
-        # Create new action goal
-        mb_goal = MoveBaseGoal()
-        mb_goal.target_pose.header.frame_id = "/world"
-        mb_goal.target_pose.header.stamp = rospy.Time.now()
-        mb_goal.target_pose.pose.position.x = userdata.task.x
-        mb_goal.target_pose.pose.position.y = userdata.task.y
-        mb_goal.target_pose.pose.position.z = userdata.task.depth
-        mb_goal.target_pose.pose.orientation.x = 0.0    # TODO: add yaw
-        mb_goal.target_pose.pose.orientation.y = 0.0
-        mb_goal.target_pose.pose.orientation.z = 0.0
-        mb_goal.target_pose.pose.orientation.w = 1.0
 
         # Sends the goal to the action server.
         self.act_client.send_goal(mb_goal)
+        rospy.loginfo("Goal sent!")
 
         # Check periodically state of AUV to preempt goal when needed
         t_before = rospy.Time.now()
@@ -116,8 +121,68 @@ class TaskExecution(smach.State):
 
             rate.sleep()
 
+        rospy.loginfo("task_result %s", task_result)
+        if task_result != "succeeded":
+            self.act_client.cancel_all_goals()
+
+        while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED:
+            goal_state = self.act_client.get_state()
+            rospy.loginfo("Waiting for server to preempt task")
+            rospy.Rate(0.5).sleep()
+
         # Result of executing the action 
         return task_result
+        # return "succeeded"
+
+    def get_arguments(self, argument_list):
+        return map(self.instantiate_from_string_pair, argument_list)
+
+
+    def instantiate_from_string_pair(self, string_pair):
+        # rospy.loginfo("SMTask string %s", SMTask.STRING_TYPE)
+        # rospy.loginfo("Type recevied %s", string_pair.first)
+        if string_pair.string_array[0] == SMTask.STRING_TYPE:
+            return string_pair.string_array[1]
+        elif string_pair.string_array[0] == SMTask.INT_TYPE:
+            return int(string_pair.string_array[1])
+        elif string_pair.string_array[0] == SMTask.FLOAT_TYPE:
+            return float(string_pair.string_array[1])     
+        elif string_pair.string_array[0] == SMTask.TIME_TYPE:
+            return rospy.Time.from_sec(float(string_pair.string_array[1]))
+        elif string_pair.string_array[0] == SMTask.DURATION_TYPE:
+            return rospy.Duration.from_sec(float(string_pair.string_array[1]))
+        elif string_pair.string_array[0] == SMTask.BOOL_TYPE:   
+            return string_pair.string_array[1] == 'True'
+        elif string_pair.string_array[0] == SMTask.POSE_STAMPED_TYPE:   
+            pose_stamped = PoseStamped()
+            pose_stamped.header.frame_id = string_pair.string_array[1]
+            pose_stamped.pose.position.x = float(string_pair.string_array[2]) 
+            pose_stamped.pose.position.y = float(string_pair.string_array[3]) 
+            pose_stamped.pose.position.z = float(string_pair.string_array[4]) 
+            pose_stamped.pose.orientation.x = float(string_pair.string_array[5]) 
+            pose_stamped.pose.orientation.y = float(string_pair.string_array[6]) 
+            pose_stamped.pose.orientation.z = float(string_pair.string_array[7]) 
+            pose_stamped.pose.orientation.w = float(string_pair.string_array[8]) 
+            return pose_stamped            
+        else:
+            # msg = self.msg_store.query_id(string_pair.second, string_pair.first)[0]
+            # # print msg
+            # if msg == None:
+            raise RuntimeError("No matching object for id %s of type %s" % (string_pair.string_array[1], string_pair.string_array[0]))
+            # return msg
+
+
+    def get_task_types(self, action_name):
+        """ 
+        Returns the type string related to the action string provided.
+        """
+        rospy.logdebug("task action provided: %s", action_name)
+        topics = rospy.get_published_topics(action_name)
+        for [topic, type] in topics:            
+            if topic.endswith('feedback'):
+                return (type[:-8], type[:-14] + 'Goal')
+        raise RuntimeError('No action associated with topic: %s'% action_name)
+
 
     def end_condition(self, mb_goal):
 
@@ -161,6 +226,7 @@ class SmachServer():
 
     def add_state_srv(self, TaskReq):
         self.tasks.append(TaskReq.task)
+        return self.tasks_run
 
     def execute_task(self, task):
         rospy.loginfo('Execution of task %s was requested' % task.task_id)
