@@ -14,7 +14,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import String
-from smarc_msgs.msg import SMTask
+from smarc_msgs.msg import SMTask, EmptyActionGoal
 from smarc_msgs.srv import AddTask
 import threading
 
@@ -64,79 +64,89 @@ class TaskFailed(smach.State):
         rospy.loginfo('State aborted')
         return 'aborted'
 
+class TaskPreempting(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, 
+            outcomes=['succeeded', 'preempted'],
+            input_keys=['task_struct'])
+
+    def execute(self, userdata):
+        rospy.loginfo('State preempting')
+
+        goal_state = GoalStatus.PENDING # init with any value other than PREEMPTED
+        userdata.task_struct[1].cancel_all_goals()
+        while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED:
+            goal_state = userdata.task_struct[1].get_state()
+            rospy.loginfo("Waiting for server to preempt task")
+            rospy.Rate(0.5).sleep()
+
+        return userdata.task_struct[2]
 
 class TaskExecution(smach.State):
     def __init__(self):
-        smach.State.__init__(self, 
-            outcomes=['succeeded', 'preempted', 'aborted'],
-            input_keys=['task'])
+        smach.State.__init__(self,
+            outcomes=['succeeded', 'preempted', 'preempting', 'aborted'],
+            input_keys=['task_struct'])
 
     def execute(self, userdata):
         rospy.loginfo('State task execution')
 
         # Create action client and goal dynamically. Based on mongodb
-        (action_string, goal_string) = self.get_task_types(userdata.task.action_topic)
+        (action_string, goal_string) = self.get_task_types(userdata.task_struct[0].action_topic)
         action_clz = dc_util.load_class(dc_util.type_to_class_string(action_string))
         rospy.loginfo("Action string %s and goal string %s", action_string, goal_string)
 
         goal_clz = dc_util.load_class(dc_util.type_to_class_string(goal_string))
-        argument_list = self.get_arguments(userdata.task.action_arguments)
+        argument_list = self.get_arguments(userdata.task_struct[0].action_arguments)
         mb_goal = goal_clz(*argument_list)         
 
         # Create action client and wait for server
-        self.act_client = actionlib.SimpleActionClient(userdata.task.action_topic, action_clz)
-        rospy.loginfo("Waiting for server %s with action class %s", userdata.task.action_topic, action_clz)
-        self.act_client.wait_for_server(rospy.Duration(10))
+        userdata.task_struct[1] = actionlib.SimpleActionClient(userdata.task_struct[0].action_topic, action_clz)
+        rospy.loginfo("Waiting for server %s with action class %s", userdata.task_struct[0].action_topic, action_clz)
+        userdata.task_struct[1].wait_for_server(rospy.Duration(10))
         rospy.loginfo("Action server connected!")
 
         # Sends the goal to the action server.
-        self.act_client.send_goal(mb_goal)
+        userdata.task_struct[1].send_goal(mb_goal)
         rospy.loginfo("Goal sent!")
 
         # Check periodically state of AUV to preempt goal when needed
         t_before = rospy.Time.now()
         rate = rospy.Rate(1)
         task_result = "running"
-        do_cancel = False
         while not rospy.is_shutdown() and task_result == "running":
-            # Check pose of AUV  and compare to goal for terminating condition
-            t_after = rospy.Time.now()
-            if t_after - t_before > userdata.task.max_duration:
-                rospy.loginfo("Time limit reached")
-                do_cancel = True
-                task_result = "preempted"
-                break
+            # Check duration termination condition if received
+            if userdata.task_struct[0].max_duration != 0.:
+                t_after = rospy.Time.now()
+                if t_after - t_before > userdata.task_struct[0].max_duration:
+                    rospy.loginfo("Time limit reached")
+                    task_result = "preempting"
+                    userdata.task_struct[2] = "preempted"
+                    break
 
-            if self.end_condition(mb_goal):
-                rospy.loginfo("Success!")
-                do_cancel = True
-                task_result = "succeeded"
-                break
+            # Check waypoint termination condition if received
+            if userdata.task_struct[0].x != 0.:
+                if self.end_condition(userdata):
+                    rospy.loginfo("Success!")
+                    task_result = "preempting"
+                    userdata.task_struct[2] = "succeeded"
+                    break
 
-            # Check state from server side
-            goal_state = self.act_client.get_state()
+            # Check action state from server side
+            goal_state = userdata.task_struct[1].get_state()
             if goal_state == GoalStatus.REJECTED or goal_state == GoalStatus.ABORTED:
-                task_result = "aborted"
+                task_result = userdata.task_struct[2] = "aborted"
                 rospy.loginfo("Action aborted!")
             elif goal_state == GoalStatus.PREEMPTED:
                 rospy.loginfo("Action preempted!")                
-                task_result = "preempted"
+                task_result = userdata.task_struct[2] = "preempted"
             elif goal_state == GoalStatus.SUCCEEDED:
                 rospy.loginfo("Action returned success!")
-                task_result = "succeeded"
-
+                task_result = userdata.task_struct[2] = "succeeded"
 
             rate.sleep()
 
-        if do_cancel:
-            self.act_client.cancel_all_goals()
-            while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED:
-                goal_state = self.act_client.get_state()
-                rospy.loginfo("Waiting for server to preempt task")
-                rospy.Rate(0.5).sleep()
-
-
-        rospy.loginfo("task_result %s", task_result)
+        rospy.loginfo("task_result %s", userdata.task_struct[2])
 
         # Result of executing the action 
         return task_result
@@ -192,7 +202,7 @@ class TaskExecution(smach.State):
         raise RuntimeError('No action associated with topic: %s'% action_name)
 
 
-    def end_condition(self, mb_goal):
+    def end_condition(self, userdata):
 
         try:
             (trans, rot) = NodeState.listener.lookupTransform("/world", NodeState.base_frame, rospy.Time(0))
@@ -201,7 +211,7 @@ class TaskExecution(smach.State):
 
         # Check distance to navigation goal
         start_pos = np.array(trans)
-        end_pos = np.array([mb_goal.target_pose.pose.position.x, mb_goal.target_pose.pose.position.y, mb_goal.target_pose.pose.position.z])
+        end_pos = np.array([userdata.task_struct[0].x, userdata.task_struct[0].y, userdata.task_struct[0].depth])
         if np.linalg.norm(start_pos - end_pos) < NodeState.goal_tolerance:
             rospy.loginfo("Reached goal!")
             return True
@@ -210,7 +220,9 @@ class TaskExecution(smach.State):
 
 class SmachServer():
     def __init__(self):
+        # State machine
         self.task_sm = None
+        # List of tasks to execute
         self.tasks = []
         self.tasks_run = 0;
 
@@ -227,36 +239,34 @@ class SmachServer():
         # Run loop
         self.run_sm()
 
-    def reset_sm(self):
-        self.task_sm = None
-
     def add_state_srv(self, TaskReq):
         self.tasks.append(TaskReq.task)
         return self.tasks_run
 
     def execute_task(self, task):
-        rospy.loginfo('Execution of task %s was requested' % task.task_id)
+        rospy.loginfo("Executing task %s", self.tasks_run)
 
-        # Reset SM object
-        self.reset_sm()
-
+        # Reset SM 
+        self.task_sm = None
+        act_client = None
+        task_result_flag = ""
         # Create the state machine necessary to execute this task        
         self.task_sm = smach.StateMachine(['succeeded','aborted','preempted'])
 
-        # Update the userdata with the new task
-        self.task_sm.userdata.task = task
+        # Update the userdata with the new task and an action client to pass between states
+        self.task_sm.userdata.task_struct = [task, act_client, task_result_flag]
 
         with self.task_sm:
 
             # Initialise task data
             smach.StateMachine.add('TASK_INITIALIZATION', TaskInitialization(), transitions={'succeeded': 'TASK_EXECUTION'})
-            
             # Final task outcomes
             smach.StateMachine.add('TASK_SUCCEEDED', TaskSucceeded(), transitions={'succeeded':'succeeded'})
             smach.StateMachine.add('TASK_CANCELLED', TaskCancelled(), transitions={'preempted':'preempted'})
             smach.StateMachine.add('TASK_FAILED', TaskFailed(), transitions={'aborted':'aborted'})
+            smach.StateMachine.add('TASK_PREEMPTING', TaskPreempting(), transitions={'preempted':'TASK_CANCELLED', 'succeeded':'TASK_SUCCEEDED'})
             smach.StateMachine.add('TASK_EXECUTION', TaskExecution(), 
-                transitions={'preempted':'TASK_CANCELLED', 'aborted':'TASK_FAILED', 'succeeded':'TASK_SUCCEEDED'})
+                transitions={'preempted':'TASK_CANCELLED', 'preempting':'TASK_PREEMPTING', 'aborted':'TASK_FAILED', 'succeeded':'TASK_SUCCEEDED'})
 
         # Execute SM
         self.task_sm.set_initial_state(['TASK_INITIALIZATION'])
@@ -269,7 +279,6 @@ class SmachServer():
         while not rospy.is_shutdown():
             if not len(self.tasks) == 0:
                 task_next = self.tasks.pop(0)
-                rospy.loginfo("Executing task %s", self.tasks_run)
                 self.execute_task(task_next)
                 self.tasks_run += 1;
             else:
