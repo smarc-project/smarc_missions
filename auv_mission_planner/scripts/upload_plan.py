@@ -45,9 +45,11 @@ def mission_tasks(mission_file):
             master_task.altitude = float(row[1])
             master_task.task_id = int(row[0])
             master_task.theta = float(row[5])
-            master_task.action_arguments.append(StringArray())
-            for arg in row[8][1:-1].split(','):
-                master_task.action_arguments[0].string_array.append(arg.strip()) 
+
+            if len(row[8]) > 3:
+                master_task.action_arguments.append(StringArray())
+                for arg in row[8][1:-1].split(','):
+                    master_task.action_arguments[0].string_array.append(arg.strip()) 
 
             tasks.append(master_task)
             print master_task
