@@ -35,7 +35,7 @@ class BezierController(object):
         euler = tf.transformations.euler_from_quaternion(rot)
         pitch = euler[1]
         yaw = euler[2]
-        heading = np.array([np.cos(yaw)*np.cos(pitch), np.sin(yaw)*np.cos(pitch), np.sin(pitch)])
+        heading = np.array([np.cos(yaw)*np.cos(pitch), np.sin(yaw)*np.cos(pitch), -np.sin(pitch)])
         lq = np.array([self.current_path[-1].pose.position.x,
                        self.current_path[-1].pose.position.y,
                        self.current_path[-1].pose.position.z])
