@@ -80,7 +80,7 @@ class TaskPreempting(smach.State):
             rospy.loginfo("Waiting for server to preempt task")
             rospy.Rate(0.5).sleep()
 
-        return userdata.task_struct[0].action_result
+        return userdata.task_struct[2]
 
 class TaskExecution(smach.State):
     def __init__(self):
@@ -107,7 +107,7 @@ class TaskExecution(smach.State):
         rospy.loginfo("Action server connected!")
 
         # Sends the goal to the action server.
-        userdata.task_struct[1] .send_goal(mb_goal)
+        userdata.task_struct[1].send_goal(mb_goal)
         rospy.loginfo("Goal sent!")
 
         # Check periodically state of AUV to preempt goal when needed
@@ -121,7 +121,7 @@ class TaskExecution(smach.State):
                 if t_after - t_before > userdata.task_struct[0].max_duration:
                     rospy.loginfo("Time limit reached")
                     task_result = "preempting"
-                    userdata.task_struct[0].action_result = "preempted"
+                    userdata.task_struct[2] = "preempted"
                     break
 
             # Check waypoint termination condition if received
@@ -129,24 +129,24 @@ class TaskExecution(smach.State):
                 if self.end_condition(userdata):
                     rospy.loginfo("Success!")
                     task_result = "preempting"
-                    userdata.task_struct[0].action_result = "succeeded"
+                    userdata.task_struct[2] = "succeeded"
                     break
 
             # Check action state from server side
-            goal_state = userdata.task_struct[1] .get_state()
+            goal_state = userdata.task_struct[1].get_state()
             if goal_state == GoalStatus.REJECTED or goal_state == GoalStatus.ABORTED:
-                task_result = userdata.task_struct[0].action_result = "aborted"
+                task_result = userdata.task_struct[2] = "aborted"
                 rospy.loginfo("Action aborted!")
             elif goal_state == GoalStatus.PREEMPTED:
                 rospy.loginfo("Action preempted!")                
-                task_result = userdata.task_struct[0].action_result = "preempted"
+                task_result = userdata.task_struct[2] = "preempted"
             elif goal_state == GoalStatus.SUCCEEDED:
                 rospy.loginfo("Action returned success!")
-                task_result = userdata.task_struct[0].action_result = "succeeded"
+                task_result = userdata.task_struct[2] = "succeeded"
 
             rate.sleep()
 
-        rospy.loginfo("task_result %s", userdata.task_struct[0].action_result)
+        rospy.loginfo("task_result %s", userdata.task_struct[2])
 
         # Result of executing the action 
         return task_result
@@ -249,12 +249,12 @@ class SmachServer():
         # Reset SM 
         self.task_sm = None
         act_client = None
-
+        task_result_flag = ""
         # Create the state machine necessary to execute this task        
         self.task_sm = smach.StateMachine(['succeeded','aborted','preempted'])
 
         # Update the userdata with the new task and an action client to pass between states
-        self.task_sm.userdata.task_struct = [task, act_client]
+        self.task_sm.userdata.task_struct = [task, act_client, task_result_flag]
 
         with self.task_sm:
 
