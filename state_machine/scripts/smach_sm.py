@@ -92,17 +92,21 @@ class TaskExecution(smach.State):
         rospy.loginfo('State task execution')
 
         # Create action client and goal dynamically. Based on mongodb
-        (action_string, goal_string) = self.get_task_types(userdata.task_struct[0].action_topic)
-        action_clz = dc_util.load_class(dc_util.type_to_class_string(action_string))
-        rospy.loginfo("Action string %s and goal string %s", action_string, goal_string)
+        action_tuple = self.get_task_types(userdata.task_struct[0].action_topic)
+        while not rospy.is_shutdown() and len(action_tuple) == 0:
+            action_tuple = self.get_task_types(userdata.task_struct[0].action_topic)
+            rospy.loginfo("Waiting for action server")
 
-        goal_clz = dc_util.load_class(dc_util.type_to_class_string(goal_string))
+        action_clz = dc_util.load_class(dc_util.type_to_class_string(action_tuple[0]))
+        rospy.loginfo("Action string %s and goal string %s", action_tuple[0], action_tuple[1])
+
+        goal_clz = dc_util.load_class(dc_util.type_to_class_string(action_tuple[1]))
         argument_list = self.get_arguments(userdata.task_struct[0].action_arguments)
         mb_goal = goal_clz(*argument_list)         
 
         # Create action client and wait for server
         userdata.task_struct[1] = actionlib.SimpleActionClient(userdata.task_struct[0].action_topic, action_clz)
-        rospy.loginfo("Waiting for server %s with action class %s", userdata.task_struct[0].action_topic, action_clz)
+        # rospy.loginfo("Waiting for server %s with action class %s", userdata.task_struct[0].action_topic, action_clz)
         userdata.task_struct[1].wait_for_server(rospy.Duration(10))
         rospy.loginfo("Action server connected!")
 
@@ -183,23 +187,19 @@ class TaskExecution(smach.State):
             pose_stamped.pose.orientation.w = float(string_pair.string_array[8]) 
             return pose_stamped            
         else:
-            # msg = self.msg_store.query_id(string_pair.second, string_pair.first)[0]
-            # # print msg
-            # if msg == None:
             raise RuntimeError("No matching object for id %s of type %s" % (string_pair.string_array[1], string_pair.string_array[0]))
-            # return msg
-
+            
 
     def get_task_types(self, action_name):
-        """ 
-        Returns the type string related to the action string provided.
-        """
-        rospy.logdebug("task action provided: %s", action_name)
+        result = ()
         topics = rospy.get_published_topics(action_name)
         for [topic, type] in topics:            
             if topic.endswith('feedback'):
-                return (type[:-8], type[:-14] + 'Goal')
-        raise RuntimeError('No action associated with topic: %s'% action_name)
+                result = (type[:-8], type[:-14] + 'Goal')
+
+        return result
+
+        # raise RuntimeError('No action associated with topic: %s'% action_name)
 
 
     def end_condition(self, userdata):
