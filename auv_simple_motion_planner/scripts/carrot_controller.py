@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from nav_msgs.msg import Path
 from geometry_msgs.msg import Pose, PoseStamped
-from std_msgs.msg import Float64, Header
+from std_msgs.msg import Float64, Header, Bool
 from uuv_gazebo_ros_plugins_msgs.msg import FloatStamped
 import rospy
 import tf
@@ -138,25 +138,37 @@ class BezierController(object):
 	self.hor_fin1 = rospy.Publisher(self.auv_name + '/fins/5/input', FloatStamped, queue_size=10)
 	self.back_fin = rospy.Publisher(self.auv_name + '/back_fins/0/input', FloatStamped, queue_size=10)
 
+        vertical_pid_enable = rospy.Publisher('/vertical_fins/pid_enable', Bool, queue_size=10)
+        horizontal_pid_enable = rospy.Publisher('/horizontal_fins/pid_enable', Bool, queue_size=10)
+
         rospy.Subscriber('/vertical_fins/control_effort', Float64, self.vert_control_cb)
         rospy.Subscriber('/horizontal_fins/control_effort', Float64, self.hor_control_cb)
         rospy.Subscriber('/global_plan', Path, self.callback)
 
+        vertical_pid_enable.publish(False)
+        horizontal_pid_enable.publish(False)
         setpoint_pub.publish(0.)
         
-	header = Header()
+        header = Header()
         r = rospy.Rate(10) # 10hz
+        did_reset = False
         while not rospy.is_shutdown():
-           lateral_offset, z_offset = self.control()
-           lateral_offset_pub.publish(lateral_offset)
-           z_offset_pub.publish(z_offset)
-           if self.current_path is None:
-               thruster0.publish(header, 0.)
-               thruster1.publish(header, 0.)
-           else:
-               thruster0.publish(header, self.thrust_level)
-               thruster1.publish(header, self.thrust_level)
-           r.sleep()
+            lateral_offset, z_offset = self.control()
+            if self.current_path is None and not did_reset:
+                thruster0.publish(header, 0.)
+                thruster1.publish(header, 0.)
+                vertical_pid_enable.publish(False)
+                horizontal_pid_enable.publish(False)
+                did_reset = True
+            elif self.current_path is not None:
+                vertical_pid_enable.publish(True)
+                horizontal_pid_enable.publish(True)
+                lateral_offset_pub.publish(lateral_offset)
+                z_offset_pub.publish(z_offset)
+                thruster0.publish(header, self.thrust_level)
+                thruster1.publish(header, self.thrust_level)
+                did_reset = False
+            r.sleep()
 
 if __name__ == '__main__':
     rospy.init_node('bezier_controller')
