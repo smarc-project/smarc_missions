@@ -129,6 +129,10 @@ class BezierPlanner(object):
 
     def callback(self, pose_msg):
 
+        if len(pose_msg.header.frame_id) == 0:
+            self.nav_goal = None
+            return
+
         self.nav_goal = pose_msg.pose
         path, pose = self.plan()
         self.pub.publish(path)
