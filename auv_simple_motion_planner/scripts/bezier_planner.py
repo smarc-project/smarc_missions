@@ -129,6 +129,10 @@ class BezierPlanner(object):
 
     def callback(self, pose_msg):
 
+        if len(pose_msg.header.frame_id) == 0:
+            self.nav_goal = None
+            return
+
         self.nav_goal = pose_msg.pose
         path, pose = self.plan()
         self.pub.publish(path)
@@ -145,7 +149,8 @@ class BezierPlanner(object):
         # publish info to the console for the user
         #rospy.loginfo('%s: Executing, creating fibonacci sequence of order %i with seeds %i, %i' % (self._action_name, goal.order, self._feedback.sequence[0], self._feedback.sequence[1]))
         
-        r = rospy.Rate(0.1) # 10hz
+        r = rospy.Rate(10.) # 10hz
+        counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
             if self._as.is_preempt_requested():
                 rospy.loginfo('%s: Preempted' % self._action_name)
@@ -153,11 +158,13 @@ class BezierPlanner(object):
                 success = False
                 self.nav_goal = None
                 break
-            path, pose = self.plan()
-            self.pub.publish(path)
-            self._feedback.base_position = pose
-            self._feedback.base_position.header.stamp = rospy.get_rostime()
-            self._as.publish_feedback(self._feedback)
+            if counter % 100 == 0:
+                path, pose = self.plan()
+                self.pub.publish(path)
+                self._feedback.base_position = pose
+                self._feedback.base_position.header.stamp = rospy.get_rostime()
+                self._as.publish_feedback(self._feedback)
+            counter += 1
             r.sleep()
         
         self.pub.publish(Path())
@@ -179,7 +186,7 @@ class BezierPlanner(object):
         start_pitch = euler[1] #np.radians(-40.0)  # [rad]
         start_yaw = euler[2] # np.radians(180.0)  # [rad]
 
-        end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, -85.])
+        end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
 
         #if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
         #    rospy.loginfo("Reached goal!")
@@ -250,18 +257,20 @@ class BezierPlanner(object):
         self.pub = rospy.Publisher('/global_plan', Path, queue_size=10)
         rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback)
 
-        rospy.Timer(rospy.Duration(1), self.timer_callback)
+        rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
         
-        r = rospy.Rate(0.1) # 10hz
+        r = rospy.Rate(10) # 10hz
+        counter = 0
         while not rospy.is_shutdown():
-           if self.nav_goal is not None:
+            if counter % 100 == 0 and self.nav_goal is not None:
                path, pose = self.plan()
                self.pub.publish(path)
-           r.sleep()
+            r.sleep()
+            counter += 1
 
 if __name__ == '__main__':
 

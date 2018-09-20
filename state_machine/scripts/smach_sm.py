@@ -73,12 +73,13 @@ class TaskPreempting(smach.State):
     def execute(self, userdata):
         rospy.loginfo('State preempting')
 
-        goal_state = GoalStatus.PENDING # init with any value other than PREEMPTED
         userdata.task_struct[1].cancel_all_goals()
-        while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED:
-            goal_state = userdata.task_struct[1].get_state()
+        goal_state = userdata.task_struct[1].get_state()
+        while not rospy.is_shutdown() and goal_state != GoalStatus.PREEMPTED and \
+              goal_state != GoalStatus.SUCCEEDED and goal_state != GoalStatus.ABORTED:
             rospy.loginfo("Waiting for server to preempt task")
             rospy.Rate(0.5).sleep()
+            goal_state = userdata.task_struct[1].get_state()
 
         return userdata.task_struct[2]
 
@@ -119,6 +120,21 @@ class TaskExecution(smach.State):
         rate = rospy.Rate(1)
         task_result = "running"
         while not rospy.is_shutdown() and task_result == "running":
+            # Check action state from server side
+            goal_state = userdata.task_struct[1].get_state()
+            if goal_state == GoalStatus.REJECTED or goal_state == GoalStatus.ABORTED:
+                task_result = userdata.task_struct[2] = "aborted"
+                rospy.loginfo("Action aborted!")
+                break
+            elif goal_state == GoalStatus.PREEMPTED:
+                rospy.loginfo("Action preempted!")                
+                task_result = userdata.task_struct[2] = "preempted"
+                break
+            elif goal_state == GoalStatus.SUCCEEDED:
+                rospy.loginfo("Action returned success!")
+                task_result = userdata.task_struct[2] = "succeeded"
+                break
+
             # Check duration termination condition if received
             if userdata.task_struct[0].max_duration != 0.:
                 t_after = rospy.Time.now()
@@ -136,17 +152,6 @@ class TaskExecution(smach.State):
                     userdata.task_struct[2] = "succeeded"
                     break
 
-            # Check action state from server side
-            goal_state = userdata.task_struct[1].get_state()
-            if goal_state == GoalStatus.REJECTED or goal_state == GoalStatus.ABORTED:
-                task_result = userdata.task_struct[2] = "aborted"
-                rospy.loginfo("Action aborted!")
-            elif goal_state == GoalStatus.PREEMPTED:
-                rospy.loginfo("Action preempted!")                
-                task_result = userdata.task_struct[2] = "preempted"
-            elif goal_state == GoalStatus.SUCCEEDED:
-                rospy.loginfo("Action returned success!")
-                task_result = userdata.task_struct[2] = "succeeded"
 
             rate.sleep()
 
@@ -211,7 +216,7 @@ class TaskExecution(smach.State):
 
         # Check distance to navigation goal
         start_pos = np.array(trans)
-        end_pos = np.array([userdata.task_struct[0].x, userdata.task_struct[0].y, userdata.task_struct[0].depth])
+        end_pos = np.array([userdata.task_struct[0].x, userdata.task_struct[0].y, -userdata.task_struct[0].depth])
         if np.linalg.norm(start_pos - end_pos) < NodeState.goal_tolerance:
             rospy.loginfo("Reached goal!")
             return True
