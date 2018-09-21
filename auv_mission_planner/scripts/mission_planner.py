@@ -86,6 +86,7 @@ class MissionPlanner(object):
             pose = Pose()
             pose.position.x = 0
             pose.position.y = 0
+            pose.position.z = -85.
 
             self.waypoints.append(pose)
 
@@ -128,7 +129,7 @@ class MissionPlanner(object):
             for waypoint_index, pose in enumerate(self.waypoints):
                 theta = thetas[waypoint_index]
                 quaternion = tf.transformations.quaternion_from_euler(0., 0., math.pi/180.*theta)
-                depth = 85.
+                depth = -pose.position.z
                 duration = 100.
                 arguments = "[%s, %s, %f, %f, %f, %f, %f, %f, %f]" % ("____pose____", "world", pose.position.x, pose.position.y, -depth, quaternion[0], quaternion[1], quaternion[2], quaternion[3])
                 print arguments
@@ -175,7 +176,8 @@ class MissionPlanner(object):
 
     def _update_poly(self, feedback):
 
-        if feedback.control_name.startswith("move_plane"):
+        if feedback.control_name.startswith("move_plane") or \
+           feedback.control_name.startswith("move_axis"):
             waypoint_index = int(feedback.marker_name.split('_')[1])
             print "Setting new pose for waypoint: ", waypoint_index
             self.waypoints[waypoint_index] = feedback.pose
@@ -247,6 +249,7 @@ class MissionPlanner(object):
             p = Point()
             p.x = wp_pose.position.x - int_marker.pose.position.x
             p.y = wp_pose.position.y - int_marker.pose.position.y
+            p.z = wp_pose.position.z - int_marker.pose.position.z
             marker.points.append(p)
 
         return int_marker
@@ -289,7 +292,12 @@ class MissionPlanner(object):
 
         if self._interactive:
             int_marker.controls.append(copy.deepcopy(control))
-            int_marker.controls.append(control);
+        
+        control.name = "move_axis"
+        control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+
+        if self._interactive:
+            int_marker.controls.append(copy.deepcopy(control))
 
         # add menu control
         menu_control = InteractiveMarkerControl()
