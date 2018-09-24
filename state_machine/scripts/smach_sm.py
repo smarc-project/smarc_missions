@@ -21,8 +21,9 @@ import threading
 import mongodb_store.util as dc_util
 from mongodb_store.message_store import MessageStoreProxy
 
-
 import numpy as np
+from rospy_message_converter import message_converter
+import ast
 
 class NodeState(object):
     # ROS params
@@ -101,9 +102,9 @@ class TaskExecution(smach.State):
         action_clz = dc_util.load_class(dc_util.type_to_class_string(action_tuple[0]))
         rospy.loginfo("Action string %s and goal string %s", action_tuple[0], action_tuple[1])
 
-        goal_clz = dc_util.load_class(dc_util.type_to_class_string(action_tuple[1]))
-        argument_list = self.get_arguments(userdata.task_struct[0].action_arguments)
-        mb_goal = goal_clz(*argument_list)         
+        # goal_clz = dc_util.load_class(dc_util.type_to_class_string(action_tuple[1]))
+        # argument_list = self.get_arguments(userdata.task_struct[0].action_arguments)
+        # mb_goal = goal_clz(*argument_list)         
 
         # Create action client and wait for server
         userdata.task_struct[1] = actionlib.SimpleActionClient(userdata.task_struct[0].action_topic, action_clz)
@@ -111,7 +112,9 @@ class TaskExecution(smach.State):
         userdata.task_struct[1].wait_for_server(rospy.Duration(10))
         rospy.loginfo("Action server connected!")
 
-        # Sends the goal to the action server.
+        # Sends the goal to the action server
+        dictionary = ast.literal_eval(userdata.task_struct[0].action_arguments)
+        mb_goal = message_converter.convert_dictionary_to_ros_message(action_tuple[1], dictionary)
         userdata.task_struct[1].send_goal(mb_goal)
         rospy.loginfo("Goal sent!")
 
@@ -161,38 +164,38 @@ class TaskExecution(smach.State):
         return task_result
         # return "succeeded"
 
-    def get_arguments(self, argument_list):
-        return map(self.instantiate_from_string_pair, argument_list)
+    # def get_arguments(self, argument_list):
+    #     return map(self.instantiate_from_string_pair, argument_list)
 
 
-    def instantiate_from_string_pair(self, string_pair):
-        # rospy.loginfo("SMTask string %s", SMTask.STRING_TYPE)
-        # rospy.loginfo("Type recevied %s", string_pair.first)
-        if string_pair.string_array[0] == SMTask.STRING_TYPE:
-            return string_pair.string_array[1]
-        elif string_pair.string_array[0] == SMTask.INT_TYPE:
-            return int(string_pair.string_array[1])
-        elif string_pair.string_array[0] == SMTask.FLOAT_TYPE:
-            return float(string_pair.string_array[1])     
-        elif string_pair.string_array[0] == SMTask.TIME_TYPE:
-            return rospy.Time.from_sec(float(string_pair.string_array[1]))
-        elif string_pair.string_array[0] == SMTask.DURATION_TYPE:
-            return rospy.Duration.from_sec(float(string_pair.string_array[1]))
-        elif string_pair.string_array[0] == SMTask.BOOL_TYPE:   
-            return string_pair.string_array[1] == 'True'
-        elif string_pair.string_array[0] == SMTask.POSE_STAMPED_TYPE:   
-            pose_stamped = PoseStamped()
-            pose_stamped.header.frame_id = string_pair.string_array[1]
-            pose_stamped.pose.position.x = float(string_pair.string_array[2]) 
-            pose_stamped.pose.position.y = float(string_pair.string_array[3]) 
-            pose_stamped.pose.position.z = float(string_pair.string_array[4]) 
-            pose_stamped.pose.orientation.x = float(string_pair.string_array[5]) 
-            pose_stamped.pose.orientation.y = float(string_pair.string_array[6]) 
-            pose_stamped.pose.orientation.z = float(string_pair.string_array[7]) 
-            pose_stamped.pose.orientation.w = float(string_pair.string_array[8]) 
-            return pose_stamped            
-        else:
-            raise RuntimeError("No matching object for id %s of type %s" % (string_pair.string_array[1], string_pair.string_array[0]))
+    # def instantiate_from_string_pair(self, string_pair):
+    #     # rospy.loginfo("SMTask string %s", SMTask.STRING_TYPE)
+    #     # rospy.loginfo("Type recevied %s", string_pair.first)
+    #     if string_pair.string_array[0] == SMTask.STRING_TYPE:
+    #         return string_pair.string_array[1]
+    #     elif string_pair.string_array[0] == SMTask.INT_TYPE:
+    #         return int(string_pair.string_array[1])
+    #     elif string_pair.string_array[0] == SMTask.FLOAT_TYPE:
+    #         return float(string_pair.string_array[1])     
+    #     elif string_pair.string_array[0] == SMTask.TIME_TYPE:
+    #         return rospy.Time.from_sec(float(string_pair.string_array[1]))
+    #     elif string_pair.string_array[0] == SMTask.DURATION_TYPE:
+    #         return rospy.Duration.from_sec(float(string_pair.string_array[1]))
+    #     elif string_pair.string_array[0] == SMTask.BOOL_TYPE:   
+    #         return string_pair.string_array[1] == 'True'
+    #     elif string_pair.string_array[0] == SMTask.POSE_STAMPED_TYPE:   
+    #         pose_stamped = PoseStamped()
+    #         pose_stamped.header.frame_id = string_pair.string_array[1]
+    #         pose_stamped.pose.position.x = float(string_pair.string_array[2]) 
+    #         pose_stamped.pose.position.y = float(string_pair.string_array[3]) 
+    #         pose_stamped.pose.position.z = float(string_pair.string_array[4]) 
+    #         pose_stamped.pose.orientation.x = float(string_pair.string_array[5]) 
+    #         pose_stamped.pose.orientation.y = float(string_pair.string_array[6]) 
+    #         pose_stamped.pose.orientation.z = float(string_pair.string_array[7]) 
+    #         pose_stamped.pose.orientation.w = float(string_pair.string_array[8]) 
+    #         return pose_stamped            
+    #     else:
+    #         raise RuntimeError("No matching object for id %s of type %s" % (string_pair.string_array[1], string_pair.string_array[0]))
             
 
     def get_task_types(self, action_name):
