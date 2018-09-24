@@ -31,6 +31,7 @@ class NodeState(object):
     heading_offset = None
     goal_tolerance = None
     add_task_srv = None
+    add_tasks_srv = None
     listener = None
 
 class TaskInitialization(smach.State):
@@ -112,7 +113,7 @@ class TaskExecution(smach.State):
         userdata.task_struct[1].wait_for_server(rospy.Duration(10))
         rospy.loginfo("Action server connected!")
 
-        # Sends the goal to the action server
+        # Parse and send the goal to the action server
         dictionary = ast.literal_eval(userdata.task_struct[0].action_arguments)
         mb_goal = message_converter.convert_dictionary_to_ros_message(action_tuple[1], dictionary)
         userdata.task_struct[1].send_goal(mb_goal)
@@ -162,7 +163,6 @@ class TaskExecution(smach.State):
 
         # Result of executing the action 
         return task_result
-        # return "succeeded"
 
     # def get_arguments(self, argument_list):
     #     return map(self.instantiate_from_string_pair, argument_list)
@@ -239,17 +239,25 @@ class SmachServer():
         NodeState.heading_offset = rospy.get_param('~heading_offsets', 5.)
         NodeState.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
         NodeState.add_task_srv = rospy.get_param('~add_task_srv', 5.)
+        NodeState.add_tasks_srv = rospy.get_param('~add_tasks_srv', 5.)
         NodeState.listener = tf.TransformListener()
 
         # Add states to the queue to build the sm
-        rospy.Service(NodeState.add_task_srv, AddTask, self.add_state_srv)
+        rospy.Service(NodeState.add_task_srv, AddTask, self.add_task_srv_cb)
+        rospy.Service(NodeState.add_tasks_srv, AddTasks, self.add_tasks_srv_cb)
 
         # Run loop
         self.run_sm()
 
-    def add_state_srv(self, TaskReq):
+    def add_task_srv_cb(self, TaskReq):
         self.tasks.append(TaskReq.task)
-        return self.tasks_run
+        # return self.tasks_run
+    
+    def add_tasks_srv_cb(self, TasksReq):
+        for task in TasksReq:
+            self.add_task_srv_cb(task)
+        
+        # return self.tasks_run
 
     def execute_task(self, task):
         rospy.loginfo("Executing task %s", self.tasks_run)
