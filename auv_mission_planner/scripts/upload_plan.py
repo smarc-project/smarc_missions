@@ -26,30 +26,21 @@ def mission_tasks(mission_file):
         spamreader = csv.reader(csvfile, delimiter=' ', quotechar='"')
         for row in spamreader:
             rospy.loginfo("Got entry: %s", " ".join(row))
-            pose = PoseStamped()
-            pose.header.frame_id = "/world"
-            pose.pose.position.x = float(row[3])
-            pose.pose.position.y = float(row[4])
-            pose.pose.position.z = -float(row[2])
-            pose.pose.orientation.x = 0.0
-            pose.pose.orientation.y = 0.0
-            pose.pose.orientation.z = 0.0
-            pose.pose.orientation.w = 1.0
-    
-            master_task = SMTask(action_topic=row[6])
-            #sm_task_utils.add_pose_stamped_argument(master_task, pose_stamped)
-            sm_task_utils.add_duration_argument(master_task, float(row[7]))
-            master_task.x = float(row[3])
-            master_task.y = float(row[4])
-            master_task.depth = float(row[2])
-            master_task.altitude = float(row[1])
-            master_task.task_id = int(row[0])
-            master_task.theta = float(row[5])
 
-            if len(row[8]) > 3:
-                master_task.action_arguments.append(StringArray())
-                for arg in row[8][1:-1].split(','):
-                    master_task.action_arguments[0].string_array.append(arg.strip()) 
+            master_task = SMTask(action_topic=row[7])
+            #sm_task_utils.add_pose_stamped_argument(master_task, pose_stamped)
+            master_task.task_id = int(row[0])
+            master_task.x = float(row[1])
+            master_task.y = float(row[2])
+            master_task.depth = float(row[3])
+            master_task.altitude = float(row[4])
+            master_task.theta = float(row[5])
+            sm_task_utils.add_duration_argument(master_task, float(row[6]))
+
+            if len(row[8]) > 2:
+                master_task.action_arguments = row[8][1:-1]
+            else:
+                master_task.action_arguments = "{}"
 
             tasks.append(master_task)
             print master_task

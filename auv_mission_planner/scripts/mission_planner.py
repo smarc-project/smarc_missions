@@ -77,9 +77,9 @@ class MissionPlanner(object):
                 for row in spamreader:
                     rospy.loginfo("Got entry: %s", " ".join(row))
                     pose = Pose()
-                    pose.position.x = float(row[3])
-                    pose.position.y = float(row[4])
-                    pose.position.z = -float(row[2])
+                    pose.position.x = float(row[1])
+                    pose.position.y = float(row[2])
+                    pose.position.z = -float(row[3])
                     self.waypoints.append(pose)
 
         if len(self.waypoints) == 0:
@@ -131,9 +131,9 @@ class MissionPlanner(object):
                 quaternion = tf.transformations.quaternion_from_euler(0., 0., math.pi/180.*theta)
                 depth = -pose.position.z
                 duration = 100.
-                arguments = "[%s, %s, %f, %f, %f, %f, %f, %f, %f]" % ("____pose____", "world", pose.position.x, pose.position.y, -depth, quaternion[0], quaternion[1], quaternion[2], quaternion[3])
+                arguments = "{target_pose: { 'header': {'frame_id': '%s'}, 'pose': {'position': {'x':%f, 'y':%f 'z':%f}, 'orientation': {'x': %f, 'y':%f, 'z':%f, 'w':%f }}}}" % ("world", pose.position.x, pose.position.y, -depth, quaternion[0], quaternion[1], quaternion[2], quaternion[3])
                 print arguments
-                spamwriter.writerow([waypoint_index, 0, depth, pose.position.x, pose.position.y, theta, "/bezier_planner", duration, arguments])
+                spamwriter.writerow([waypoint_index, pose.position.x, pose.position.y, depth, 0.0, theta, duration, "/bezier_planner", arguments])
 
 
     # Add Vertex callback
