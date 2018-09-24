@@ -131,7 +131,7 @@ class MissionPlanner(object):
                 quaternion = tf.transformations.quaternion_from_euler(0., 0., math.pi/180.*theta)
                 depth = -pose.position.z
                 duration = 100.
-                arguments = "{target_pose: { 'header': {'frame_id': '%s'}, 'pose': {'position': {'x':%f, 'y':%f 'z':%f}, 'orientation': {'x': %f, 'y':%f, 'z':%f, 'w':%f }}}}" % ("world", pose.position.x, pose.position.y, -depth, quaternion[0], quaternion[1], quaternion[2], quaternion[3])
+                arguments = "{'target_pose': { 'header': {'frame_id': '%s'}, 'pose': {'position': {'x':%f, 'y':%f, 'z':%f}, 'orientation': {'x': %f, 'y':%f, 'z':%f, 'w':%f }}}}" % ("world", pose.position.x, pose.position.y, -depth, quaternion[0], quaternion[1], quaternion[2], quaternion[3])
                 print arguments
                 spamwriter.writerow([waypoint_index, pose.position.x, pose.position.y, depth, 0.0, theta, duration, "/bezier_planner", arguments])
 

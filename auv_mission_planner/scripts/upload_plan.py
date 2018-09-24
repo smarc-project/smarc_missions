@@ -3,7 +3,7 @@
 import rospy
 import actionlib
 from smarc_msgs.msg import SMTask, StringArray
-from smarc_msgs.srv import AddTask, AddTaskRequest, AddTaskResponse
+from smarc_msgs.srv import AddTask, AddTasks, AddTaskRequest, AddTaskResponse
 from smarc_msgs import sm_task_utils
 from geometry_msgs.msg import PoseStamped
 import csv
@@ -38,7 +38,8 @@ def mission_tasks(mission_file):
             sm_task_utils.add_duration_argument(master_task, float(row[6]))
 
             if len(row[8]) > 2:
-                master_task.action_arguments = row[8][1:-1]
+                master_task.action_arguments = row[8]
+                print master_task.action_arguments
             else:
                 master_task.action_arguments = "{}"
 
