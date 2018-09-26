@@ -1,0 +1,20 @@
+<launch>
+
+  <include ns="external_display" file="$(find rosbridge_server)/launch/rosbridge_websocket.launch" />
+
+  <node pkg="strands_webserver" type="strands_webserver" name="auv_mission_executor_ui_server" >
+    <param name="port" value="9091" />
+  </node>
+
+  <node pkg="state_machine" type="auv_mission_executor_ui.py" name="auv_mission_executor_ui" output="screen"/>
+  
+  <!--
+  <node pkg="mjpeg_server" type="mjpeg_server" name="external_mjpeg_server">
+    <param name="port" value="8181" />
+  </node>
+  -->
+
+  <!-- <node   name="throttle_image" pkg="topic_tools" type="throttle" args="messages /head_xtion/rgb/image_color 1 /webthrottle/head/image" /> -->
+
+</launch>
+
