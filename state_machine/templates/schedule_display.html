@@ -1,0 +1,99 @@
+$def with (element)
+
+
+// setup a listener for the schedule
+var scheduleListener = new ROSLIB.Topic({
+ros : ros,
+name : '/current_schedule',
+messageType : 'smarc_msgs/ExecutionStatus',
+throttle_rate : 10
+});
+ 
+var new_tasks = {}
+
+scheduleListener.subscribe(function(schedule) {
+  console.log("schedule recieved");
+  if (schedule.execution_queue.length > 0) {
+
+	var output = "<table class=\"table\">";
+	output += "<th>Task ID</th><th>Action</th><th>Location</th><th>Depth</th><th>Execution at</th><th>End by</th>";
+
+	//start = moment(new Date(schedule.execution_queue[0].execution_time.secs * 1000)).format("HH:mm:ss")
+    //end = moment(new Date((schedule.execution_queue[0].execution_time.secs + schedule.execution_queue[0].max_duration.secs) * 1000)).format("HH:mm:ss")
+	//start = moment(new Date(schedule.execution_queue.header.stamp.secs * 1000)).format("HH:mm:ss")
+    //end = moment(new Date((schedule.execution_queue.header.stamp.secs + 300) * 1000)).format("HH:mm:ss")
+
+    var elapsed_secs = schedule.header.stamp.secs
+    start = moment(new Date(elapsed_secs * 1000)).format("HH:mm:ss")
+    //elapsed_secs += schedule.execution_queue[0].max_duration.secs
+    elapsed_secs += 100
+    end = moment(new Date(elapsed_secs * 1000)).format("HH:mm:ss")
+	var view = {
+  		task: schedule.execution_queue[0],
+        time: start,
+        end: end
+	};
+
+	var highlight = "active";
+
+  	if (schedule.currently_executing) {		
+  		highlight = "success";
+  	}
+
+    //render just the first task as this is coloured differently  
+    output += Mustache.render("<tr class=\"" + highlight  +"\"><td>{{task.task_id}}</td><td>{{task.action_topic}}</td><td>{{task.x}}, {{task.y}}</td><td>{{task.depth}}</td><td>{{time}}</td><td>{{end}}</td></tr>", view);	
+    //output += Mustache.render("<tr class=\"" + highlight  +"\"><td>{{task.task_id}}</td><td>{{task.action_topic}}</td><td>{{task.action_topic}}</td></tr>", view);
+
+    var in_schedule = {}
+
+    for (var i = 1; i < schedule.execution_queue.length; i++) {
+        k = "" + schedule.execution_queue[i].task_id;
+        in_schedule[k] = true;
+        var new_task_higlight = "";
+
+        if (!(k in new_tasks)) {
+          new_tasks[k] = 5;
+          new_task_higlight = "warning";
+          // console.log('new_task_higlight ' + k);
+        } 
+        else if (new_tasks[k] > 0) {
+          new_task_higlight = "warning";
+          new_tasks[k]--;
+          // console.log('aging ' + k);
+        }
+
+
+        start = moment(new Date(elapsed_secs * 1000)).format("HH:mm:ss")
+        elapsed_secs += schedule.execution_queue[i].max_duration.secs
+        end = moment(new Date(elapsed_secs * 1000)).format("HH:mm:ss")
+
+        var view = {
+            task: schedule.execution_queue[i],
+            time: start,
+            end: end
+        };
+        //output += Mustache.render("<tr class=\"" + new_task_higlight  +"\"><td>{{task.task_id}}</td><td>{{task.action_topic}}</td><td>{{task.action_topic}}</td></tr>", view);      
+        output += Mustache.render("<tr class=\"" + new_task_higlight  +"\"><td>{{task.task_id}}</td><td>{{task.action_topic}}</td><td>{{task.x}}, {{task.y}}</td><td>{{task.depth}}</td><td>{{time}}</td><td>{{end}}</td></tr>", view);	
+
+    }
+
+  	output += "</table>";
+
+    $$("$element").html(output);
+
+    // clear out previous 
+    for(var task in new_tasks) {
+      // if this task is no longer part of the schedule
+      if(!(task in in_schedule)) {
+        // remove it
+        delete new_tasks[task];
+        console.log('deleting ' + task);
+      }
+    }
+
+  }
+  else {
+    $$("$element").html("<p>No tasks scheduled for execution.</p>");
+  }
+
+});

@@ -37,7 +37,7 @@ def mission_tasks(mission_file):
             master_task.theta = float(row[5])
             sm_task_utils.add_duration_argument(master_task, float(row[6]))
 
-            if len(row[8]) > 2:
+            if len(row) > 8 and len(row[8]) > 2:
                 master_task.action_arguments = row[8]
                 print master_task.action_arguments
             else:

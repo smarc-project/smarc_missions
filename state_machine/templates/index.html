@@ -1,0 +1,102 @@
+$def with (left, right, script)
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>SMARC Display</title>
+
+<!-- Bootstrap core CSS -->
+<link href="bootstrap/dist/css/bootstrap.css" rel="stylesheet">
+
+<!-- Just for debuggin
+</head>
+
+<body>
+
+<div class="container">
+
+<br>
+
+<div class="row">
+
+<div class="col-md-4" id="left_div">
+$:left
+</div> <!-- closes left column -->
+
+<div class="col-md-8"  id="right_div">
+$:right
+</div>  <!-- closes right column -->
+</div> <!-- closes row -->
+
+<br/>
+
+<div class="row">
+	<div class="col-md-4">
+        <div id="bottom_left">
+		</div>
+	</div>
+	<div class="col-md-8">
+        <div id="bottom_right">
+		</div>
+	</div>
+</div>
+
+</div> <!-- closes container -->
+
+
+
+
+<!-- Bootstrap core JavaScript
+================================================== -->
+<!-- Placed at the end of the document so the pages load faster -->
+
+<!-- Includes for this  -->
+<!-- <script src="marathon.js"></script> -->
+
+<!-- jQuery and display.js are conveniences for interacting with the DOM -->
+<script src="js/jquery.js"></script>
+<script src="js/display.js"></script>
+
+<script type="text/javascript" src="js/jquery-ui.js"></script>
+
+<!-- ROSLIBJS -->
+<!-- EventEmitter2 is the sole dependency of roslibjs -->
+<script src="roslibjs/include/EventEmitter2/eventemitter2.js"></script>
+<!-- Roslibjs handles core ROS functionality in the browser -->
+<script src="roslibjs/build/roslib.js"></script>
+
+<!-- ROS2DJS -->
+<!-- EaselJS is a dependency of ros2djs -->
+<script src="ros2djs/include/EaselJS/easeljs.js"></script>
+<!-- Ros2djs provides 2D scene support, including mapping and more -->
+<script src="ros2djs/build/ros2d.js"></script>
+
+
+<script src="bootstrap/dist/js/bootstrap.js"></script>
+
+<script src="js/underscore.js"></script>
+<script src="js/moment.min.js"></script>
+<script src="js/moment-duration-format.js"></script>
+<script src="js/mustache.js"></script>
+<!-- <script src="mjpegcanvasjs/build/mjpegcanvas.min.js"></script> -->
+
+
+<script type="text/javascript">
+
+var hostname = location.hostname;
+
+// Connecting to ROS.
+var ros = new ROSLIB.Ros({
+url : 'ws://'+hostname+':9090'
+});
+
+$:script
+</script>
+
+</body>
+</html>
