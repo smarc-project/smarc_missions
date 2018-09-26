@@ -14,6 +14,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import String
+import std_msgs.msg
 from smarc_msgs.msg import SMTask, EmptyActionGoal, ExecutionStatus
 from smarc_msgs.srv import AddTask, AddTasks
 import threading
@@ -137,7 +138,11 @@ class TaskExecution(smach.State):
                 task_result = userdata.task_struct[2] = "aborted"
                 rospy.loginfo("Action aborted!")
                 break
-            elif goal_state == GoalStatus.PREEMPTED:
+            elif self.preempt_requested(): #self.was_preempted:
+                task_result = "preempting"
+                userdata.task_struct[2] = "preempted"
+                break
+            elif goal_state == GoalStatus.PREEMPTED or self.preempt_requested(): #self.was_preempted:
                 rospy.loginfo("Action preempted!")                
                 task_result = userdata.task_struct[2] = "preempted"
                 break
@@ -321,6 +326,30 @@ class SmachServer():
         self.republish_schedule()
         return self.tasks_run
 
+    def monitor_cb(self, ud, msg):
+        print "Got message!"
+        return False
+
+    def child_term_cb(self, outcome_map):
+        if outcome_map['CONCURRENT_TASK_PREEMPTION'] == 'invalid':
+            return True
+        elif outcome_map['CONCURRENT_TASK_EXECUTION'] == 'succeeded':
+            return True
+        elif outcome_map['CONCURRENT_TASK_EXECUTION'] == 'aborted':
+            return True
+        elif outcome_map['CONCURRENT_TASK_EXECUTION'] == 'preempted':
+            return True
+        elif outcome_map['CONCURRENT_TASK_EXECUTION'] == 'preempting':
+            return True
+        else:
+            return False
+
+    def out_cb(self, outcome_map):
+        if outcome_map['CONCURRENT_TASK_PREEMPTION'] == 'invalid':
+            return 'preempting'
+        else:
+            return outcome_map['CONCURRENT_TASK_EXECUTION']
+
     def execute_task(self, task):
         rospy.loginfo("Executing task %s", self.tasks_run)
 
@@ -328,11 +357,22 @@ class SmachServer():
         self.task_sm = None
         act_client = None
         task_result_flag = ""
+
+        monitor_state = smach.Concurrence(outcomes=['succeeded', 'aborted', 'preempted', 'preempting'],
+                                          default_outcome='aborted',
+                                          child_termination_cb=self.child_term_cb,
+                                          outcome_cb=self.out_cb)
+        monitor_state.userdata.task_struct = [task, act_client, task_result_flag]
+
+        with monitor_state:
+            smach.Concurrence.add('CONCURRENT_TASK_PREEMPTION', smach_ros.MonitorState("/sm_reset", std_msgs.msg.Empty, self.monitor_cb))
+            smach.Concurrence.add('CONCURRENT_TASK_EXECUTION', TaskExecution())
+
         # Create the state machine necessary to execute this task        
         self.task_sm = smach.StateMachine(['succeeded','aborted','preempted'])
 
         # Update the userdata with the new task and an action client to pass between states
-        self.task_sm.userdata.task_struct = [task, act_client, task_result_flag]
+        self.task_sm.userdata.task_struct = monitor_state.userdata.task_struct # [task, act_client, task_result_flag]
 
         with self.task_sm:
 
@@ -343,8 +383,7 @@ class SmachServer():
             smach.StateMachine.add('TASK_CANCELLED', TaskCancelled(), transitions={'preempted':'preempted'})
             smach.StateMachine.add('TASK_FAILED', TaskFailed(), transitions={'aborted':'aborted'})
             smach.StateMachine.add('TASK_PREEMPTING', TaskPreempting(), transitions={'preempted':'TASK_CANCELLED', 'succeeded':'TASK_SUCCEEDED'})
-            smach.StateMachine.add('TASK_EXECUTION', TaskExecution(), 
-                transitions={'preempted':'TASK_CANCELLED', 'preempting':'TASK_PREEMPTING', 'aborted':'TASK_FAILED', 'succeeded':'TASK_SUCCEEDED'})
+            smach.StateMachine.add('TASK_EXECUTION', monitor_state, transitions={'preempted':'TASK_CANCELLED', 'preempting':'TASK_PREEMPTING', 'aborted':'TASK_FAILED', 'succeeded':'TASK_SUCCEEDED'})
 
         # Execute SM
         self.task_sm.set_initial_state(['TASK_INITIALIZATION'])
