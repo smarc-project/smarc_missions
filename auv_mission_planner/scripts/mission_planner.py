@@ -13,6 +13,8 @@ from interactive_markers.interactive_marker_server import *
 from interactive_markers.menu_handler import *
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Point
+from sensor_msgs.msg import NavSatFix
+from geodesy import utm
 
 def trapezoidal_shaped_func(a, b, c, d, x):
     min_val = min(min((x - a)/(b - a), float(1.0)), (d - x)/(d - c))
@@ -58,6 +60,7 @@ class MissionPlanner(object):
         self._interactive = True
 
         self.mission_file = rospy.get_param('~mission_file', "mission.csv")
+        self.starting_depth = rospy.get_param('~starting_depth', 0.)
         self._server = InteractiveMarkerServer("mission_planner")
 
         self.waypoints = []
@@ -86,7 +89,7 @@ class MissionPlanner(object):
             pose = Pose()
             pose.position.x = 0
             pose.position.y = 0
-            pose.position.z = -85.
+            pose.position.z = -self.starting_depth
 
             self.waypoints.append(pose)
 
@@ -101,6 +104,7 @@ class MissionPlanner(object):
         add_point_entry = self.menu_handler.insert( "Add Waypoint", callback=self._add_point_cb)
         del_point_entry = self.menu_handler.insert( "Delete Waypoint", callback=self._del_point_cb)
         save_plan_entry = self.menu_handler.insert( "Save mission plan", callback=self._save_plan_cb)
+        save_plan_entry = self.menu_handler.insert( "Save mission plan lat/long", callback=self._save_plan_lat_long_cb)
 
         enable_entry = self.menu_handler.insert( "Movement control", callback=self._enable_cb )
         self.menu_handler.setCheckState( enable_entry, MenuHandler.CHECKED )
@@ -135,6 +139,27 @@ class MissionPlanner(object):
                 print arguments
                 spamwriter.writerow([waypoint_index, pose.position.x, pose.position.y, depth, 0.0, theta, duration, "/bezier_planner", arguments])
 
+    # Add Vertex callback
+    def _save_plan_lat_long_cb(self, feedback):
+
+        #This is the object that we are pressing (feedback) so
+        #that we can get the marker name etc..
+        rospy.loginfo("Saving the plan to file: %s", self.mission_file)
+        
+        gps_msg = rospy.wait_for_message('/gps/fix', NavSatFix)
+        lon = gps_msg.longitude
+        lat = gps_msg.latitude
+        utm_obj = utm.fromLatLong(lat, lon)
+
+        with open("lat_long_" + self.mission_file, 'w') as csvfile:
+
+            spamwriter = csv.writer(csvfile, delimiter=' ', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            for waypoint_index, pose in enumerate(self.waypoints):
+                new_obj = copy.deepcopy(utm_obj)
+                new_obj.northing += pose.position.y
+                new_obj.easting += pose.position.x
+                geo_obj = new_obj.toMsg()
+                spamwriter.writerow([geo_obj.latitude, geo_obj.longitude])
 
     # Add Vertex callback
     def _add_point_cb(self, feedback):
@@ -143,10 +168,12 @@ class MissionPlanner(object):
         #that we can get the marker name etc..
         rospy.loginfo("Add point from marker: %s", feedback.marker_name)
 
+        scale = 20.
+
         # Get the pose and create the new object a little away
         pose = feedback.pose
-        pose.position.x = pose.position.x+1.0*math.cos(math.radians(90))
-        pose.position.y = pose.position.y+1.0*math.cos(math.radians(45))
+        pose.position.x = pose.position.x+scale*1.0*math.cos(math.radians(90))
+        pose.position.y = pose.position.y+scale*1.0*math.cos(math.radians(45))
         ######################################################
 
         # Add object
@@ -221,6 +248,8 @@ class MissionPlanner(object):
     # This part draws the line strips between the points
     def create_line_marker(self):
 
+        scale = 20.
+
         int_marker = InteractiveMarker()
         int_marker.header.frame_id = "world"
         int_marker.name = "Line"
@@ -229,13 +258,13 @@ class MissionPlanner(object):
 
         marker = Marker()
         marker.type = Marker.LINE_STRIP
-        marker.scale.x = 0.1
+        marker.scale.x = 0.1*20.
 
         #random.seed()
         val = random.random()
-        marker.color.r = r_func(val)
-        marker.color.g = g_func(val)
-        marker.color.b = b_func(val)
+        marker.color.r = 1.0 #r_func(val)
+        marker.color.g = 1.0 #g_func(val)
+        marker.color.b = 0.0 #b_func(val)
         marker.color.a = 1.0
 
         control = InteractiveMarkerControl()
@@ -261,21 +290,23 @@ class MissionPlanner(object):
         int_marker.header.frame_id = "world"
         int_marker.name = "Waypoint_" + str(current_index)
         int_marker.description = "Waypoint " + str(current_index)
+        scale = 20.
         int_marker.pose = pose
+        int_marker.scale = scale
         #int_marker.pose.position.z = 0.01
 
         marker = Marker()
         marker.type = Marker.SPHERE
-        marker.scale.x = 0.25
-        marker.scale.y = 0.25
-        marker.scale.z = 0.25
+        marker.scale.x = 0.25*scale
+        marker.scale.y = 0.25*scale
+        marker.scale.z = 0.25*scale
         #int_marker.pose.position.z = (marker.scale.z / 2)
 
         #random.seed(soma_type)
         val = random.random()
-        marker.color.r = r_func(val)
-        marker.color.g = g_func(val)
-        marker.color.b = b_func(val)
+        marker.color.r = 0.0 #r_func(val)
+        marker.color.g = 1.0 #g_func(val)
+        marker.color.b = 0.0 #b_func(val)
         marker.color.a = 1.0
 
         #marker.pose = pose
@@ -287,6 +318,9 @@ class MissionPlanner(object):
         control.orientation.x = 0
         control.orientation.y = 1
         control.orientation.z = 0
+        #control.scale.x = 4.
+        #control.scale.y = 4.
+        #control.scale.z = 4.
         control.interaction_mode = InteractiveMarkerControl.MOVE_PLANE
         control.name = "move_plane"
 
@@ -295,6 +329,10 @@ class MissionPlanner(object):
         
         control.name = "move_axis"
         control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+        #int_marker.color.r = 0 #r_func(val)
+        #int_marker.color.g = 255 #g_func(val)
+        #int_marker.color.b = 0 #b_func(val)
+        #int_marker.color.a = 0.5
 
         if self._interactive:
             int_marker.controls.append(copy.deepcopy(control))
