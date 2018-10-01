@@ -106,7 +106,7 @@ class MissionPlanner(object):
         add_point_entry = self.menu_handler.insert( "Add Waypoint", callback=self._add_point_cb)
         del_point_entry = self.menu_handler.insert( "Delete Waypoint", callback=self._del_point_cb)
         save_plan_entry = self.menu_handler.insert( "Save mission plan", callback=self._save_plan_cb)
-        save_plan_entry = self.menu_handler.insert( "Save mission plan lat/long", callback=self._save_plan_lat_long_cb)
+        save_plan_entry = self.menu_handler.insert( "Export LoLo mission plan", callback=self._save_plan_lat_long_cb)
 
         enable_entry = self.menu_handler.insert( "Movement control", callback=self._enable_cb )
         self.menu_handler.setCheckState( enable_entry, MenuHandler.CHECKED )
@@ -164,7 +164,9 @@ class MissionPlanner(object):
                 new_obj.northing += pose.position.y
                 new_obj.easting += pose.position.x
                 geo_obj = new_obj.toMsg()
-                spamwriter.writerow(["ADD", "GOTOWP", geo_obj.latitude, geo_obj.longitude, self.goal_tolerance, self.default_rpm])
+                lat_rounded = round(geo_obj.latitude, 5)
+                lon_rounded = round(geo_obj.longitude, 5)
+                spamwriter.writerow(["ADD", "GOTOWP", lat_rounded, lon_rounded, self.goal_tolerance, self.default_rpm])
             csvfile.write("start\n..\n")
 
     # Add Vertex callback
