@@ -61,6 +61,8 @@ class MissionPlanner(object):
 
         self.mission_file = rospy.get_param('~mission_file', "mission.csv")
         self.starting_depth = rospy.get_param('~starting_depth', 0.)
+        self.default_rpm = rospy.get_param('~default_rpm', 300)
+        self.goal_tolerance = rospy.get_param('~goal_tolerance', 50)
         self._server = InteractiveMarkerServer("mission_planner")
 
         self.waypoints = []
@@ -144,22 +146,26 @@ class MissionPlanner(object):
 
         #This is the object that we are pressing (feedback) so
         #that we can get the marker name etc..
-        rospy.loginfo("Saving the plan to file: %s", self.mission_file)
+        pre, ext = os.path.splitext(self.mission_file)
+        lat_lon_file = pre + ".lolo"
+        rospy.loginfo("Saving the plan to file: %s", lat_lon_file)
         
         gps_msg = rospy.wait_for_message('/gps/fix', NavSatFix)
         lon = gps_msg.longitude
         lat = gps_msg.latitude
         utm_obj = utm.fromLatLong(lat, lon)
 
-        with open("lat_long_" + self.mission_file, 'w') as csvfile:
+        with open(lat_lon_file, 'w') as csvfile:
 
+            csvfile.write("ts\n")
             spamwriter = csv.writer(csvfile, delimiter=' ', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             for waypoint_index, pose in enumerate(self.waypoints):
                 new_obj = copy.deepcopy(utm_obj)
                 new_obj.northing += pose.position.y
                 new_obj.easting += pose.position.x
                 geo_obj = new_obj.toMsg()
-                spamwriter.writerow([geo_obj.latitude, geo_obj.longitude])
+                spamwriter.writerow(["ADD", "GOTOWP", geo_obj.latitude, geo_obj.longitude, self.goal_tolerance, self.default_rpm])
+            csvfile.write("start\n..\n")
 
     # Add Vertex callback
     def _add_point_cb(self, feedback):
