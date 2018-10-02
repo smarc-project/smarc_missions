@@ -5,7 +5,7 @@ import rospy
 
 import auv_sm_mission_executor.page_utils
 
-from smarc_msgs.msg import SMTask, ExecutionStatus # TaskEvent
+from smarc_planning_msgs.msg import ConditionalAction, ExecutionStatus
 import strands_webserver.client_utils
 import strands_webserver.page_utils
 from std_srvs.srv import Empty

@@ -15,8 +15,8 @@ from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from std_srvs.srv import Empty, EmptyResponse
 from std_msgs.msg import String
 import std_msgs.msg
-from smarc_msgs.msg import SMTask, EmptyActionGoal, ExecutionStatus
-from smarc_msgs.srv import AddTask, AddTasks
+from smarc_planning_msgs.msg import ConditionalAction, ExecutionStatus
+from smarc_planning_msgs.srv import AddTask, AddTasks
 import threading
 from threading import Thread, Condition
 from copy import deepcopy
@@ -176,40 +176,6 @@ class TaskExecution(smach.State):
         # Result of executing the action 
         return task_result
 
-    # def get_arguments(self, argument_list):
-    #     return map(self.instantiate_from_string_pair, argument_list)
-
-
-    # def instantiate_from_string_pair(self, string_pair):
-    #     # rospy.loginfo("SMTask string %s", SMTask.STRING_TYPE)
-    #     # rospy.loginfo("Type recevied %s", string_pair.first)
-    #     if string_pair.string_array[0] == SMTask.STRING_TYPE:
-    #         return string_pair.string_array[1]
-    #     elif string_pair.string_array[0] == SMTask.INT_TYPE:
-    #         return int(string_pair.string_array[1])
-    #     elif string_pair.string_array[0] == SMTask.FLOAT_TYPE:
-    #         return float(string_pair.string_array[1])     
-    #     elif string_pair.string_array[0] == SMTask.TIME_TYPE:
-    #         return rospy.Time.from_sec(float(string_pair.string_array[1]))
-    #     elif string_pair.string_array[0] == SMTask.DURATION_TYPE:
-    #         return rospy.Duration.from_sec(float(string_pair.string_array[1]))
-    #     elif string_pair.string_array[0] == SMTask.BOOL_TYPE:   
-    #         return string_pair.string_array[1] == 'True'
-    #     elif string_pair.string_array[0] == SMTask.POSE_STAMPED_TYPE:   
-    #         pose_stamped = PoseStamped()
-    #         pose_stamped.header.frame_id = string_pair.string_array[1]
-    #         pose_stamped.pose.position.x = float(string_pair.string_array[2]) 
-    #         pose_stamped.pose.position.y = float(string_pair.string_array[3]) 
-    #         pose_stamped.pose.position.z = float(string_pair.string_array[4]) 
-    #         pose_stamped.pose.orientation.x = float(string_pair.string_array[5]) 
-    #         pose_stamped.pose.orientation.y = float(string_pair.string_array[6]) 
-    #         pose_stamped.pose.orientation.z = float(string_pair.string_array[7]) 
-    #         pose_stamped.pose.orientation.w = float(string_pair.string_array[8]) 
-    #         return pose_stamped            
-    #     else:
-    #         raise RuntimeError("No matching object for id %s of type %s" % (string_pair.string_array[1], string_pair.string_array[0]))
-            
-
     def get_task_types(self, action_name):
         result = ()
         topics = rospy.get_published_topics(action_name)
@@ -218,9 +184,6 @@ class TaskExecution(smach.State):
                 result = (type[:-8], type[:-14] + 'Goal')
 
         return result
-
-        # raise RuntimeError('No action associated with topic: %s'% action_name)
-
 
     def end_condition(self, userdata):
 

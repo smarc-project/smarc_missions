@@ -6,11 +6,10 @@ import os
 import strands_webserver.client_utils
 import strands_webserver.page_utils
 
-from smarc_msgs.msg import SMTask, ExecutionStatus
+from smarc_planning_msgs.msg import ConditionalAction, ExecutionStatus
 
 #from strands_admin_web_ui.services import TaskDemander
 #import strands_admin_web_ui.page_utils
-
 
 template_dir = roslib.packages.get_pkg_dir('auv_sm_mission_executor') + '/templates'
 render = web.template.render(template_dir)

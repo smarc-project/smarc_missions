@@ -10,7 +10,7 @@ project(auv_mission_planner)
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
-  smarc_msgs
+  smarc_planning_msgs
   std_msgs
 )
 

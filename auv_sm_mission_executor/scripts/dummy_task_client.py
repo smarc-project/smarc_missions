@@ -2,9 +2,9 @@
 
 import rospy
 import actionlib
-from smarc_msgs.msg import SMTask
-from smarc_msgs.srv import AddTask, AddTaskRequest, AddTaskResponse
-from smarc_msgs import sm_task_utils
+from smarc_planning_msgs.msg import ConditionalAction
+from smarc_planning_msgs.srv import AddTask, AddTaskRequest, AddTaskResponse
+from smarc_planning_msgs import smarc_task_utils
 from geometry_msgs.msg import PoseStamped
         
 
@@ -24,9 +24,9 @@ def dummy_task():
     pose_stamped.pose.orientation.z = 0.0
     pose_stamped.pose.orientation.w = 1.0
 
-    master_task = SMTask(action_topic='/bezier_planner')        
-    sm_task_utils.add_pose_stamped_argument(master_task, pose_stamped)
-    sm_task_utils.add_duration_argument(master_task, 10)
+    master_task = ConditionalAction(action_topic='/bezier_planner')        
+    #sm_task_utils.add_pose_stamped_argument(master_task, pose_stamped)
+    smarc_task_utils.add_duration_argument(master_task, 10)
     
     return master_task
 
@@ -42,7 +42,6 @@ if __name__ == '__main__':
         task = dummy_task()
         try:
             add_task = rospy.ServiceProxy('/task_executor/add_state', AddTask)
-            # task = SMTask()
             add_task_res = add_task(task)        
             print "response %s" %add_task_res.task_id
         except rospy.ServiceException, e:
