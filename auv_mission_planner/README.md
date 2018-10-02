@@ -66,5 +66,15 @@ roslaunch auv_mission_planner mission_planner.launch mission_file:=/path/to/miss
 * `goal_tolerance` - radius around goal
 * `latitude`, `longitude` - this will be the area around which we plan our mission, maps will be automatically loaded if there is internet available
 
+## Example LoLo waypoint file
 
-
+The produced waypoint files should look something like this (with `default_rpm:=300` and `goal_tolerance:=50`):
+```
+ts
+ADD GOTOWP 59.34159 18.15818 50 300
+ADD GOTOWP 59.34127 18.15434 50 300
+ADD GOTOWP 59.34064 18.16075 50 300
+ADD GOTOWP 59.34192 18.16063 50 300
+start
+..
+```
