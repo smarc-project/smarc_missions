@@ -37,7 +37,7 @@ get an `access_token` to insert into the URL: `https://api.mapbox.com/v4/mapbox.
 
 **For the brave:** If you don't want satellite imagery but actual maps or sea charts you can also try
 OpenStreetMap with `https://a.tile.openstreetmap.org/{z}/{x}/{y}.png`
-or OpenSeaChart with `http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png`.
+or OpenSeaMap with `http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png`.
 You can even add several AerialMapDisplays, but make sure to set the topic to `/gps/fix`.
 
 ## Usage
