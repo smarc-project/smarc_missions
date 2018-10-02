@@ -2,9 +2,9 @@
 
 import rospy
 import actionlib
-from smarc_msgs.msg import SMTask, StringArray
-from smarc_msgs.srv import AddTask, AddTasks, AddTaskRequest, AddTaskResponse
-from smarc_msgs import sm_task_utils
+from smarc_planning_msgs.msg import ConditionalAction
+from smarc_planning_msgs.srv import AddTask, AddTasks, AddTaskRequest, AddTaskResponse
+from smarc_planning_msgs import smarc_task_utils
 from geometry_msgs.msg import PoseStamped
 import csv
 import sys
@@ -27,15 +27,14 @@ def mission_tasks(mission_file):
         for row in spamreader:
             rospy.loginfo("Got entry: %s", " ".join(row))
 
-            master_task = SMTask(action_topic=row[7])
-            #sm_task_utils.add_pose_stamped_argument(master_task, pose_stamped)
+            master_task = ConditionalAction(action_topic=row[7])
             master_task.task_id = int(row[0])
             master_task.x = float(row[1])
             master_task.y = float(row[2])
             master_task.depth = float(row[3])
             master_task.altitude = float(row[4])
             master_task.theta = float(row[5])
-            sm_task_utils.add_duration_argument(master_task, float(row[6]))
+            smarc_task_utils.add_duration_argument(master_task, float(row[6]))
 
             if len(row) > 8 and len(row[8]) > 2:
                 master_task.action_arguments = row[8]
