@@ -12,9 +12,9 @@ from smarc_msgs.msg import SMTask, ExecutionStatus
 #import strands_admin_web_ui.page_utils
 
 
-template_dir = roslib.packages.get_pkg_dir('state_machine') + '/templates'
+template_dir = roslib.packages.get_pkg_dir('auv_sm_mission_executor') + '/templates'
 render = web.template.render(template_dir)
-www_prefix = roslib.packages.get_pkg_dir('state_machine') + '/www/'
+www_prefix = roslib.packages.get_pkg_dir('auv_sm_mission_executor') + '/www/'
 
 def generate_interface_page(file_name, left = "", right = "", script = ""):
     """ Create a page by rendering the strands_admin_web_ui/templates/index.html using web.py and place it at strands_admin_web_ui/www/ """
