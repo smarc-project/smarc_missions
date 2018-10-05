@@ -30,7 +30,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PointStamped
 from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 import actionlib
 import rospy
@@ -230,6 +230,22 @@ class BezierPlanner(object):
             (trans, rot) = self.listener.lookupTransform("/world", self.base_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             return
+
+        # TODO: we could use this code for the other check also
+        goal_point = PointStamped()
+        goal_point.header.frame_id = "/world"
+        goal_point.header.stamp = rospy.Time(0)
+        goal_point.point.x = self.nav_goal.position.x
+        goal_point.point.y = self.nav_goal.position.y
+        goal_point.point.z = self.nav_goal.position.z
+        try:
+            goal_point_base = self.listener.transformPoint(self.base_frame, goal_point)
+            if goal_point_base.point.x < 0.:
+                rospy.loginfo("Ahead of goal, returning success!")
+                self.nav_goal = None
+                return
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            pass
 
         #print("Checking if nav goal is reached!")
 
