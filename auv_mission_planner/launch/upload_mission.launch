@@ -1,0 +1,9 @@
+<launch>
+
+    <arg name="mission_file" default="$(find auv_mission_planner)/missions/pipe_mission.csv"/>
+
+    <node pkg="auv_mission_planner" type="upload_plan.py" name="upload_plan" output="screen">
+      <param name="mission_file" value="$(arg mission_file)"/>
+    </node>
+
+</launch>
