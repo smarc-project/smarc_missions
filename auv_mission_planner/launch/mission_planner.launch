@@ -6,6 +6,7 @@
     <arg name="goal_tolerance" default="50"/>
     <arg name="latitude" default="59.344427"/>
     <arg name="longitude" default="18.138953"/>
+    <arg name="marker_scale" default="20."/>
 
     <!-- Send a static GPS fix to every new subscriber. Edit latitude and longitude in launch/demo.gps to use your own position. -->
     <node pkg="rostopic" type="rostopic" name="fake_gps_fix"
@@ -23,6 +24,7 @@
       <param name="starting_depth" value="$(arg starting_depth)"/>
       <param name="default_rpm" value="$(arg default_rpm)"/>
       <param name="goal_tolerance" value="$(arg goal_tolerance)"/>
+      <param name="marker_scale" value="$(arg marker_scale)"/>
     </node>
 
     <!-- Start rviz with a pre-configured AerialMap instance. It will use the fake GPS fix from above. -->

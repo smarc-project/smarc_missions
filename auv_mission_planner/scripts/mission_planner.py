@@ -63,6 +63,7 @@ class MissionPlanner(object):
         self.starting_depth = rospy.get_param('~starting_depth', 0.)
         self.default_rpm = rospy.get_param('~default_rpm', 300)
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 50)
+        self.marker_scale = rospy.get_param('~marker_scale', 20.)
         self._server = InteractiveMarkerServer("mission_planner")
 
         self.waypoints = []
@@ -176,7 +177,7 @@ class MissionPlanner(object):
         #that we can get the marker name etc..
         rospy.loginfo("Add point from marker: %s", feedback.marker_name)
 
-        scale = 20.
+        scale = self.marker_scale
 
         # Get the pose and create the new object a little away
         pose = feedback.pose
@@ -256,7 +257,7 @@ class MissionPlanner(object):
     # This part draws the line strips between the points
     def create_line_marker(self):
 
-        scale = 20.
+        scale = self.marker_scale
 
         int_marker = InteractiveMarker()
         int_marker.header.frame_id = "world"
@@ -266,7 +267,7 @@ class MissionPlanner(object):
 
         marker = Marker()
         marker.type = Marker.LINE_STRIP
-        marker.scale.x = 0.1*20.
+        marker.scale.x = 0.1*scale
 
         #random.seed()
         val = random.random()
@@ -298,7 +299,7 @@ class MissionPlanner(object):
         int_marker.header.frame_id = "world"
         int_marker.name = "Waypoint_" + str(current_index)
         int_marker.description = "Waypoint " + str(current_index)
-        scale = 20.
+        scale = self.marker_scale
         int_marker.pose = pose
         int_marker.scale = scale
         #int_marker.pose.position.z = 0.01
