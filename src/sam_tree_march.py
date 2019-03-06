@@ -21,6 +21,7 @@ import py_trees_ros as ptr
 
 from reactive_seq import ReactiveSeq
 import sam_behaviours
+from sam_emergency import Emergency
 
 if __name__ == '__main__':
     # a node that just keeps running once the tree is done
@@ -77,7 +78,7 @@ if __name__ == '__main__':
                                                                variable_name='safety_tried',
                                                                expected_value=False)
 
-
+    # use py_trees.behaviour.Behavior
     safety_action = ptr.actions.ActionClient(name='sam_emergency',
                                              action_spec=GenericStringAction,
                                              action_goal="",
@@ -148,6 +149,7 @@ if __name__ == '__main__':
     root = pt.composites.Parallel("Root")
     # finish the tree by adding the main subtrees to the root
     root.add_children([topics2bb, mission_seq])
+    root.add_children([topics2bb])
 
 
 
@@ -158,11 +160,13 @@ if __name__ == '__main__':
     shutdown_tree = lambda t: t.interrupt()
     rospy.on_shutdown(functools.partial(shutdown_tree, tree))
 
+    root.setup()
     # setup the tree
     if not tree.setup(timeout=10):
         print('TREE COULD NOT BE SETUP')
         sys.exit(1)
 
+    #tree.setup(timeout=10)
     # show the tree's status for every tick
     tick_printer = lambda t: pt.display.print_ascii_tree(t.root, show_status=True)
     # run
