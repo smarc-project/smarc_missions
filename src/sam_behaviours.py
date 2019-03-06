@@ -16,12 +16,14 @@ class some_mission(pt.behaviour.Behaviour):
         super(some_mission, self).__init__(name)
         self.counter = 0
 
-    def setup(self):
+    def setup(self, *args, **kwargs):
         """
         do the hard initializing of stuff here
         ros stuff goes here if needed (should not be needed, use actions instead)
         """
         print('some mission setup')
+        # this return is needed!
+        return True
 
     def initialise(self):
         """

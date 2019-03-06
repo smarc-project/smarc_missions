@@ -1,6 +1,6 @@
 # goal of the action, since this is a general action, a string is ok
 string bt_action_goal
-actionlib_msgs/GoalID goal_id
+# actionlib_msgs/GoalID goal_id
 ---
 # result of the action, SUCCESS, FAILURE, RUNNING
 string bt_status

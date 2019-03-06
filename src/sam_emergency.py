@@ -2,7 +2,7 @@
 
 # standard ros server things
 import rospy, actionlib, py_trees
-import std_msgs.msg as std_msgs 
+import std_msgs.msg as std_msgs
 
 import actionlib
 import dynamic_reconfigure.server
@@ -22,7 +22,7 @@ class Emergency(ActionServer):
     def worker(self):
         print("yolo")
 
-    
+
 if __name__ == "__main__":
 
     # emergency action server

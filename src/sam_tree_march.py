@@ -14,7 +14,7 @@ import actionlib
 import functools, sys, time
 
 from std_msgs.msg import Empty, Bool, Float64
-from sam_march.msg import GenericStringAction
+from sam_march.msg import GenericStringAction, GenericStringGoal
 
 import py_trees as pt
 import py_trees_ros as ptr
@@ -23,9 +23,16 @@ from reactive_seq import ReactiveSeq
 import sam_behaviours
 from sam_emergency import Emergency
 
-if __name__ == '__main__':
+import random
+
+IDLES_MADE = 0
+def make_idle():
     # a node that just keeps running once the tree is done
-    idle = pt.behaviours.Running(name='Idle')
+    global IDLES_MADE
+    IDLES_MADE += 1
+    return pt.behaviours.Running(name='Idle '+str(IDLES_MADE))
+
+if __name__ == '__main__':
 
     #####################
     # DATA GATHERING SUBTREE
@@ -38,6 +45,7 @@ if __name__ == '__main__':
     emergency2bb = ptr.subscribers.EventToBlackboard(name='Emergency button',
                                                      topic_name='/abort',
                                                      variable_name='emergency')
+
 
     # returns running if there is no data to write until there is data
     # the dict here makes the behaviour write only the .data part of the whole message here
@@ -60,9 +68,9 @@ if __name__ == '__main__':
                                             clearing_policy=pt.common.ClearingPolicy.NEVER)
 
 
+
     # add these to the subtree responsible for data acquisition
     topics2bb.add_children([emergency2bb, pitch2bb, depth2bb])
-
 
 
     #####################
@@ -76,12 +84,14 @@ if __name__ == '__main__':
 
     check_safety_tried = pt.blackboard.CheckBlackboardVariable(name="Safety action tried?",
                                                                variable_name='safety_tried',
-                                                               expected_value=False)
+                                                               expected_value=True)
 
-    # use py_trees.behaviour.Behavior
+    # we need the whole msg object to be sent
+    emergency_action_msg = GenericStringGoal()
+    emergency_action_msg.bt_action_goal = ""
     safety_action = ptr.actions.ActionClient(name='sam_emergency',
                                              action_spec=GenericStringAction,
-                                             action_goal="",
+                                             action_goal=emergency_action_msg,
                                              action_namespace='/sam_emergency')
 
     set_safety_tried = pt.blackboard.SetBlackboardVariable(name='Set safety tried',
@@ -94,7 +104,7 @@ if __name__ == '__main__':
 
     # tries the safety action once and then idles
     safety_fb = pt.composites.Selector(name='Safety')
-    safety_fb.add_children([check_safe, check_safety_tried, attempt_safety, idle])
+    safety_fb.add_children([check_safe, check_safety_tried, attempt_safety, make_idle()])
 
 
     #####################
@@ -125,19 +135,19 @@ if __name__ == '__main__':
                                                                variable_name='mission_complete',
                                                                variable_value=True)
     # add in order
-    #  mission_exec.add_children([execute_mission, set_mission_complete])
+    mission_exec.add_children([execute_mission, set_mission_complete])
     mission_exec.add_child(execute_mission)
     mission_exec.add_child(set_mission_complete)
 
     # do mission, if all else fails, idle
     mission_fb.add_child(mission_exec)
-    mission_fb.add_child(idle)
+    mission_fb.add_child(make_idle())
 
 
     # the main meat of the tree
     mission_seq = ReactiveSeq(name='Mission')
     # make the mission
-    mission_seq.add_children([safety_fb, mission_fb, idle])
+    mission_seq.add_children([safety_fb, mission_fb, make_idle()])
 
 
     #####################
@@ -160,7 +170,6 @@ if __name__ == '__main__':
     shutdown_tree = lambda t: t.interrupt()
     rospy.on_shutdown(functools.partial(shutdown_tree, tree))
 
-    root.setup()
     # setup the tree
     if not tree.setup(timeout=10):
         print('TREE COULD NOT BE SETUP')
@@ -170,7 +179,7 @@ if __name__ == '__main__':
     # show the tree's status for every tick
     tick_printer = lambda t: pt.display.print_ascii_tree(t.root, show_status=True)
     # run
-    tree.tick_tock(sleep_ms=500, post_tick_handler=tick_printer)
+    tree.tick_tock(sleep_ms=1000, post_tick_handler=tick_printer)
 
 
 

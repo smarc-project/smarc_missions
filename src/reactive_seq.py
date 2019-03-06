@@ -100,7 +100,7 @@ class ReactiveSeq(pt.Composite):
         # SUCCESS or FAILURE
         if new_status == pt.Status.INVALID:
             self.current_child = None
-        Composite.stop(self, new_status)
+        pt.Composite.stop(self, new_status)
 
 
     def __repr__(self):
