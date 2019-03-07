@@ -26,12 +26,57 @@ from sam_execute_mission import Execute_Mission
 
 import random
 
+
+# pitch depth
+MISSION_SETPOINTS = [(0,30), (0,32), (0.2, 32), (-0.2, 32), (0,30), (0,0)]
 IDLES_MADE = 0
+
+
 def make_idle():
     # a node that just keeps running once the tree is done
     global IDLES_MADE
     IDLES_MADE += 1
     return pt.behaviours.Running(name='Idle '+str(IDLES_MADE))
+
+def make_follow_points_subtree(points):
+    seq = pt.composites.Sequence(name="Mission sequence")
+
+    for pt in points:
+        pitch, depth = pt
+
+
+
+        check_pitch = pt.blackboard.CheckBlackboardVariable(name="Pitch?",
+                                                            variable_name='pitch',
+                                                            expected_value=pitch)
+
+        check_depth = pt.blackboard.CheckBlackboardVariable(name="Depth?",
+                                                            variable_name='depth',
+                                                            expected_value=depth)
+        target_check = pt.composites.Parallel(name="At target?")
+        target_check.add_children([check_pitch, check_depth])
+
+
+        goto_pnt_msg = GenericStringGoal()
+        goto_pnt_msg.bt_action_goal = str(pt)
+        goto_pnt_action = ptr.actions.ActionClient(name='goto_'+str(pt),
+                                                   action_spec=GenericStringAction,
+                                                   action_goal=goto_pnt_msg,
+                                                   action_namespace='/execute_mission')
+
+        timeout = pt.timers.Timer(name="Timeout", duration=5)
+        timeout_hatted = pt.decorators.RunningIsFailure(timeout)
+
+        at_target_fb = pt.composites.Selector(name="Not at"+str(pt)+"?")
+        at_target_fb.add_children([target_check, timeout_hatted, goto_pnt_action])
+
+
+
+        seq.add_child(at_target_fb)
+
+    return seq
+
+
 
 if __name__ == '__main__':
 
@@ -129,13 +174,14 @@ if __name__ == '__main__':
     # ACTUAL MISSION DONE HERE
     ##############################################################################################
     # this mission should be a subtree of behaviour or action client
-    execute_mission = sam_behaviours.some_mission(name="Execute mission")
-    execute_mission_msg = GenericStringGoal()
-    execute_mission_msg.bt_action_goal = ""
-    execute_mission = ptr.actions.ActionClient(name='execute_mission',
-                                             action_spec=GenericStringAction,
-                                             action_goal=execute_mission_msg,
-                                             action_namespace='/execute_mission')
+    #  execute_mission = sam_behaviours.some_mission(name="Execute mission")
+    #  execute_mission_msg = GenericStringGoal()
+    #  execute_mission_msg.bt_action_goal = ""
+    #  execute_mission = ptr.actions.ActionClient(name='execute_mission',
+                                             #  action_spec=GenericStringAction,
+                                             #  action_goal=execute_mission_msg,
+                                             #  action_namespace='/execute_mission')
+    execute_mission = make_follow_points_subtree(MISSION_SETPOINTS)
     ##############################################################################################
 
     set_mission_complete = pt.blackboard.SetBlackboardVariable(name='Set mission complete',
