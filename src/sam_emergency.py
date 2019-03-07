@@ -12,12 +12,16 @@ import py_trees_ros
 
 from py_trees_ros.mock.action_server import ActionServer
 from sam_march.msg import GenericStringAction
+from sam_msgs.msg import PercentStamped
 
 
 class Emergency(ActionServer):
 
     def __init__(self):
         ActionServer.__init__(self, '/sam_emergency', GenericStringAction, self.worker)
+        self.publisher = rospy.Publisher('/sam_auv_1/thrusters/0/input',
+                                      FloatStamped,
+                                        queue_size = 100)
 
     def worker(self):
         print("")
@@ -54,8 +58,13 @@ class Emergency(ActionServer):
                 break
             else:
                 rospy.loginfo("{title}: YOLOY emergency feedback {percent:.2f}%".format(title=self.title, percent=self.percent_completed))
-                self.percent_completed += increment
-                self.worker()
+                #self.percent_completed += increment
+                #self.worker()
+                fs = PercentStamped()
+                h = Header()
+                fs.header = h
+                fs.data = 0
+                self.publisher.publish(fs)
             rate.sleep()
         if success:
             rospy.loginfo("{title}: goal success".format(title=self.title))

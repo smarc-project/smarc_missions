@@ -12,6 +12,8 @@ import py_trees_ros
 
 from py_trees_ros.mock.action_server import ActionServer
 from sam_march.msg import GenericStringAction
+from std_msgs.msg import Float64
+
 
 
 class Execute_Mission(ActionServer):
@@ -23,6 +25,14 @@ class Execute_Mission(ActionServer):
             GenericStringAction,
             self.worker
         )
+        
+        self.pitch_publisher = rospy.Publisher('/pitch_setpoint',
+                                                Float64,
+                                                queue_size = 100)
+
+        self.depth_publisher = rospy.Publisher('/depth_setpoint',
+                                                Float64,
+queue_size = 100)
 
     def worker(self):
         print("")
@@ -59,8 +69,21 @@ class Execute_Mission(ActionServer):
                 break
             else:
                 rospy.loginfo("{title}: mission execution feedback {percent:.2f}%".format(title=self.title, percent=self.percent_completed))
-                self.percent_completed += increment
-                self.worker()
+                #self.percent_completed += increment
+                #self.worker()
+
+                goal = eval(goal)
+                if goal is None:
+                    return False
+
+                pitch, depth = goal
+                self.pitch_publisher.publish(pitch)
+                self.depth_publisher.publish(depth)
+
+
+
+
+
             rate.sleep()
         if success:
             rospy.loginfo("{title}: goal success".format(title=self.title))
