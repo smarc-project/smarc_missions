@@ -2,7 +2,7 @@
 
 # standard ros server things
 import rospy, actionlib, py_trees
-import std_msgs.msg as std_msgs 
+import std_msgs.msg as std_msgs
 
 import actionlib
 import dynamic_reconfigure.server
@@ -20,12 +20,12 @@ class Execute_Mission(ActionServer):
 
     def __init__(self):
         ActionServer.__init__(
-            self, 
-            '/execute_mission', 
+            self,
+            '/execute_mission',
             GenericStringAction,
             self.worker
         )
-        
+
         self.pitch_publisher = rospy.Publisher('/pitch_setpoint',
                                                 Float64,
                                                 queue_size = 100)
@@ -38,7 +38,7 @@ queue_size = 100)
         print("")
 
     def execute(self, goal):
-        # We override 
+        # We override
         """
         Check for pre-emption, but otherwise just spin around gradually incrementing
         a hypothetical 'percent' done.
@@ -54,7 +54,7 @@ queue_size = 100)
         self.percent_completed = 0
         rate = rospy.Rate(frequency)  # hz
         rospy.loginfo("{title}: received a goal".format(title=self.title))
-        
+
         # if we just received a goal, we erase any previous pre-emption
         self.action_server.preempt_request = False
         while True:
@@ -90,7 +90,7 @@ queue_size = 100)
             self.action_server.set_succeeded(self.action.action_result.result, "goal reached")
 
 
-    
+
 if __name__ == "__main__":
 
     # emergency action server
