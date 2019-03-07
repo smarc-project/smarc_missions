@@ -22,6 +22,7 @@ import py_trees_ros as ptr
 from reactive_seq import ReactiveSeq
 import sam_behaviours
 from sam_emergency import Emergency
+from sam_execute_mission import Execute_Mission
 
 import random
 
@@ -129,6 +130,12 @@ if __name__ == '__main__':
     ##############################################################################################
     # this mission should be a subtree of behaviour or action client
     execute_mission = sam_behaviours.some_mission(name="Execute mission")
+    execute_mission_msg = GenericStringGoal()
+    execute_mission_msg.bt_action_goal = ""
+    execute_mission = ptr.actions.ActionClient(name='execute_mission',
+                                             action_spec=GenericStringAction,
+                                             action_goal=execute_mission_msg,
+                                             action_namespace='/execute_mission')
     ##############################################################################################
 
     set_mission_complete = pt.blackboard.SetBlackboardVariable(name='Set mission complete',
