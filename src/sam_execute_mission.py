@@ -32,7 +32,7 @@ class Execute_Mission(ActionServer):
 
         self.depth_publisher = rospy.Publisher('/depth_setpoint',
                                                 Float64,
-queue_size = 100)
+                                                queue_size = 100)
 
     def worker(self):
         print("")
@@ -53,10 +53,13 @@ queue_size = 100)
         increment = 100 / (frequency * self.parameters.duration)
         self.percent_completed = 0
         rate = rospy.Rate(frequency)  # hz
-        rospy.loginfo("{title}: received a goal".format(title=self.title))
+
+        goal = eval(goal.bt_action_goal)
+        rospy.loginfo("{title}: received a goal:{goal}".format(title=self.title, goal=str(goal)))
 
         # if we just received a goal, we erase any previous pre-emption
         self.action_server.preempt_request = False
+
         while True:
             if rospy.is_shutdown() or self.action_server.is_preempt_requested():
                 rospy.loginfo("{title}: goal preempted".format(title=self.title))
@@ -72,7 +75,6 @@ queue_size = 100)
                 #self.percent_completed += increment
                 #self.worker()
 
-                goal = eval(goal)
                 if goal is None:
                     return False
 

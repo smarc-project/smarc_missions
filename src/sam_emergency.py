@@ -2,7 +2,7 @@
 
 # standard ros server things
 import rospy, actionlib, py_trees
-import std_msgs.msg as std_msgs 
+import std_msgs.msg as std_msgs
 
 import actionlib
 import dynamic_reconfigure.server
@@ -13,6 +13,7 @@ import py_trees_ros
 from py_trees_ros.mock.action_server import ActionServer
 from sam_march.msg import GenericStringAction
 from sam_msgs.msg import PercentStamped
+from uuv_gazebo_ros_plugins_msgs.msg import FloatStamped
 
 
 class Emergency(ActionServer):
@@ -27,7 +28,7 @@ class Emergency(ActionServer):
         print("")
 
     def execute(self, goal):
-        # We override 
+        # We override
         """
         Check for pre-emption, but otherwise just spin around gradually incrementing
         a hypothetical 'percent' done.
@@ -43,7 +44,7 @@ class Emergency(ActionServer):
         self.percent_completed = 0
         rate = rospy.Rate(frequency)  # hz
         rospy.loginfo("{title}: received a goal".format(title=self.title))
-        
+
         # if we just received a goal, we erase any previous pre-emption
         self.action_server.preempt_request = False
         while True:
@@ -70,10 +71,10 @@ class Emergency(ActionServer):
             rospy.loginfo("{title}: goal success".format(title=self.title))
             self.action_server.set_succeeded(self.action.action_result.result, "goal reached")
 
-    
 
 
-    
+
+
 if __name__ == "__main__":
 
     # emergency action server

@@ -20,6 +20,8 @@ import py_trees as pt
 import py_trees_ros as ptr
 
 from reactive_seq import ReactiveSeq
+from sf_timer import SF_Timer
+
 import sam_behaviours
 from sam_emergency import Emergency
 from sam_execute_mission import Execute_Mission
@@ -41,8 +43,8 @@ def make_idle():
 def make_follow_points_subtree(points):
     seq = pt.composites.Sequence(name="Mission sequence")
 
-    for pt in points:
-        pitch, depth = pt
+    for pt_ix, point in enumerate(points):
+        pitch, depth = point
 
 
 
@@ -53,22 +55,35 @@ def make_follow_points_subtree(points):
         check_depth = pt.blackboard.CheckBlackboardVariable(name="Depth?",
                                                             variable_name='depth',
                                                             expected_value=depth)
+
+
         target_check = pt.composites.Parallel(name="At target?")
         target_check.add_children([check_pitch, check_depth])
 
 
         goto_pnt_msg = GenericStringGoal()
-        goto_pnt_msg.bt_action_goal = str(pt)
-        goto_pnt_action = ptr.actions.ActionClient(name='goto_'+str(pt),
+        goto_pnt_msg.bt_action_goal = str(point)
+        goto_pnt_action = ptr.actions.ActionClient(name='goto_'+str(point),
                                                    action_spec=GenericStringAction,
                                                    action_goal=goto_pnt_msg,
                                                    action_namespace='/execute_mission')
 
-        timeout = pt.timers.Timer(name="Timeout", duration=5)
-        timeout_hatted = pt.decorators.RunningIsFailure(timeout)
 
-        at_target_fb = pt.composites.Selector(name="Not at"+str(pt)+"?")
-        at_target_fb.add_children([target_check, timeout_hatted, goto_pnt_action])
+        check_timeout_flag = pt.blackboard.CheckBlackboardVariable(name="Check timeout flag",
+                                                                   variable_name=str(pt_ix)+'_timeout_triggered',
+                                                                   expected_value=True)
+
+        timeout = SF_Timer(name="Timeout", duration=5)
+        set_timeout_flag = pt.blackboard.SetBlackboardVariable(name="Set timeout flag",
+                                                               variable_name=str(pt_ix)+'_timeout_triggered',
+                                                               variable_value=True)
+
+        check_timeout = ReactiveSeq(name='seq')
+        check_timeout.add_children([timeout, set_timeout_flag])
+
+
+        at_target_fb = pt.composites.Selector(name="Not at"+str(point)+"?")
+        at_target_fb.add_children([check_timeout_flag, target_check, check_timeout, goto_pnt_action])
 
 
 
