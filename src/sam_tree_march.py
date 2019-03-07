@@ -60,6 +60,13 @@ def make_follow_points_subtree(points):
         target_check = pt.composites.Parallel(name="At target?")
         target_check.add_children([check_pitch, check_depth])
 
+        set_point_done = pt.blackboard.SetBlackboardVariable(name="Set point"+str(pt_ix)+" done",
+                                                             variable_name=str(pt_ix)+"_done",
+                                                             variable_value=True)
+
+        point_done_seq = ReactiveSeq(name="GOTO then set flag")
+        point_done_seq.add_children([target_check, set_point_done])
+
 
         goto_pnt_msg = GenericStringGoal()
         goto_pnt_msg.bt_action_goal = str(point)
@@ -69,21 +76,31 @@ def make_follow_points_subtree(points):
                                                    action_namespace='/execute_mission')
 
 
+
+
         check_timeout_flag = pt.blackboard.CheckBlackboardVariable(name="Check timeout flag",
                                                                    variable_name=str(pt_ix)+'_timeout_triggered',
                                                                    expected_value=True)
 
-        timeout = SF_Timer(name="Timeout", duration=5)
+        timeout = SF_Timer(name="Timeout", duration=60)
         set_timeout_flag = pt.blackboard.SetBlackboardVariable(name="Set timeout flag",
                                                                variable_name=str(pt_ix)+'_timeout_triggered',
                                                                variable_value=True)
 
-        check_timeout = ReactiveSeq(name='seq')
+        check_timeout = ReactiveSeq(name='Check timeout')
         check_timeout.add_children([timeout, set_timeout_flag])
+
+        check_point_done_flag = pt.blackboard.CheckBlackboardVariable(name="Check point done flag",
+                                                                      variable_name=str(pt_ix)+'_done',
+                                                                      expected_value=True)
 
 
         at_target_fb = pt.composites.Selector(name="Not at"+str(point)+"?")
-        at_target_fb.add_children([check_timeout_flag, target_check, check_timeout, goto_pnt_action])
+        at_target_fb.add_children([check_timeout_flag,
+                                   check_point_done_flag,
+                                   point_done_seq,
+                                   check_timeout,
+                                   goto_pnt_action])
 
 
 
@@ -163,9 +180,15 @@ if __name__ == '__main__':
     attempt_safety.add_children([safety_action, set_safety_tried])
 
 
+    # TODO make this a function
+    safety_pre = pt.composites.Selector(name="Safety precon")
+    safety_post = ReactiveSeq(name="Safety postcon")
+    safety_post.add_children([check_safety_tried, make_idle()])
+    safety_pre.add_children([check_safe, safety_post])
+
     # tries the safety action once and then idles
     safety_fb = pt.composites.Selector(name='Safety')
-    safety_fb.add_children([check_safe, check_safety_tried, attempt_safety, make_idle()])
+    safety_fb.add_children([safety_pre, attempt_safety, make_idle()])
 
 
     #####################
