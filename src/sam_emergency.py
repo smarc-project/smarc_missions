@@ -14,6 +14,7 @@ from py_trees_ros.mock.action_server import ActionServer
 from sam_march.msg import GenericStringAction
 from sam_msgs.msg import PercentStamped
 from uuv_gazebo_ros_plugins_msgs.msg import FloatStamped
+from std_msgs.msg import Bool
 
 
 class Emergency(ActionServer):
@@ -21,9 +22,12 @@ class Emergency(ActionServer):
     def __init__(self):
         ActionServer.__init__(self, '/sam_emergency', GenericStringAction, self.worker)
         self.publisher = rospy.Publisher('/sam_auv_1/thrusters/0/input',
-                                      FloatStamped,
-                                        queue_size = 100)
+                                         FloatStamped,
+                                         queue_size = 100)
 
+        self.controller_stopper = rospy.Publisher('/VBS_depth/pid_enable',
+                                                  Bool,
+                                                  queue_size = 100)
     def worker(self):
         print("")
 
@@ -66,6 +70,7 @@ class Emergency(ActionServer):
                 fs.header = h
                 fs.data = 0
                 self.publisher.publish(fs)
+                self.controller_stopper.publish(False)
             rate.sleep()
         if success:
             rospy.loginfo("{title}: goal success".format(title=self.title))
