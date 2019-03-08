@@ -71,7 +71,7 @@ class Execute_Mission(ActionServer):
                 success = True
                 break
             else:
-                rospy.loginfo("{title}: mission execution feedback {percent:.2f}%".format(title=self.title, percent=self.percent_completed))
+                #rospy.loginfo("{title}: mission execution feedback {percent:.2f}%".format(title=self.title, percent=self.percent_completed))
                 #self.percent_completed += increment
                 #self.worker()
 
@@ -79,7 +79,7 @@ class Execute_Mission(ActionServer):
                     return False
 
                 pitch, depth = goal
-                self.pitch_publisher.publish(pitch)
+                #self.pitch_publisher.publish(pitch)
                 self.depth_publisher.publish(depth)
 
 

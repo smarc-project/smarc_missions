@@ -28,6 +28,9 @@ from sam_execute_mission import Execute_Mission
 
 import random
 
+# make these HUGE if you dont care about these checks
+PITCH_THRE = 10000000
+DEPTH_THRE = 0.1
 
 # pitch depth
 MISSION_SETPOINTS = [(0,30), (0,32), (0.2, 32), (-0.2, 32), (0,30), (0,0)]
@@ -40,6 +43,18 @@ def make_idle():
     IDLES_MADE += 1
     return pt.behaviours.Running(name='Idle '+str(IDLES_MADE))
 
+def check_pitch(p1,p2):
+    diff = abs(p1-p2)
+    if diff < PITCH_THRE:
+        return True
+    return False
+
+def check_depth(p1,p2):
+    diff = abs(p1-p2)
+    if diff < DEPTH_THRE:
+        return True
+    return False
+
 def make_follow_points_subtree(points):
     seq = pt.composites.Sequence(name="Mission sequence")
 
@@ -50,11 +65,13 @@ def make_follow_points_subtree(points):
 
         check_pitch = pt.blackboard.CheckBlackboardVariable(name="Pitch?",
                                                             variable_name='pitch',
-                                                            expected_value=pitch)
+                                                            expected_value=pitch,
+                                                            comparison_operator=check_pitch)
 
         check_depth = pt.blackboard.CheckBlackboardVariable(name="Depth?",
                                                             variable_name='depth',
-                                                            expected_value=depth)
+                                                            expected_value=depth,
+                                                            comparison_operator=check_depth)
 
 
         target_check = pt.composites.Parallel(name="At target?")

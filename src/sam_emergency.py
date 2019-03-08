@@ -58,7 +58,7 @@ class Emergency(ActionServer):
                 success = True
                 break
             else:
-                rospy.loginfo("{title}: YOLOY emergency feedback {percent:.2f}%".format(title=self.title, percent=self.percent_completed))
+                #rospy.loginfo("{title}: YOLOY emergency feedback {percent:.2f}%".format(title=self.title, percent=self.percent_completed))
                 #self.percent_completed += increment
                 #self.worker()
                 fs = PercentStamped()
