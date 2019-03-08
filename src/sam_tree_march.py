@@ -43,13 +43,13 @@ def make_idle():
     IDLES_MADE += 1
     return pt.behaviours.Running(name='Idle '+str(IDLES_MADE))
 
-def check_pitch(p1,p2):
+def check_pitch_fn(p1,p2):
     diff = abs(p1-p2)
     if diff < PITCH_THRE:
         return True
     return False
 
-def check_depth(p1,p2):
+def check_depth_fn(p1,p2):
     diff = abs(p1-p2)
     if diff < DEPTH_THRE:
         return True
@@ -66,12 +66,12 @@ def make_follow_points_subtree(points):
         check_pitch = pt.blackboard.CheckBlackboardVariable(name="Pitch?",
                                                             variable_name='pitch',
                                                             expected_value=pitch,
-                                                            comparison_operator=check_pitch)
+                                                            comparison_operator=check_pitch_fn)
 
         check_depth = pt.blackboard.CheckBlackboardVariable(name="Depth?",
                                                             variable_name='depth',
                                                             expected_value=depth,
-                                                            comparison_operator=check_depth)
+                                                            comparison_operator=check_depth_fn)
 
 
         target_check = pt.composites.Parallel(name="At target?")
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     # the clearing policy will not allow the bb variable to be cleared, it'll only be re-written
     # init_variables gives a dict for each bb variable and the value to init it with
     pitch2bb = ptr.subscribers.ToBlackboard(name='Pitch',
-                                            topic_name='/feedback_pitch',
+                                            topic_name='/pitch_feedback',
                                             topic_type=Float64,
                                             blackboard_variables={'pitch':'data'},
                                             initialise_variables={'pitch':0},
@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
     # same as pitch
     depth2bb = ptr.subscribers.ToBlackboard(name='Depth',
-                                            topic_name='/feedback_depth',
+                                            topic_name='/depth_feedback',
                                             topic_type=Float64,
                                             blackboard_variables={'depth':'data'},
                                             initialise_variables={'depth':0},
