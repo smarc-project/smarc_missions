@@ -79,7 +79,7 @@ class Execute_Mission(ActionServer):
                     return False
 
                 pitch, depth = goal
-                #self.pitch_publisher.publish(pitch)
+                self.pitch_publisher.publish(pitch)
                 self.depth_publisher.publish(depth)
 
 
