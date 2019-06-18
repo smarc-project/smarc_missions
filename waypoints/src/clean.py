@@ -28,6 +28,9 @@ def clean(fname, sfname=None):
         with open(sfname, 'w') as sf:
             json.dump(f, sf, sort_keys=True, indent=4)
 
+    # return the json dictionary
+    return f
+
 
 if __name__ == "__main__":
     clean('plan.json', 'betterplan.json')
