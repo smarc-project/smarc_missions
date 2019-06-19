@@ -32,47 +32,52 @@ class BehaviourTree(ptr.trees.BehaviourTree):
         # set number of waypoints
         self.bb.set("n_waypoints", len(plan))
 
-
-        '''
         # safety
-        b0 = pt.composites.Selector(children=[
-            Counter(20, "Safe?"),
-            Counter(20, "Become safe!")
-        ])
+        s0 = Counter(20, name='Safe?')
+        s1 = pt.behaviours.Running(name="Safety action!")
+        s = pt.composites.Selector(children=[s0, s1])
 
-        # do mission
-        b1 = RSequence(children=[
-            pt.composites.Selector(children=[
-                Counter(20, "At waypoint?"),
-                Counter(20, "Go to waypoint!")
-            ]),
-            Counter(20, "Update current waypoint!")
-        ])
-        '''
+        # system preperation
+        sp0 = Counter(20, name='Continue command recieved?')
+        sp1 = pt.behaviours.Running(name='Preparing system!')
+        sp = pt.composites.Selector(children=[sp0, sp1])
 
-        '''
-        # become behaviour tree
-        super(BehaviourTree, self).__init__(
-            Sequence(children=[b0, b1])
+        # mission synchronisation
+        ms0 = Counter(20, name='Mission synchronised?')
+        ms1 = pt.behaviours.Running(name='Synchronising mission!')
+        ms = pt.composites.Selector(children=[ms0, ms1])
+
+        # mission execution
+        me0 = pt.blackboard.CheckBlackboardVariable(
+            "At final waypoint?",
+            variable_name="goal_waypoint",
+            expected_value=self.bb.get("n_waypoints")
         )
+        me1 = Counter(20, name="At waypoint", reset=True)
+        me2 = pt.behaviours.Running(name="Going to waypoint")
+        me3 = SetNextWaypoint()
+        me = pt.composites.Selector(children=[me1, me2])
+        me = Sequence(children=[me, me3])
+        me = pt.composites.Selector(children=[me0, me])
+
+
+
+        # become behaviour tree
+        super(BehaviourTree, self).__init__(Sequence(children=[
+            s, sp, ms, me
+        ]))
 
         # execute the tree
-        self.setup(timeout=100)
+        self.setup(timeout=1000)
         while not rospy.is_shutdown():
             self.tick_tock(100)
-        '''
 
 
 if __name__ == "__main__":
 
-    tree = BehaviourTree('betterplan.json')
-    #print(tree.plan)
-
-    '''
     # execute a behaviour tree with the plan
     rospy.init_node('behaviour_tree')
     try:
-        BehaviourTree(plan)
+        BehaviourTree('betterplan.json')
     except rospy.ROSInterruptException:
         pass
-    '''

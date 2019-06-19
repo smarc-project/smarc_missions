@@ -9,11 +9,14 @@ class Counter(pt.behaviour.Behaviour):
 
     # A simple counter
 
-    def __init__(self, n, name='Counter'):
+    def __init__(self, n, name='Counter', reset=False):
 
         # count
         self.i = 0
         self.n = n
+
+        # resetting
+        self.reset = reset
 
         # become a behaviour
         super(Counter, self).__init__(name)
@@ -26,19 +29,23 @@ class Counter(pt.behaviour.Behaviour):
         # react to the result
         return pt.common.Status.FAILURE if self.i <= self.n else pt.common.Status.SUCCESS
 
-class GoTo(pt.behaviour.Behaviour):
+    def terminate(self, status):
+        self.i = 0 if status == pt.common.Status.SUCCESS and self.reset else self.i
 
-    def __init__(self, name='Go to!'):
+class SetNextWaypoint(pt.behaviour.Behaviour):
 
-        # blackboard access
+    def __init__(self):
+
+        # blackboard
         self.bb = pt.blackboard.Blackboard()
 
         # become a behaviour
-        super(GoTo, self).__init__(name)
+        super(SetNextWaypoint, self).__init__("Set next waypoint!")
 
     def update(self):
 
-        # get current goal index
-        self.i = self.bb.get('goal_waypoint')
+        # set current waypoint to the next one
+        self.bb.set("goal_waypoint", self.bb.get("goal_waypoint") + 1)
+        return pt.common.Status.RUNNING
 
         
