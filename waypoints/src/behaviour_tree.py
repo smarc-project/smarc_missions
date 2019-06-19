@@ -53,18 +53,38 @@ class BehaviourTree(ptr.trees.BehaviourTree):
             variable_name="goal_waypoint",
             expected_value=self.bb.get("n_waypoints")
         )
-        me1 = Counter(20, name="At waypoint", reset=True)
+        me1 = Counter(5, name="At waypoint", reset=True)
         me2 = pt.behaviours.Running(name="Going to waypoint")
         me3 = SetNextWaypoint()
         me = pt.composites.Selector(children=[me1, me2])
         me = Sequence(children=[me, me3])
         me = pt.composites.Selector(children=[me0, me])
 
-
+        # mission finalisation
+        self.bb.set("mission_done", False)
+        mf0 = pt.blackboard.CheckBlackboardVariable(
+            "Mission done?",
+            variable_name="mission_done",
+            expected_value=True
+        )
+        mf1 = Counter(20, name="At surface?")
+        mf2 = pt.behaviours.Running(name="Going to surface!")
+        mf3 = Counter(20, name="Payload off?")
+        mf4 = pt.behaviours.Running(name="Shutting down!")
+        mf = Sequence(children=[
+            pt.composites.Selector(children=[mf1, mf2]),
+            pt.composites.Selector(children=[mf3, mf4]),
+            pt.blackboard.SetBlackboardVariable(
+                name="Mission done!",
+                variable_name="mission_done",
+                variable_value=True
+            )
+        ])
+        mf = pt.composites.Selector(children=[mf0, mf])
 
         # become behaviour tree
         super(BehaviourTree, self).__init__(Sequence(children=[
-            s, sp, ms, me
+            s, sp, ms, me, mf
         ]))
 
         # execute the tree
