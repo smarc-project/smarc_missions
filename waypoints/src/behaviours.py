@@ -3,7 +3,7 @@
 # Behaviours to use within a behaviour tree.
 # https://arxiv.org/abs/1811.00426
 
-import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json
+import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy, imc_ros_bridge
 
 class Sequence(pt.composites.Selector):
 
@@ -146,28 +146,53 @@ class AtFinalWaypoint(pt.behaviour.Behaviour):
         # current progress
         i = self.bb.get("goal_waypoint")
         n = self.bb.get("n_waypoints")
-        self.feedback_message = "At waypoint {} of {}".format(i, n)
+        self.feedback_message = "Waypoint {} of {}".format(i, n)
         
         # react to result
         return pt.common.Status.SUCCESS if i == n else pt.common.Status.FAILURE
             
 class GoTo(pt.behaviour.Behaviour):
 
+    """
+    Publishes to relevant topics while preconditions are met.
+    NOTE: basic publishing until go to action server is available
+    """
+
     def __init__(self):
 
         # blackboard
         self.bb = pt.blackboard.Blackboard()
 
+        # publishers
+        self.pitch = rospy.Publisher(
+            '/pitch_setpoint',
+            std_msgs.msg.Float64,
+            queue_size=100
+        )
+        self.depth = rospy.Publisher(
+            '/depth_setpoint',
+            std_msgs.msg.Float64,
+            queue_size=100
+        )
+
         # become a behaviour
         super(GoTo, self).__init__("Go to waypoint!")
 
     def update(self):
-
-        # NOTE: There needs to be an actual action in here
         
         # current waypoint
         i = self.bb.get("goal_waypoint")
-        self.feedback_message = "Going to waypoint {}".format(i)
+
+        # pitch and depth goals
+        pitch = float(self.bb.get('plan')[i]['data']['pitch'])
+        depth = float(self.bb.get('plan')[i]['data']['z'])
+
+        # publish
+        self.pitch.publish(std_msgs.msg.Float64(pitch))
+        self.depth.publish(std_msgs.msg.Float64(depth))
+
+        # feedback
+        self.feedback_message = "Waypoint {} | pitch={}, depth={}".format(i, pitch, depth)
 
         # always running if preconditions are met
         return pt.common.Status.RUNNING
@@ -180,7 +205,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         self.bb = pt.blackboard.Blackboard()
 
         # first execution
-        self.synched = False
+        self.first = True
 
         # become a behaviour
         super(SynchroniseMission, self).__init__(
@@ -190,23 +215,28 @@ class SynchroniseMission(ptr.subscribers.Handler):
         )
 
     def update(self):
-        
+
         with self.data_guard:
 
-            if self.msg == None and not self.synched:
-                self.feedback_message = "Waiting for first plan."
+            # first time
+            if self.msg == None and self.first:
+                self.feedback_message = "Waiting for a plan"
                 return pt.common.Status.RUNNING
 
-            elif self.msg == None and self.synched:
-                self.feedback_message = "No new plan."
+            # recieved plan
+            if isinstance(self.msg, std_msgs.msg.String):
+                self.feedback_message = "Recieved new plan"
+                plan = self.clean(str(self.msg))
+                self.bb.set("plan", plan)
+                self.bb.set("n_waypoints", len(plan))
+                self.bb.set("goal_waypoint", 0)
+                self.first = False
                 return pt.common.Status.SUCCESS
 
+            # otherwise
             else:
-                self.feedback_message = "Got new plan"
-                self.bb.set("plan", self.clean(str(self.msg)))
-                self.synched = True
-                return pt.common.Status.SUCCESS
-                
+                self.feedback_message = "No new plan"
+                return pt.common.Status.SUCCESS      
 
     @staticmethod
     def clean(plan):
@@ -239,3 +269,69 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
         # return the json dictionary
         return f
+
+class Safe(ptr.subscribers.Handler):
+
+    def __init__(self):
+
+        # become a behaviour
+        super(Safe, self).__init__(
+            name="Safe?",
+            topic_name="/abort",
+            topic_type=std_msgs.msg.Empty
+        )
+
+    def update(self):
+
+        # do not abort
+        if self.msg == None:
+            self.feedback_message = "Everything is okay"
+            return pt.common.Status.SUCCESS
+        
+        # abort
+        else:
+            self.feedback_message = "Mission aborted!"
+            return pt.common.Status.FAILURE
+
+
+"""
+class DataPublisher(pt.behaviour.Behaviour):
+
+    def __init__(self):
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+        # initialise the blackboard
+        self.bb.set("ready", 0)
+        self.bb.set("initialising", 0)
+        self.bb.set("executing", 0)
+
+        # topic
+        self.pub = rospy.Publisher(
+            '/plan_cotrol_state',
+            imc_ros_bridge.msg.PlanControl,
+            queue_size=100
+        )
+
+        # become behaviour
+        super(DataPublisher, self).__init__("Data publisher")
+
+    def update(self):
+
+        # instantiate message
+        msg = imc_ros_bridge.msg.PlanControl()
+
+        # add relevant things from blackboard
+        msg.READY = std_msgs.msg.UInt8(self.bb.get("ready"))
+        msg.INITIALIZING = std_msgs.msg.UInt8(self.bb.get("initialising"))
+        msg.EXECUTING = std_msgs.msg.UInt8(self.bb.get("executing"))
+
+        # NOTE: add more to message
+
+        # publish it!
+        self.pub.publish(msg)
+
+        return pt.common.Status.RUNNING
+
+"""

@@ -3,7 +3,7 @@
 # Behaviour tree that iterates 
 # over a sequence of waypoints.
 
-import py_trees_ros as ptr, py_trees as pt, rospy, json
+import py_trees_ros as ptr, py_trees as pt, rospy, json, std_msgs.msg
 from behaviours import *
 
 
@@ -14,28 +14,23 @@ class BehaviourTree(ptr.trees.BehaviourTree):
         # the blackboard
         self.bb = pt.blackboard.Blackboard()
 
-        # set the plan
-        self.set_plan(plan)
+        # data publisher
+        #dp = DataPublisher()
 
-        # safety NOTE: replace
-        s0 = Counter(20, name='Safe?')
-        s1 = pt.behaviours.Running(name="Safety action!")
-        s = pt.composites.Selector(children=[s0, s1])
+        # safety
+        s = Safe()
 
         # system preperation NOTE: replace
-        sp0 = Counter(20, name='Continue command recieved?')
-        sp1 = pt.behaviours.Running(name='Preparing system!')
-        sp = pt.composites.Selector(children=[sp0, sp1])
+        sp0 = Counter(10, name="System prepared?")
+        sp1 = pt.behaviours.Running(name="Preparing system!")
+        sp = pt.composites.Selector(name="System preparation", children=[sp0, sp1])
 
         # mission synchronisation NOTE: replace
-        #ms0 = Counter(20, name='Mission synchronised?')
-        #ms1 = pt.behaviours.Running(name='Synchronising mission!')
-        #ms = pt.composites.Selector(children=[ms0, ms1])
         ms = SynchroniseMission()
 
         # mission execution
         me0 = AtFinalWaypoint()
-        me1 = Counter(5, name="At waypoint", reset=True)
+        me1 = Counter(15, name="At waypoint", reset=True)
         me2 = GoTo()
         me3 = SetNextWaypoint()
         me = pt.composites.Selector(children=[me1, me2])
@@ -65,78 +60,14 @@ class BehaviourTree(ptr.trees.BehaviourTree):
         mf = pt.composites.Selector(children=[mf0, mf])
 
         # become behaviour tree
-        super(BehaviourTree, self).__init__(Sequence(children=[
-            s, sp, ms, me, mf
-        ]))
+        tree = Sequence(children=[s, sp, ms, me, mf])
+        #tree = pt.composites.Parallel(children=[dp, tree])
+        super(BehaviourTree, self).__init__(tree)
 
         # execute the tree
         self.setup(timeout=1000)
         while not rospy.is_shutdown():
             self.tick_tock(100)
-
-    @staticmethod
-    def clean(fname, sfname=None):
-
-        # load the pretty json file
-        f = open(fname, 'r').read()
-
-        # clean
-        f = f.replace(' ', '')
-        f = f.replace('\\n', '')
-        f = f.replace('\\"', '"')
-        f = f.replace('"\\', '"')
-        f = f.replace('\\', '')
-
-        # remove
-        f = f.split(',"transitions":')[0]
-        f = f.split('"maneuvers":')[1]
-        f = f.replace('\n', '')
-
-        # convert to json
-        f = json.loads(f)
-
-        # save
-        if sfname is not None:
-            with open(sfname, 'w') as sf:
-                json.dump(f, sf, sort_keys=True, indent=4)
-
-        # return the json dictionary
-        return f
-
-    def set_plan(self, plan):
-
-        # if given json dict plan
-        if isinstance(plan, dict):
-            plan = plan
-
-        # if given filename
-        elif isinstance(plan, str):
-
-            # if given nice json file
-            try:
-                with open(plan, 'r') as f:
-                    plan = json.load(f)
-            except:
-
-                # if given bad json file
-                try:
-                    plan = self.clean(plan)
-                except:
-                    raise ValueError("Could not use or find your plan.")
-
-        # if given something else
-        else:
-            raise ValueError("Must give either dictionary or filename.")
-
-        # set the plan
-        self.bb.set("plan", plan)
-        
-        # set current waypoint
-        self.bb.set("goal_waypoint", 0)
-
-        # set number of waypoints
-        self.bb.set("n_waypoints", len(plan))
-
 
 if __name__ == "__main__":
 
