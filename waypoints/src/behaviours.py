@@ -256,6 +256,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = f.split(',"transitions":')[0]
         f = f.split('"maneuvers":')[1]
         f = f.replace('\n', '')
+        f = f.split(',"transitions"')[0]
 
         # convert to json
         f = json.loads(f)
