@@ -3,7 +3,7 @@
 # Behaviours to use within a behaviour tree.
 # https://arxiv.org/abs/1811.00426
 
-import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy, imc_ros_bridge
+import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy
 
 class Sequence(pt.composites.Selector):
 

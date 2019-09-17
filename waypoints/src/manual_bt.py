@@ -6,7 +6,7 @@
 
 import py_trees as pt, py_trees_ros as ptr, rospy
 from behaviours import Sequence, Safe
-from move_base_msgs.msg import MoveBaseAction, MoveBaseActionGoal
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 
 class BehaviourTree(ptr.trees.BehaviourTree):
 
@@ -92,6 +92,8 @@ class GoToWayPoint(ptr.actions.ActionClient):
             action_namespace="/p2p_planner",
         )
 
+        self.initialise()
+
     def initialise(self):
 
         # get waypoint
@@ -99,10 +101,10 @@ class GoToWayPoint(ptr.actions.ActionClient):
         wp = self.bb.get("plan")[i]
 
         # construct the message
-        self.action_goal = MoveBaseActionGoal()
-        self.action_goal.goal.target_pose.pose.position.x = wp[0]
-        self.action_goal.goal.target_pose.pose.position.y = wp[1]
-        self.action_goal.goal.target_pose.pose.position.z = wp[2]
+        self.action_goal = MoveBaseGoal()
+        self.action_goal.target_pose.pose.position.x = wp[0]
+        self.action_goal.target_pose.pose.position.y = wp[1]
+        self.action_goal.target_pose.pose.position.z = wp[2]
 
         self.sent_goal = False
 
@@ -112,13 +114,16 @@ if __name__ == "__main__":
     rospy.init_node("manual_behaviour_tree")
 
     # waypoints
-    wps = [(0,0,0), (1,1,0), (2,2,0)]
+    wps = [(10,0,0), (20,0,0)]
 
     # execute behaviour tree
     try:
+        print("YOYOYOYO")
         bt = BehaviourTree(wps)
         bt.setup(timeout=10)
+        print("HELLO WORLD")
         while not rospy.is_shutdown():
+            print("RUNNING")
             bt.tick_tock(1)
             print(pt.display.print_ascii_tree(bt))
     except rospy.ROSInterruptException:
