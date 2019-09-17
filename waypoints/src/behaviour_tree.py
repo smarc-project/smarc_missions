@@ -6,7 +6,6 @@
 import py_trees_ros as ptr, py_trees as pt, rospy, json, std_msgs.msg
 from behaviours import *
 
-
 class BehaviourTree(ptr.trees.BehaviourTree):
 
     def __init__(self, plan=None):
@@ -21,12 +20,12 @@ class BehaviourTree(ptr.trees.BehaviourTree):
         s = Safe()
 
         # system preperation NOTE: replace
-        sp0 = Counter(10, name="System prepared?")
-        sp1 = pt.behaviours.Running(name="Preparing system!")
-        sp = pt.composites.Selector(name="System preparation", children=[sp0, sp1])
+        #sp0 = Counter(10, name="System prepared?")
+        #sp1 = pt.behaviours.Running(name="Preparing system!")
+        #sp = pt.composites.Selector(name="System preparation", children=[sp0, sp1])
 
         # mission synchronisation NOTE: replace
-        ms = SynchroniseMission()
+        #ms = SynchroniseMission()
 
         # mission execution
         me0 = AtFinalWaypoint()
