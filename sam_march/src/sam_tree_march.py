@@ -23,7 +23,7 @@ from reactive_seq import ReactiveSeq
 from sf_timer import SF_Timer
 
 import sam_behaviours
-from sam_emergency import Emergency
+# from sam_emergency import Emergency
 from sam_execute_mission import Execute_Mission
 
 import random
@@ -137,9 +137,9 @@ if __name__ == '__main__':
     topics2bb = pt.composites.Sequence("Topics to BB")
 
     # this will sub to '/abort' and write to 'abort' in the BB of the tree when an Empty is received
-    emergency2bb = ptr.subscribers.EventToBlackboard(name='Emergency button',
-                                                     topic_name='/abort',
-                                                     variable_name='emergency')
+    # emergency2bb = ptr.subscribers.EventToBlackboard(name='Emergency button',
+    #                                                  topic_name='/abort',
+    #                                                  variable_name='emergency')
 
 
     # returns running if there is no data to write until there is data
@@ -165,7 +165,7 @@ if __name__ == '__main__':
 
 
     # add these to the subtree responsible for data acquisition
-    topics2bb.add_children([emergency2bb, pitch2bb, depth2bb])
+    topics2bb.add_children([pitch2bb, depth2bb])
 
 
     #####################
@@ -173,39 +173,39 @@ if __name__ == '__main__':
     #####################
 
     # if emergency is False, then we are safe.
-    check_safe = pt.blackboard.CheckBlackboardVariable(name="Safe?",
-                                                       variable_name='emergency',
-                                                       expected_value=False)
+    # check_safe = pt.blackboard.CheckBlackboardVariable(name="Safe?",
+    #                                                    variable_name='emergency',
+    #                                                    expected_value=False)
 
-    check_safety_tried = pt.blackboard.CheckBlackboardVariable(name="Safety action tried?",
-                                                               variable_name='safety_tried',
-                                                               expected_value=True)
+    # check_safety_tried = pt.blackboard.CheckBlackboardVariable(name="Safety action tried?",
+    #                                                            variable_name='safety_tried',
+    #                                                            expected_value=True)
 
-    # we need the whole msg object to be sent
-    emergency_action_msg = GenericStringGoal()
-    emergency_action_msg.bt_action_goal = ""
-    safety_action = ptr.actions.ActionClient(name='sam_emergency',
-                                             action_spec=GenericStringAction,
-                                             action_goal=emergency_action_msg,
-                                             action_namespace='/sam_emergency')
+    # # we need the whole msg object to be sent
+    # emergency_action_msg = GenericStringGoal()
+    # emergency_action_msg.bt_action_goal = ""
+    # safety_action = ptr.actions.ActionClient(name='sam_emergency',
+    #                                          action_spec=GenericStringAction,
+    #                                          action_goal=emergency_action_msg,
+    #                                          action_namespace='/sam_emergency')
 
-    set_safety_tried = pt.blackboard.SetBlackboardVariable(name='Set safety tried',
-                                                           variable_name='safety_tried',
-                                                           variable_value=True)
+    # set_safety_tried = pt.blackboard.SetBlackboardVariable(name='Set safety tried',
+    #                                                        variable_name='safety_tried',
+    #                                                        variable_value=True)
 
-    attempt_safety = pt.composites.Parallel(name='Attempt safety action')
-    attempt_safety.add_children([safety_action, set_safety_tried])
+    # attempt_safety = pt.composites.Parallel(name='Attempt safety action')
+    # attempt_safety.add_children([safety_action, set_safety_tried])
 
 
-    # TODO make this a function
-    safety_pre = pt.composites.Selector(name="Safety precon")
-    safety_post = ReactiveSeq(name="Safety postcon")
-    safety_post.add_children([check_safety_tried, make_idle()])
-    safety_pre.add_children([check_safe, safety_post])
+    # # TODO make this a function
+    # safety_pre = pt.composites.Selector(name="Safety precon")
+    # safety_post = ReactiveSeq(name="Safety postcon")
+    # safety_post.add_children([check_safety_tried, make_idle()])
+    # safety_pre.add_children([check_safe, safety_post])
 
-    # tries the safety action once and then idles
-    safety_fb = pt.composites.Selector(name='Safety')
-    safety_fb.add_children([safety_pre, attempt_safety, make_idle()])
+    # # tries the safety action once and then idles
+    # safety_fb = pt.composites.Selector(name='Safety')
+    # safety_fb.add_children([safety_pre, attempt_safety, make_idle()])
 
 
     #####################
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     # the main meat of the tree
     mission_seq = ReactiveSeq(name='Mission')
     # make the mission
-    mission_seq.add_children([safety_fb, mission_fb, make_idle()])
+    mission_seq.add_children([mission_fb, make_idle()])
 
 
     #####################
