@@ -8,7 +8,7 @@ from behaviours import *
 
 class BehaviourTree(ptr.trees.BehaviourTree):
 
-    def __init__(self, plan=None):
+    def __init__(self):
 
         # the blackboard
         self.bb = pt.blackboard.Blackboard()
@@ -25,7 +25,7 @@ class BehaviourTree(ptr.trees.BehaviourTree):
         #sp = pt.composites.Selector(name="System preparation", children=[sp0, sp1])
 
         # mission synchronisation NOTE: replace
-        #ms = SynchroniseMission()
+        ms = SynchroniseMission()
 
         # mission execution
         me0 = AtFinalWaypoint()

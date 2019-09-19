@@ -5,6 +5,8 @@
 
 import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from geodesy.utm import fromLatLong
+
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
@@ -237,10 +239,9 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
         with self.data_guard:
 
-            # first time
-            if self.msg == None and self.first:
+            # first time - checking length because neptus sends empty message sometimes, not sure which times.... :'(
+            if (self.msg ==  None or len(str(self.msg)) < 135) and self.first:
                 self.feedback_message = "Waiting for a plan"
-                print(str(self.msg))
                 return pt.common.Status.RUNNING
 
             # recieved plan
@@ -254,16 +255,16 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 self.first = False
                 
                 #also publish the points into for rviz
-                for i,pt in enumerate(plan):
+                for i, ptn in enumerate(plan):
                     marker = Marker()
                     marker.ns = '/marker_array'
                     marker.id = i
                     marker.action = 0
                     marker.type = 3 #cylinder
                     pose = Pose()
-                    pose.x = pt[0]
-                    pose.y = pt[1]
-                    pose.z = pt[2]
+                    pose.position.x = ptn[0]
+                    pose.position.y = ptn[1]
+                    pose.position.z = ptn[2]
                     marker.pose = pose
                     marker.color.a = 255
                     marker.color.r = 255
@@ -304,6 +305,15 @@ class SynchroniseMission(ptr.subscribers.Handler):
         # convert to json
         f = json.loads(f)
 
+        # convert lat lon to utm
+        f = [fromLatLong(float(d['data']['lat']), float(d['data']['lon'])) for d in f]
+
+        # convert utm to point
+        f = [d.toPoint() for d in f]
+
+        # convert point to xyz NOTE: convert to utm local?
+        f = [(d.x, d.y, d.z) for d in f]
+
         # save
         '''
         if sfname is not None:
@@ -313,6 +323,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
         # return the json dictionary
         return f
+
 
 class Safe(ptr.subscribers.Handler):
 
