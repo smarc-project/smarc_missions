@@ -6,6 +6,10 @@
 import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 
+import rospy
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
+
 class Sequence(pt.composites.Selector):
 
     """
@@ -223,6 +227,11 @@ class SynchroniseMission(ptr.subscribers.Handler):
             topic_name=plan_tpc,
             topic_type=std_msgs.msg.String,   
         )
+        
+        # create a markerArray publisher
+        # TODO change topic
+        self.marker_array_pub = rospy.Publisher('/rviz_marker_array', MarkerArray, queue_size=1)
+        self.marker_array = MarkerArray()
 
     def update(self):
 
@@ -243,6 +252,28 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 self.bb.set("n_waypoints", len(plan))
                 self.bb.set("waypoint_i", 0)
                 self.first = False
+                
+                #also publish the points into for rviz
+                for i,pt in enumerate(plan):
+                    marker = Marker()
+                    marker.ns = '/marker_array'
+                    marker.id = i
+                    marker.action = 0
+                    marker.type = 3 #cylinder
+                    pose = Pose()
+                    pose.x = pt[0]
+                    pose.y = pt[1]
+                    pose.z = pt[2]
+                    marker.pose = pose
+                    marker.color.a = 255
+                    marker.color.r = 255
+                    marker.color.g = 0
+                    marker.color.b = 255
+                    marker.header.frame_id = '/world'
+                    self.marker_array.markers.append(marker)
+                    
+                self.marker_array_pub.publish(self.marker_array)
+                    
                 return pt.common.Status.SUCCESS
 
             # otherwise
