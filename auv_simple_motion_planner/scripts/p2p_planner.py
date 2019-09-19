@@ -34,7 +34,6 @@
 
 from __future__ import division, print_function
 
-import scipy.special
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -55,6 +54,8 @@ class P2PPlanner(object):
     def execute_cb(self, goal):
         # helper variables
         #r = rospy.Rate(1)
+        rospy.loginfo("Goal received")
+        
         success = True
         self.nav_goal = goal.target_pose.pose
         
@@ -71,13 +72,13 @@ class P2PPlanner(object):
                 # Stop thrusters
                 rpm = ThrusterRPMs()
                 rpm.thruster_1_rpm = 0.
-                self.rpm_pub.publish()
+                self.rpm_pub.publish(rpm)
                 break
 
             # Publish feedback
             if counter % 100 == 0:
                 try:
-                    (trans, rot) = self.listener.lookupTransform("/world", self.base_frame, rospy.Time(0))
+                    (trans, rot) = self.listener.lookupTransform("/world", "sam/base_link", rospy.Time(0))
                     pose_fb = PoseStamped()
                     pose_fb.header.frame_id = "/world"
                     pose_fb.pose.position.x = trans[0]
@@ -86,22 +87,32 @@ class P2PPlanner(object):
                     self._feedback.base_position = pose_fb
                     self._feedback.base_position.header.stamp = rospy.get_rostime()
                     self._as.publish_feedback(self._feedback)
+
+                    rospy.loginfo("Sending feedback")
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                    return
+                    rospy.loginfo("Error with tf")
+                    continue
 
             # Thruster forward
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 500.
-            self.rpm_pub.publish()
-            
+            rpm.thruster_1_rpm = 1000.
+            self.rpm_pub.publish(rpm)
+            rospy.loginfo("Thrusters forward")
+
             counter += 1
             r.sleep()
         
         if success:
             # Stop thruster
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 0.0
-            self.rpm_pub.publish()
+            rpm.thruster_1_rpm = -1000.0
+            
+            cnt = 0
+            while not rospy.is_shutdown() and cnt < 50:
+                self.rpm_pub.publish(rpm)
+                cnt += 1
+                r.sleep()
+
 
             #self._result.sequence = self._feedback.sequence
             rospy.loginfo('%s: Succeeded' % self._action_name)
@@ -110,7 +121,7 @@ class P2PPlanner(object):
 
     def timer_callback(self, event):
         if self.nav_goal is None:
-            #print("Nav goal is None!")
+            rospy.loginfo("Nav goal is None!")
             return
         
         try:
@@ -157,7 +168,7 @@ class P2PPlanner(object):
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
-        rospy.Timer(rospy.Duration(0.2), self.timer_callback)
+        rospy.Timer(rospy.Duration(2), self.timer_callback)
 
         self.rpm_pub = rospy.Publisher('/uavcan_rpm_command', ThrusterRPMs, queue_size=10)
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)

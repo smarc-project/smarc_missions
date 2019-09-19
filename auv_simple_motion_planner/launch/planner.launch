@@ -1,7 +1,7 @@
 <launch>
 
   <arg name="carrot_dist" default="10."/>
-  <arg name="base_frame" default="lolo_auv_1/base_link"/>
+  <arg name="base_frame" default="sam/base_link"/>
   <arg name="thrust_level" default="200."/>
   <arg name="heading_offsets" default="5."/>
   <arg name="trajectory_points" default="100"/>
@@ -25,5 +25,7 @@
     <param name="heading_offsets" value="$(arg heading_offsets)" />
     <param name="base_frame" value="$(arg base_frame)" />
   </node>
+
+<node name="manual_bt" pkg="waypoints" type="manual_bt.py" output="screen"/>   
 
 </launch>
