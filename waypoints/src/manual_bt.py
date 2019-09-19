@@ -114,7 +114,7 @@ if __name__ == "__main__":
     rospy.init_node("manual_behaviour_tree")
 
     # waypoints
-    wps = [(10,0,0), (20,0,0)]
+    wps = [(20,0,0)]
 
     # execute behaviour tree
     try:

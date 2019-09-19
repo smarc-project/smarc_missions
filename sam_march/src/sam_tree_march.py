@@ -29,11 +29,11 @@ from sam_execute_mission import Execute_Mission
 import random
 
 # make these HUGE if you dont care about these checks
-PITCH_THRE = 10000000
+PITCH_THRE = 0.1
 DEPTH_THRE = 0.1
 
 # pitch depth
-MISSION_SETPOINTS = [(0,30), (0,32), (0.2, 32), (-0.2, 32), (0,30), (0,0)]
+MISSION_SETPOINTS = [(0.0,0.6), (0.0,0.1), (0.0, 0.6), (0.3, 0.6), (-0.3,0.6), (0.0, 0.6), (0.0, 0.1)]
 IDLES_MADE = 0
 
 
@@ -110,14 +110,15 @@ def make_follow_points_subtree(points):
         check_point_done_flag = pt.blackboard.CheckBlackboardVariable(name="Check point done flag",
                                                                       variable_name=str(pt_ix)+'_done',
                                                                       expected_value=True)
-
+        counter = pt.behaviours.Count(fail_until=0)
 
         at_target_fb = pt.composites.Selector(name="Not at"+str(point)+"?")
         at_target_fb.add_children([check_timeout_flag,
                                    check_point_done_flag,
                                    point_done_seq,
                                    check_timeout,
-                                   goto_pnt_action])
+                                   goto_pnt_action,
+                                   counter])
 
 
 
