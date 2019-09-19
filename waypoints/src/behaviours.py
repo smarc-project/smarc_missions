@@ -4,6 +4,7 @@
 # https://arxiv.org/abs/1811.00426
 
 import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 
 class Sequence(pt.composites.Selector):
 
@@ -119,35 +120,35 @@ class SetNextWaypoint(pt.behaviour.Behaviour):
 
     def __init__(self):
 
-        # blackboard
+        # blackboard access
         self.bb = pt.blackboard.Blackboard()
 
-        # become a behaviour
-        super(SetNextWaypoint, self).__init__("Set next waypoint!")
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(self, "Set next waypoint")
 
     def update(self):
 
         # set current waypoint to the next one
-        self.bb.set("goal_waypoint", self.bb.get("goal_waypoint") + 1)
+        self.bb.set("waypoint_i", self.bb.get("waypoint_i") + 1)
         return pt.common.Status.RUNNING
 
 class AtFinalWaypoint(pt.behaviour.Behaviour):
 
     def __init__(self):
 
-        # blackboard
+        # blackboard access
         self.bb = pt.blackboard.Blackboard()
 
-        # become a behaviour
-        super(AtFinalWaypoint, self).__init__("At final waypoint?")
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(self, "At final waypoint?")
 
     def update(self):
 
-        # current progress
-        i = self.bb.get("goal_waypoint")
+        # current status
+        i = self.bb.get("waypoint_i")
         n = self.bb.get("n_waypoints")
         self.feedback_message = "Waypoint {} of {}".format(i, n)
-        
+
         # react to result
         return pt.common.Status.SUCCESS if i == n else pt.common.Status.FAILURE
             
@@ -199,7 +200,16 @@ class GoTo(pt.behaviour.Behaviour):
 
 class SynchroniseMission(ptr.subscribers.Handler):
 
-    def __init__(self):
+    '''
+    - Returns running until /plan_db recieves a 
+    message.
+    - Set's the plan and the number of waypoints, 
+    returning success after /plan_db recieves a
+    message.
+    - Returns success indefinitely thereafter.
+    '''
+
+    def __init__(self, plan_tpc='/plan_db'):
 
         # blackboard
         self.bb = pt.blackboard.Blackboard()
@@ -210,7 +220,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         # become a behaviour
         super(SynchroniseMission, self).__init__(
             name="Synchronise mission!",
-            topic_name="/plan_db",
+            topic_name=plan_tpc,
             topic_type=std_msgs.msg.String,   
         )
 
@@ -221,15 +231,17 @@ class SynchroniseMission(ptr.subscribers.Handler):
             # first time
             if self.msg == None and self.first:
                 self.feedback_message = "Waiting for a plan"
+                print(str(self.msg))
                 return pt.common.Status.RUNNING
 
             # recieved plan
             if isinstance(self.msg, std_msgs.msg.String):
                 self.feedback_message = "Recieved new plan"
+                # format the message to .json
                 plan = self.clean(str(self.msg))
                 self.bb.set("plan", plan)
                 self.bb.set("n_waypoints", len(plan))
-                self.bb.set("goal_waypoint", 0)
+                self.bb.set("waypoint_i", 0)
                 self.first = False
                 return pt.common.Status.SUCCESS
 
@@ -273,6 +285,11 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
 class Safe(ptr.subscribers.Handler):
 
+    '''
+    Returns success as long as there is not
+    any message recieved at /abort.
+    '''
+
     def __init__(self):
 
         # become a behaviour
@@ -294,6 +311,35 @@ class Safe(ptr.subscribers.Handler):
             self.feedback_message = "Mission aborted!"
             return pt.common.Status.FAILURE
 
+class GoToWayPoint(ptr.actions.ActionClient):
+
+    def __init__(self):
+
+        # blackboard access
+        self.bb = pt.blackboard.Blackboard()
+
+        # become action client
+        ptr.actions.ActionClient.__init__(
+            self,
+            name="Go to waypoint",
+            action_spec=MoveBaseAction,
+            action_goal=None,
+            action_namespace="/p2p_planner",
+        )
+
+    def initialise(self):
+
+        # get waypoint
+        i = self.bb.get("waypoint_i")
+        wp = self.bb.get("plan")[i]
+
+        # construct the message
+        self.action_goal = MoveBaseGoal()
+        self.action_goal.target_pose.pose.position.x = wp[0]
+        self.action_goal.target_pose.pose.position.y = wp[1]
+        self.action_goal.target_pose.pose.position.z = wp[2]
+
+        self.sent_goal = False
 
 """
 class DataPublisher(pt.behaviour.Behaviour):
