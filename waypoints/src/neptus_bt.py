@@ -12,13 +12,13 @@ from behaviours import Sequence, Safe, SynchroniseMission, AtFinalWaypoint, GoTo
 
 class BehaviourTree(ptr.trees.BehaviourTree):
 
-    def __init__(self, plan_tpc='/plan_db'):
+    def __init__(self, plan_db_ns=''):
 
         # safety branch
         s = Safe()
 
         # mission synchronisation
-        ms = SynchroniseMission(plan_tpc='/plan_db')
+        ms = SynchroniseMission(plan_db_ns+'/plan_db')
 
         # mission execution
         me = pt.composites.Selector(children=[
@@ -41,12 +41,15 @@ if __name__ == "__main__":
 
     # initialise node
     rospy.init_node("neptus_bt")
+    
+    # get the namespace for the topics
+    plan_db_ns = rospy.get_param("~system_name")
 
     # execute behaviour tree
     try:
-        bt = BehaviourTree()
+        bt = BehaviourTree(plan_db_ns)
         bt.setup(timeout=10)
         while not rospy.is_shutdown():
-            bt.tick_tock(1, post_tick_handler=lambda t: pt.display.print_ascii_tree(bt.root, show_status=True))
+            bt.tick_tock(1) #post_tick_handler=lambda t: pt.display.print_ascii_tree(bt.root, show_status=True))
     except rospy.ROSInterruptException:
         pass
