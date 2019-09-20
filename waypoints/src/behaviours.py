@@ -3,7 +3,7 @@
 # Behaviours to use within a behaviour tree.
 # https://arxiv.org/abs/1811.00426
 
-import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy
+import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy, numpy as np
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geodesy.utm import fromLatLong, UTMPoint
 from sensor_msgs.msg import NavSatFix
@@ -308,7 +308,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = json.loads(f)
 
         # convert lat lon to utm
-        f = [fromLatLong(float(d['data']['lat']), float(d['data']['lon'])) for d in f]
+        f = [fromLatLong(np.degrees(float(d['data']['lat'])), np.degrees(float(d['data']['lon']))) for d in f]
 
         # get the grid-zone
         gz = f[0].gridZone()[0]
