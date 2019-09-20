@@ -136,28 +136,21 @@ class BezierPlanner(object):
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
 
-    def callback(self, pose_msg):
+    # def callback(self, pose_msg):
 
-        if len(pose_msg.header.frame_id) == 0:
-            self.nav_goal = None
-            return
+    #     if len(pose_msg.header.frame_id) == 0:
+    #         self.nav_goal = None
+    #         return
 
-        self.nav_goal = pose_msg.pose
-        path, pose = self.plan()
-        self.pub.publish(path)
+    #     self.nav_goal = pose_msg.pose
+    #     path, pose = self.plan()
+    #     self.pub.publish(path)
     
     def execute_cb(self, goal):
-        # helper variables
-        #r = rospy.Rate(1)
+
         success = True
         self.nav_goal = goal.target_pose.pose
-        
-        # append the seeds for the fibonacci sequence
-        #self._feedback.base_position.header.frame_id = "/world"
-        
-        # publish info to the console for the user
-        #rospy.loginfo('%s: Executing, creating fibonacci sequence of order %i with seeds %i, %i' % (self._action_name, goal.order, self._feedback.sequence[0], self._feedback.sequence[1]))
-        
+
         r = rospy.Rate(10.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
@@ -280,7 +273,7 @@ class BezierPlanner(object):
 
         self.listener = tf.TransformListener()
         self.pub = rospy.Publisher('/global_plan', Path, queue_size=10)
-        rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback)
+        # rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback)
 
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
