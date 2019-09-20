@@ -135,16 +135,6 @@ class BezierPlanner(object):
     # create messages that are used to publish feedback/result
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
-
-    # def callback(self, pose_msg):
-
-    #     if len(pose_msg.header.frame_id) == 0:
-    #         self.nav_goal = None
-    #         return
-
-    #     self.nav_goal = pose_msg.pose
-    #     path, pose = self.plan()
-    #     self.pub.publish(path)
     
     def execute_cb(self, goal):
 
@@ -208,12 +198,6 @@ class BezierPlanner(object):
         start_yaw = euler[2] # np.radians(180.0)  # [rad]
 
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
-
-        #if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
-        #    rospy.loginfo("Reached goal!")
-        #    self.nav_goal = None
-        #    return Path()
-
         end_rot = [self.nav_goal.orientation.x, self.nav_goal.orientation.y, self.nav_goal.orientation.z, self.nav_goal.orientation.w]
         euler = tf.transformations.euler_from_quaternion(end_rot)
         end_pitch = euler[1]
@@ -258,21 +242,20 @@ class BezierPlanner(object):
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             return
 
-        # TODO: we could use this code for the other check also
         goal_point = PointStamped()
         goal_point.header.frame_id = "/world"
         goal_point.header.stamp = rospy.Time(0)
         goal_point.point.x = self.nav_goal.position.x
         goal_point.point.y = self.nav_goal.position.y
         goal_point.point.z = self.nav_goal.position.z
-        try:
-            goal_point_base = self.listener.transformPoint(self.base_frame, goal_point)
-            if goal_point_base.point.x < 0.:
-                rospy.loginfo("Ahead of goal, returning success!")
-                self.nav_goal = None
-                return
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            pass
+        # try:
+        #     goal_point_base = self.listener.transformPoint(self.base_frame, goal_point)
+        #     if goal_point_base.point.x < 0.:
+        #         rospy.loginfo("Ahead of goal, returning success!")
+        #         self.nav_goal = None
+        #         return
+        # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        #     pass
 
         #print("Checking if nav goal is reached!")
 
@@ -292,13 +275,12 @@ class BezierPlanner(object):
         self.heading_offset = rospy.get_param('~heading_offsets', 5.)
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
         self.n_points = rospy.get_param('~number_points', 100)
-        self.base_frame = rospy.get_param('~base_frame', "lolo_auv_1/base_link")
+        self.base_frame = rospy.get_param('~base_frame', "base_link")
 
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
         self.pub = rospy.Publisher('/global_plan', Path, queue_size=10)
-        # rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback)
 
         rospy.Timer(rospy.Duration(0.1), self.timer_callback)
 
