@@ -5,8 +5,9 @@
 
 import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from geodesy.utm import fromLatLong
-
+from geodesy.utm import fromLatLong, UTMPoint
+from sensor_msgs.msg import NavSatFix
+import actionlib_msgs.msg as actionlib_msgs
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
@@ -246,12 +247,18 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
             # recieved plan
             if isinstance(self.msg, std_msgs.msg.String):
+
+                # feedback message
                 self.feedback_message = "Recieved new plan"
-                # format the message to .json
-                plan = self.clean(str(self.msg))
+
+                # get the plan and utm zone from neptus
+                plan, zone = self.clean(self.msg)
+
+                # set the blackboard variables
                 self.bb.set("plan", plan)
                 self.bb.set("n_waypoints", len(plan))
                 self.bb.set("waypoint_i", 0)
+                self.bb.set("utmzone", zone)
                 self.first = False
                 
                 #also publish the points into for rviz
@@ -283,20 +290,15 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 return pt.common.Status.SUCCESS      
 
     @staticmethod
-    def clean(plan):
+    def clean(f):
 
-        # load the pretty json file
-        #f = open(fname, 'r').read()
-        f = plan
-
-        # clean
+        f = str(f)
+        # clean the neptus message
         f = f.replace(' ', '')
         f = f.replace('\\n', '')
         f = f.replace('\\"', '"')
         f = f.replace('"\\', '"')
         f = f.replace('\\', '')
-
-        # remove
         f = f.split(',"transitions":')[0]
         f = f.split('"maneuvers":')[1]
         f = f.replace('\n', '')
@@ -308,22 +310,17 @@ class SynchroniseMission(ptr.subscribers.Handler):
         # convert lat lon to utm
         f = [fromLatLong(float(d['data']['lat']), float(d['data']['lon'])) for d in f]
 
+        # get the grid-zone
+        gz = f[0].gridZone()[0]
+
         # convert utm to point
         f = [d.toPoint() for d in f]
 
-        # convert point to xyz NOTE: convert to utm local?
+        # convert point to xyz
         f = [(d.x, d.y, d.z) for d in f]
 
-        # save
-        '''
-        if sfname is not None:
-            with open(sfname, 'w') as sf:
-                json.dump(f, sf, sort_keys=True, indent=4)
-        '''
-
-        # return the json dictionary
-        return f
-
+        # return list of utm xyz waypoints and the utm zone
+        return f, gz
 
 class Safe(ptr.subscribers.Handler):
 
@@ -369,6 +366,9 @@ class GoToWayPoint(ptr.actions.ActionClient):
             action_namespace="/p2p_planner",
         )
 
+        # publish back to neptus
+        self.neptus = rospy.Publisher('/estimated_state', NavSatFix, queue_size=1)
+
     def initialise(self):
 
         # get waypoint
@@ -382,6 +382,69 @@ class GoToWayPoint(ptr.actions.ActionClient):
         self.action_goal.target_pose.pose.position.z = wp[2]
 
         self.sent_goal = False
+
+    def update(self):
+
+        """
+        Check only to see whether the underlying action server has
+        succeeded, is running, or has cancelled/aborted for some reason and
+        map these to the usual behaviour return states.
+        """
+
+        self.logger.debug("{0}.update()".format(self.__class__.__name__))
+
+        # if your action client is not valid
+        if not self.action_client:
+            self.feedback_message = "no action client, did you call setup() on your tree?"
+            return pt.Status.INVALID
+
+        # if goal hasn't been sent yet
+        if not self.sent_goal:
+            self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+            self.sent_goal = True
+            self.feedback_message = "sent goal to the action server"
+            return pt.Status.RUNNING
+        self.feedback_message = self.action_client.get_goal_status_text()
+
+        # if the goal was aborted or preempted
+        if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
+                                              actionlib_msgs.GoalStatus.PREEMPTED]:
+            return pt.Status.FAILURE
+        result = self.action_client.get_result()
+
+        # if the goal was accomplished
+        if result:
+            return pt.Status.SUCCESS
+
+        # if we're still trying to accomplish the goal
+        else:
+
+            # a nice little message :) xoxo
+            self.feedback_message = self.override_feedback_message_on_running
+
+            return pt.Status.RUNNING
+
+    def feedback_cb(self, msg):
+
+        # get positional feedback of the p2p goal
+        msg = msg.feedback.base_position.pose.position
+
+        # get the utm zone
+        utmz = self.bb.get('utmzone')
+
+        # make utm point
+        pnt = UTMPoint(easting=msg.x, northing=msg.y, altitude=msg.z, zone=utmz)
+
+        # get lat-lon
+        pnt = pnt.toMsg()
+
+        # construct message for neptus
+        msg = NavSatFix()
+        msg.latitude = pnt.latitude
+        msg.longitude = pnt.longitude
+
+        # send the message to neptus
+        self.neptus.publish(msg)
 
 """
 class DataPublisher(pt.behaviour.Behaviour):

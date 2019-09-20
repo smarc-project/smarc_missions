@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # Christopher Iliffe Sprague
 # sprague@kth.se
 # Behaviour tree that iterates
@@ -43,12 +44,9 @@ if __name__ == "__main__":
 
     # execute behaviour tree
     try:
-        print("YOYOYOYO")
         bt = BehaviourTree()
         bt.setup(timeout=10)
-        print("HELLO WORLD")
         while not rospy.is_shutdown():
-            print("RUNNING")
             bt.tick_tock(1, post_tick_handler=lambda t: pt.display.print_ascii_tree(bt.root, show_status=True))
     except rospy.ROSInterruptException:
         pass
