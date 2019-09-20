@@ -26,6 +26,6 @@
     <param name="base_frame" value="$(arg base_frame)" />
   </node> -->
 
-<node name="manual_bt" pkg="waypoints" type="manual_bt.py" output="screen"/>   
+<node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen"/>   
 
 </launch>
