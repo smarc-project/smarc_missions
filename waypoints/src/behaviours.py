@@ -274,10 +274,11 @@ class SynchroniseMission(ptr.subscribers.Handler):
                     pose.position.y = ptn[1]
                     pose.position.z = ptn[2]
                     marker.pose = pose
-                    marker.color.a = 255
-                    marker.color.r = 255
+                    # a, rgb in [0,1]
+                    marker.color.a = 1
+                    marker.color.r = 1
                     marker.color.g = 0
-                    marker.color.b = 255
+                    marker.color.b = 1
                     marker.header.frame_id = '/world'
                     self.marker_array.markers.append(marker)
                     
