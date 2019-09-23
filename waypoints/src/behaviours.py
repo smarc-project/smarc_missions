@@ -311,6 +311,11 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
         # convert lat lon to utm
         depths = [float(d['data']['z']) for d in f]
+
+        # ensure signs of depths
+        depths = [-d if d > 0 else d for d in depths]
+
+        # get latitute and longitude
         f = [fromLatLong(np.degrees(float(d['data']['lat'])), np.degrees(float(d['data']['lon']))) for d in f]
 
         # get the grid-zone
@@ -429,8 +434,6 @@ class GoToWayPoint(ptr.actions.ActionClient):
 
     def feedback_cb(self, msg):
 
-        print msg
-
         # get positional feedback of the p2p goal
         msg = msg.base_position.pose.position
 
@@ -441,15 +444,15 @@ class GoToWayPoint(ptr.actions.ActionClient):
         band = self.bb.get("band")
 
         # make utm point
-        pnt = UTMPoint(easting=msg.x, northing=msg.y, altitude=1, zone=utmz, band=band)
+        pnt = UTMPoint(easting=msg.x, northing=msg.y, altitude=0, zone=utmz, band=band)
 
         # get lat-lon
         pnt = pnt.toMsg()
 
         # construct message for neptus
         msg = NavSatFix()
-        msg.latitude = pnt.latitude
-        msg.longitude = pnt.longitude
+        msg.latitude = np.radians(pnt.latitude)
+        msg.longitude = np.radians(pnt.longitude)
 
         # send the message to neptus
         self.neptus.publish(msg)
