@@ -252,13 +252,14 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 self.feedback_message = "Recieved new plan"
 
                 # get the plan and utm zone from neptus
-                plan, zone = self.clean(self.msg)
+                plan, zone, band = self.clean(self.msg)
 
                 # set the blackboard variables
                 self.bb.set("plan", plan)
                 self.bb.set("n_waypoints", len(plan))
                 self.bb.set("waypoint_i", 0)
                 self.bb.set("utmzone", zone)
+                self.bb.set("band", band)
                 self.first = False
                 
                 #also publish the points into for rviz
@@ -273,10 +274,11 @@ class SynchroniseMission(ptr.subscribers.Handler):
                     pose.position.y = ptn[1]
                     pose.position.z = ptn[2]
                     marker.pose = pose
-                    marker.color.a = 255
-                    marker.color.r = 255
+                    # a, rgb in [0,1]
+                    marker.color.a = 1
+                    marker.color.r = 1
                     marker.color.g = 0
-                    marker.color.b = 255
+                    marker.color.b = 1
                     marker.header.frame_id = '/world'
                     self.marker_array.markers.append(marker)
                     
@@ -312,7 +314,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = [fromLatLong(np.degrees(float(d['data']['lat'])), np.degrees(float(d['data']['lon']))) for d in f]
 
         # get the grid-zone
-        gz = f[0].gridZone()[0]
+        gz, band = f[0].gridZone()
 
         # convert utm to point
         f = [d.toPoint() for d in f]
@@ -321,7 +323,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = [(d.x, d.y, depth) for d, depth in zip(f, depths)]
 
         # return list of utm xyz waypoints and the utm zone
-        return f, gz
+        return f, gz, band
 
 class Safe(ptr.subscribers.Handler):
 
@@ -364,11 +366,11 @@ class GoToWayPoint(ptr.actions.ActionClient):
             name="Go to waypoint",
             action_spec=MoveBaseAction,
             action_goal=None,
-            action_namespace="/p2p_planner",
+            action_namespace="/bezier_planner",
         )
 
         # publish back to neptus
-        self.neptus = rospy.Publisher('/estimated_state', NavSatFix, queue_size=1)
+        self.neptus = rospy.Publisher('/lolo_auv_1/estimated_state', NavSatFix, queue_size=1)
 
     def initialise(self):
 
@@ -427,14 +429,19 @@ class GoToWayPoint(ptr.actions.ActionClient):
 
     def feedback_cb(self, msg):
 
+        print msg
+
         # get positional feedback of the p2p goal
-        msg = msg.feedback.base_position.pose.position
+        msg = msg.base_position.pose.position
 
         # get the utm zone
         utmz = self.bb.get('utmzone')
 
+        # get band zone
+        band = self.bb.get("band")
+
         # make utm point
-        pnt = UTMPoint(easting=msg.x, northing=msg.y, altitude=msg.z, zone=utmz)
+        pnt = UTMPoint(easting=msg.x, northing=msg.y, altitude=1, zone=utmz, band=band)
 
         # get lat-lon
         pnt = pnt.toMsg()
