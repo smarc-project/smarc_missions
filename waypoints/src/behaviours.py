@@ -273,7 +273,11 @@ class SynchroniseMission(ptr.subscribers.Handler):
                     pose.position.x = ptn[0]
                     pose.position.y = ptn[1]
                     pose.position.z = ptn[2]
+                    pose.orientation.w = 1
                     marker.pose = pose
+                    marker.scale.x = 1.0
+                    marker.scale.y = 1.0
+                    marker.scale.z = 1.0
                     # a, rgb in [0,1]
                     marker.color.a = 1
                     marker.color.r = 1
