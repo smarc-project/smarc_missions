@@ -314,6 +314,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = json.loads(f)
 
         # convert lat lon to utm
+        depths = [float(d['data']['z']) for d in f]
         f = [fromLatLong(np.degrees(float(d['data']['lat'])), np.degrees(float(d['data']['lon']))) for d in f]
 
         # get the grid-zone
@@ -323,7 +324,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = [d.toPoint() for d in f]
 
         # convert point to xyz
-        f = [(d.x, d.y, d.z) for d in f]
+        f = [(d.x, d.y, depth) for d, depth in zip(f, depths)]
 
         # return list of utm xyz waypoints and the utm zone
         return f, gz, band
