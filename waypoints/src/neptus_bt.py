@@ -14,6 +14,8 @@ class BehaviourTree(ptr.trees.BehaviourTree):
 
     def __init__(self, plan_db_ns=''):
 
+        self.bb = pt.blackboard.Blackboard()
+
         # safety branch
         s = Safe()
 
@@ -43,13 +45,13 @@ if __name__ == "__main__":
     rospy.init_node("neptus_bt")
     
     # get the namespace for the topics
-    plan_db_ns = rospy.get_param("~system_name")
+    #plan_db_ns = rospy.get_param("~system_name")
 
     # execute behaviour tree
     try:
-        bt = BehaviourTree(plan_db_ns)
+        bt = BehaviourTree()
         bt.setup(timeout=10)
         while not rospy.is_shutdown():
-            bt.tick_tock(1) #post_tick_handler=lambda t: pt.display.print_ascii_tree(bt.root, show_status=True))
+            bt.tick_tock(1)#, post_tick_handler=lambda t: pt.display.print_ascii_tree(bt.root, show_status=True))
     except rospy.ROSInterruptException:
         pass
