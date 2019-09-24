@@ -318,6 +318,8 @@ class SynchroniseMission(ptr.subscribers.Handler):
         # convert to json
         f = json.loads(f)
 
+        #json.dump(f, open('plan.json', 'w'))
+
         # convert lat lon to utm
         depths = [float(d['data']['z']) for d in f]
 
@@ -346,14 +348,19 @@ class Safe(ptr.subscribers.Handler):
     any message recieved at /abort.
     '''
 
-    def __init__(self):
+    def __init__(self, namespace):
 
         # become a behaviour
         super(Safe, self).__init__(
             name="Safe?",
-            topic_name="/abort",
-            topic_type=std_msgs.msg.Empty
+            topic_name=namespace + "/abort",
+            topic_type=std_msgs.msg.Empty,
+            clearing_policy=pt.common.ClearingPolicy.ON_SUCCESS
         )
+
+        # emergency action publisher
+        self.emergency = rospy.Publisher('/vbs_control_action', std_msgs.msg.Float64, queue_size=1)
+        self.sent = False
 
     def update(self):
 
@@ -365,6 +372,15 @@ class Safe(ptr.subscribers.Handler):
         # abort
         else:
             self.feedback_message = "Mission aborted!"
+
+            # send surfacing command
+            if not self.sent:
+                msg = std_msgs.msg.Float64()
+                msg.data = -10
+                self.emergency.publish(msg)
+                self.sent = True
+
+            # return failure :(
             return pt.common.Status.FAILURE
 
 class GoToWayPoint(ptr.actions.ActionClient):
