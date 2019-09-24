@@ -8,6 +8,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geodesy.utm import fromLatLong, UTMPoint
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
+from imc_ros_bridge.msg import PlanControlState
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
@@ -368,7 +369,7 @@ class Safe(ptr.subscribers.Handler):
 
 class GoToWayPoint(ptr.actions.ActionClient):
 
-    def __init__(self):
+    def __init__(self, namespace):
 
         # blackboard access
         self.bb = pt.blackboard.Blackboard()
@@ -384,7 +385,8 @@ class GoToWayPoint(ptr.actions.ActionClient):
         )
 
         # publish back to neptus
-        self.neptus = rospy.Publisher('/lolo_auv_1/estimated_state', NavSatFix, queue_size=1)
+        self.neptus = rospy.Publisher(namespace + '/estimated_state', NavSatFix, queue_size=1)
+        self.neptus_state = rospy.Publisher(namespace + '/plan_control_state', PlanControlState, queue_size=1)
 
     def initialise(self):
 
@@ -466,44 +468,9 @@ class GoToWayPoint(ptr.actions.ActionClient):
         # send the message to neptus
         self.neptus.publish(msg)
 
-"""
-class DataPublisher(pt.behaviour.Behaviour):
+        # construct current progress message for neptus
+        msg = PlanControlState()
+        msg.plan_id = 'Going to waypoint {}'.format(self.bb.get("waypoint_i"))
 
-    def __init__(self):
-
-        # blackboard
-        self.bb = pt.blackboard.Blackboard()
-
-        # initialise the blackboard
-        self.bb.set("ready", 0)
-        self.bb.set("initialising", 0)
-        self.bb.set("executing", 0)
-
-        # topic
-        self.pub = rospy.Publisher(
-            '/plan_cotrol_state',
-            imc_ros_bridge.msg.PlanControl,
-            queue_size=100
-        )
-
-        # become behaviour
-        super(DataPublisher, self).__init__("Data publisher")
-
-    def update(self):
-
-        # instantiate message
-        msg = imc_ros_bridge.msg.PlanControl()
-
-        # add relevant things from blackboard
-        msg.READY = std_msgs.msg.UInt8(self.bb.get("ready"))
-        msg.INITIALIZING = std_msgs.msg.UInt8(self.bb.get("initialising"))
-        msg.EXECUTING = std_msgs.msg.UInt8(self.bb.get("executing"))
-
-        # NOTE: add more to message
-
-        # publish it!
-        self.pub.publish(msg)
-
-        return pt.common.Status.RUNNING
-
-"""
+        # send message to neptus
+        self.neptus_state.publish(msg)
