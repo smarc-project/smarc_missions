@@ -221,17 +221,18 @@ class SynchroniseMission(ptr.subscribers.Handler):
         # blackboard
         self.bb = pt.blackboard.Blackboard()
 
-        # first execution
-        self.first = True
+        # plan iteration
+        self.pi = 0
 
         # become a behaviour
         super(SynchroniseMission, self).__init__(
             name="Synchronise mission!",
             topic_name=plan_tpc,
-            topic_type=std_msgs.msg.String,   
+            topic_type=std_msgs.msg.String,
+            clearing_policy=pt.common.ClearingPolicy.ON_SUCCESS
         )
         
-        # create a markerArray publisher
+        # create a markerArray publisher - ozer
         # TODO change topic
         self.marker_array_pub = rospy.Publisher('/rviz_marker_array', MarkerArray, queue_size=1)
         self.marker_array = MarkerArray()
@@ -240,16 +241,19 @@ class SynchroniseMission(ptr.subscribers.Handler):
 
         with self.data_guard:
 
-            # first time - checking length because neptus sends empty message sometimes, not sure which times.... :'(
-            if (self.msg ==  None or len(str(self.msg)) < 135) and self.first:
+            # if there isn't a message and we don't have a plan yet
+            if (self.msg ==  None or len(str(self.msg)) < 135) and self.bb.get('plan') == None:
                 self.feedback_message = "Waiting for a plan"
                 return pt.common.Status.RUNNING
 
             # recieved plan
-            if isinstance(self.msg, std_msgs.msg.String):
+            if isinstance(self.msg, std_msgs.msg.String) and len(str(self.msg)) > 135:
+
+                # incremenet plan number
+                self.pi += 1
 
                 # feedback message
-                self.feedback_message = "Recieved new plan"
+                self.feedback_message = "Recieved new plan {}".format(self.pi)
 
                 # get the plan and utm zone from neptus
                 plan, zone, band = self.clean(self.msg)
@@ -260,9 +264,8 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 self.bb.set("waypoint_i", 0)
                 self.bb.set("utmzone", zone)
                 self.bb.set("band", band)
-                self.first = False
                 
-                #also publish the points into for rviz
+                #also publish the points into for rviz - ozer's stuff
                 for i, ptn in enumerate(plan):
                     marker = Marker()
                     marker.ns = '/marker_array'
@@ -285,14 +288,15 @@ class SynchroniseMission(ptr.subscribers.Handler):
                     marker.color.b = 1
                     marker.header.frame_id = '/world'
                     self.marker_array.markers.append(marker)
-                    
                 self.marker_array_pub.publish(self.marker_array)
-                    
+
+                # clear the message so it goes to else unless new message is recieved.
+                self.msg = None
                 return pt.common.Status.SUCCESS
 
             # otherwise
             else:
-                self.feedback_message = "No new plan"
+                self.feedback_message = "Using plan {}".format(self.pi)
                 return pt.common.Status.SUCCESS      
 
     @staticmethod
@@ -376,6 +380,7 @@ class GoToWayPoint(ptr.actions.ActionClient):
             action_spec=MoveBaseAction,
             action_goal=None,
             action_namespace="/bezier_planner",
+            override_feedback_message_on_running="Moving to waypoint"
         )
 
         # publish back to neptus
