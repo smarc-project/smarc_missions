@@ -34,7 +34,6 @@
 
 from __future__ import division, print_function
 
-import scipy.special
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -44,6 +43,15 @@ from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 import actionlib
 import rospy
 import tf
+
+import operator as op
+from functools import reduce
+
+def ncr(n, r):
+    r = min(r, n-r)
+    numer = reduce(op.mul, range(n, n-r, -1), 1)
+    denom = reduce(op.mul, range(1, r+1), 1)
+    return numer / denom
 
 def calc_4points_bezier_path(svec, syaw, spitch, evec, eyaw, epitch, offset, n_points=100):
     """
@@ -95,7 +103,7 @@ def bernstein_poly(n, i, t):
     :param t: (float)
     :return: (float)
     """
-    return scipy.special.comb(n, i) * t ** i * (1 - t) ** (n - i)
+    return ncr(n, i) * t ** i * (1 - t) ** (n - i)
     #return scipy.misc.comb(n, i) * t ** i * (1 - t) ** (n - i)
 
 
