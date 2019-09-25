@@ -9,6 +9,7 @@ from geodesy.utm import fromLatLong, UTMPoint
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from imc_ros_bridge.msg import PlanControlState
+from geometry_msgs.msg import Pose
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
@@ -265,6 +266,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 self.bb.set("waypoint_i", 0)
                 self.bb.set("utmzone", zone)
                 self.bb.set("band", band)
+                self.bb.set("mbes", False)
                 
                 #also publish the points into for rviz - ozer's stuff
                 for i, ptn in enumerate(plan):
@@ -303,7 +305,9 @@ class SynchroniseMission(ptr.subscribers.Handler):
     @staticmethod
     def clean(f):
 
+        # make the neptus message into a string
         f = str(f)
+
         # clean the neptus message
         f = f.replace(' ', '')
         f = f.replace('\\n', '')
@@ -326,6 +330,9 @@ class SynchroniseMission(ptr.subscribers.Handler):
         # ensure signs of depths
         depths = [-d if d > 0 else d for d in depths]
 
+        # get waypoint types
+        wtypes = [str(d['data']['abbrev']) for d in f]
+
         # get latitute and longitude
         f = [fromLatLong(np.degrees(float(d['data']['lat'])), np.degrees(float(d['data']['lon']))) for d in f]
 
@@ -336,7 +343,7 @@ class SynchroniseMission(ptr.subscribers.Handler):
         f = [d.toPoint() for d in f]
 
         # convert point to xyz
-        f = [(d.x, d.y, depth) for d, depth in zip(f, depths)]
+        f = [(d.x, d.y, depth, wt) for d, depth, wt in zip(f, depths, wtypes)]
 
         # return list of utm xyz waypoints and the utm zone
         return f, gz, band
@@ -400,8 +407,11 @@ class GoToWayPoint(ptr.actions.ActionClient):
             override_feedback_message_on_running="Moving to waypoint"
         )
 
+        # turn on/off the multibeam sensor
+        self.mbes = rospy.Publisher(namespace + '/enable_mbes', std_msgs.msg.Bool, queue_size=1)
+
         # publish back to neptus
-        self.neptus = rospy.Publisher(namespace + '/estimated_state', NavSatFix, queue_size=1)
+        self.neptus = rospy.Publisher(namespace + '/estimated_state', Pose, queue_size=1)
         self.neptus_state = rospy.Publisher(namespace + '/plan_control_state', PlanControlState, queue_size=1)
 
     def initialise(self):
@@ -416,6 +426,11 @@ class GoToWayPoint(ptr.actions.ActionClient):
         self.action_goal.target_pose.pose.position.y = wp[1]
         self.action_goal.target_pose.pose.position.z = wp[2]
 
+        # toggle multibeam sensor
+        if wp[3] == 'CoverArea':
+            self.mbes.publish(not self.bb.get('mbes'))
+
+        # ensure that we still need to send the goal
         self.sent_goal = False
 
     def update(self):
@@ -462,6 +477,7 @@ class GoToWayPoint(ptr.actions.ActionClient):
     def feedback_cb(self, msg):
 
         # get positional feedback of the p2p goal
+        orientation = msg.base_position.pose.orientation
         msg = msg.base_position.pose.position
 
         # get the utm zone
@@ -477,12 +493,13 @@ class GoToWayPoint(ptr.actions.ActionClient):
         pnt = pnt.toMsg()
 
         # construct message for neptus
-        msg = NavSatFix()
-        msg.latitude = np.radians(pnt.latitude)
-        msg.longitude = np.radians(pnt.longitude)
+        mmsg = Pose()
+        mmsg.position.x = np.radians(pnt.longitude)
+        mmsg.position.y = np.radians(pnt.latitude)
+        mmsg.orientation = orientation
 
         # send the message to neptus
-        self.neptus.publish(msg)
+        self.neptus.publish(mmsg)
 
         # construct current progress message for neptus
         msg = PlanControlState()
