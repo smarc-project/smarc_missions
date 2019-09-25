@@ -18,7 +18,7 @@ class BehaviourTree(ptr.trees.BehaviourTree):
         self.bb = pt.blackboard.Blackboard()
 
         # safety branch
-        s = Safe()
+        s = Safe(plan_db_ns)
 
         # mission synchronisation
         ms = SynchroniseMission(plan_tpc=plan_db_ns + '/plan_db')
