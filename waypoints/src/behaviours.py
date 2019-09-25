@@ -14,6 +14,7 @@ from geometry_msgs.msg import Pose
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
+import tf
 
 class Sequence(pt.composites.Selector):
 
@@ -239,6 +240,9 @@ class SynchroniseMission(ptr.subscribers.Handler):
         self.marker_array_pub = rospy.Publisher('/rviz_marker_array', MarkerArray, queue_size=1)
         self.marker_array = MarkerArray()
 
+        self.listener = tf.TransformListener()
+
+
     def update(self):
 
         with self.data_guard:
@@ -271,25 +275,35 @@ class SynchroniseMission(ptr.subscribers.Handler):
                 #also publish the points into for rviz - ozer's stuff
                 for i, ptn in enumerate(plan):
                     marker = Marker()
-                    marker.ns = '/marker_array'
+                    marker.ns = "marker_array"
                     marker.id = i
                     marker.action = 0
                     marker.type = 3 #cylinder
-                    pose = Pose()
-                    pose.position.x = ptn[0]
-                    pose.position.y = ptn[1]
-                    pose.position.z = ptn[2]
-                    pose.orientation.w = 1
-                    marker.pose = pose
-                    marker.scale.x = 1.0
-                    marker.scale.y = 1.0
-                    marker.scale.z = 1.0
+                    marker.action = marker.ADD
+
+                    pose = PoseStamped()
+                    pose.header.frame_id = "/world_utm"
+                    pose.pose.position.x = ptn[0]
+                    pose.pose.position.y = ptn[1]
+                    pose.pose.position.z = ptn[2]
+                    pose.pose.orientation.w = 1
+
+                    try:
+                        pose_local = self.listener.transformPose("/world_local", pose)
+                    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                        pass
+
+                    marker.pose = pose_local.pose
+                    marker.scale.x = 10.0
+                    marker.scale.y = 10.0
+                    marker.scale.z = 10.0
                     # a, rgb in [0,1]
                     marker.color.a = 1
                     marker.color.r = 1
                     marker.color.g = 0
                     marker.color.b = 1
                     marker.header.frame_id = '/world'
+                    marker.header.stamp = rospy.Time.now()
                     self.marker_array.markers.append(marker)
                 self.marker_array_pub.publish(self.marker_array)
 
