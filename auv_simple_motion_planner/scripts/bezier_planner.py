@@ -182,6 +182,7 @@ class BezierPlanner(object):
                 self._feedback.base_position.header.stamp = rospy.get_rostime()
                 self._feedback.base_position.header.frame_id = "/world_utm"
                 self._feedback.base_position = pose
+
                 self._as.publish_feedback(self._feedback)
             counter += 1
             r.sleep()
@@ -201,6 +202,7 @@ class BezierPlanner(object):
             return Path(), PoseStamped()
 
         start_pos = np.array(trans)
+        start_rot = np.array(rot)
         euler = tf.transformations.euler_from_quaternion(rot)
         start_pitch = euler[1] #np.radians(-40.0)  # [rad]
         start_yaw = euler[2] # np.radians(180.0)  # [rad]
@@ -232,6 +234,12 @@ class BezierPlanner(object):
         pose.pose.position.x = start_pos[0]
         pose.pose.position.y = start_pos[1]
         pose.pose.position.z = start_pos[2]
+        pose.pose.orientation.x = start_rot[0]
+        pose.pose.orientation.y = start_rot[1]
+        pose.pose.orientation.z = start_rot[2]
+        pose.pose.orientation.w = start_rot[3]
+        print("orientation")
+        print(start_rot)
         try:
             pose_local = self.listener.transformPose("/world_utm", pose)
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
