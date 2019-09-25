@@ -23,7 +23,8 @@ class FakeMBESSwitch(object):
         self.enable_mbes = ctrl_msg.data
 
     def mbes_cb(self, mbes_msg):
-        self.mbes_msg = mbes_msg
+        if self.enable_mbes:
+        	self.mbes_pub.publish(mbes_msg)
 
     def __init__(self):
     	self.gazebo_mbes_top = rospy.get_param('~mbes_gazebo', "mbes_laser")
@@ -34,17 +35,9 @@ class FakeMBESSwitch(object):
 	rospy.Subscriber(self.enable_mbes_top, Bool, self.mbes_control_cb)
 	rospy.Subscriber(self.gazebo_mbes_top, LaserScan, self.mbes_cb)
 
-        self.enable_mbes = False
-	self.mbes_msg = LaserScan()
-	self.mbes_msg.header.stamp = 1000
-	r = rospy.Rate(15.) # hz
-	while not rospy.is_shutdown():
-		if self.enable_mbes:
-			if (self.mbes_msg.header.stamp - rospy.Time.now()).to_sec() < 0.2:
-				self.mbes_pub.publish(self.mbes_msg)
-			else:
-				print("Not receiving MBES from Gazebo")
-	        r.sleep()
+	self.enable_mbes = False
+
+	rospy.spin()
 
         
 
