@@ -9,7 +9,7 @@ from geodesy.utm import fromLatLong, UTMPoint
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from imc_ros_bridge.msg import PlanControlState
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Quaternion
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
@@ -379,11 +379,59 @@ class Safe(ptr.subscribers.Handler):
             clearing_policy=pt.common.ClearingPolicy.ON_SUCCESS
         )
 
+        self.namespace = namespace
+        self.bb = pt.blackboard.Blackboard()
+        self.utm_zone = rospy.get_param("~utm_zone", 33)
+
+        # publish back to neptus
+        self.listener = tf.TransformListener()
+        self.listener.waitForTransform("world_utm", self.namespace + "/base_link", rospy.Time(), rospy.Duration(4.0))
+        self.neptus = rospy.Publisher(namespace + '/estimated_state', Pose, queue_size=1)
+
         # emergency action publisher
         self.emergency = rospy.Publisher('/vbs_control_action', std_msgs.msg.Float64, queue_size=1)
         self.sent = False
 
     def update(self):
+
+        try:
+            now = rospy.Time(0)
+            (world_trans, world_rot) = self.listener.lookupTransform("world_utm", self.namespace + "/base_link", now)
+            #world_transform = tf.transformations.concatenate_matrices(tf.transformations.translation_matrix(world_trans), tf.transformations.quaternion_matrix(world_rot))
+        except (tf.LookupException, tf.ConnectivityException):
+            print "Could not get transform between ", "world_utm", "and", self.namespace + "/base_link"
+
+        # get positional feedback of the p2p goal
+        orientation = Quaternion(*world_rot)
+        msg = world_trans #msg.base_position.pose.position
+
+        # get the utm zone
+        utmz = self.bb.get('utmzone')
+        if utmz is None:
+            utmz = self.utm_zone
+
+        if utmz is not None:
+
+            # get band zone
+            band = self.bb.get("band")
+
+            print("UTM:", utmz)
+
+            # make utm point
+            pnt = UTMPoint(easting=msg[0], northing=msg[1], altitude=0, zone=utmz, band=band)
+
+            # get lat-lon
+            pnt = pnt.toMsg()
+
+            # construct message for neptus
+            mmsg = Pose()
+            mmsg.position.x = np.radians(pnt.longitude)
+            mmsg.position.y = np.radians(pnt.latitude)
+            mmsg.position.z
+            mmsg.orientation = orientation
+
+            # send the message to neptus
+            self.neptus.publish(mmsg)
 
         # do not abort
         if self.msg == None:
@@ -425,7 +473,6 @@ class GoToWayPoint(ptr.actions.ActionClient):
         self.mbes = rospy.Publisher(namespace + '/enable_mbes', std_msgs.msg.Bool, queue_size=1)
 
         # publish back to neptus
-        self.neptus = rospy.Publisher(namespace + '/estimated_state', Pose, queue_size=1)
         self.neptus_state = rospy.Publisher(namespace + '/plan_control_state', PlanControlState, queue_size=1)
 
     def initialise(self):
@@ -489,31 +536,6 @@ class GoToWayPoint(ptr.actions.ActionClient):
             return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-
-        # get positional feedback of the p2p goal
-        orientation = msg.base_position.pose.orientation
-        msg = msg.base_position.pose.position
-
-        # get the utm zone
-        utmz = self.bb.get('utmzone')
-
-        # get band zone
-        band = self.bb.get("band")
-
-        # make utm point
-        pnt = UTMPoint(easting=msg.x, northing=msg.y, altitude=0, zone=utmz, band=band)
-
-        # get lat-lon
-        pnt = pnt.toMsg()
-
-        # construct message for neptus
-        mmsg = Pose()
-        mmsg.position.x = np.radians(pnt.longitude)
-        mmsg.position.y = np.radians(pnt.latitude)
-        mmsg.orientation = orientation
-
-        # send the message to neptus
-        self.neptus.publish(mmsg)
 
         # construct current progress message for neptus
         msg = PlanControlState()
