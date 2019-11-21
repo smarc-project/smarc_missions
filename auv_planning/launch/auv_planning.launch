@@ -1,0 +1,4 @@
+<launch>
+	  	<arg name="namespace" default="lolo_auv"/>
+
+</launch>

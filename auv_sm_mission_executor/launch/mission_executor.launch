@@ -1,0 +1,13 @@
+<launch>
+
+  <arg name="base_frame" default="lolo_auv_1/base_link"/>
+  <arg name="goal_tolerance" default="3."/>
+  <arg name="add_task_srv" default="/task_executor/add_state"/>
+
+  <node name="smach_state_machine" pkg="auv_sm_mission_executor" type="auv_mission_executor.py" output="screen">
+    <param name="goal_tolerance" value="$(arg goal_tolerance)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+    <param name="add_task_srv" value="$(arg add_task_srv)" />
+  </node>
+
+</launch>

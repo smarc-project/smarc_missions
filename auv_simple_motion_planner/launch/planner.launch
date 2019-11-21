@@ -1,0 +1,41 @@
+<launch>
+
+  <arg name="carrot_dist" default="10."/>
+  <arg name="base_frame" default="lolo_auv_1/base_link"/>
+  <arg name="thrust_level" default="200."/>
+  <arg name="heading_offsets" default="5."/>
+  <arg name="trajectory_points" default="100"/>
+  <arg name="goal_tolerance" default="3."/>
+  <arg name="system_name" default=""/>
+  <arg name="auv_name" default="lolo_auv_1"/>
+
+  <include file="$(find auv_simple_motion_planner)/launch/controller.launch">
+    <arg name="carrot_dist" value="$(arg carrot_dist)" />
+    <arg name="base_frame" value="$(arg base_frame)" />
+    <arg name="thrust_level" value="$(arg thrust_level)" />
+  </include>
+
+  <node name="bezier_planner" pkg="auv_simple_motion_planner" type="bezier_planner.py" output="screen">
+    <param name="goal_tolerance" value="$(arg goal_tolerance)" />
+    <param name="heading_offsets" value="$(arg heading_offsets)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+    <param name="number_points" value="$(arg trajectory_points)" />
+  </node>
+
+<!--   <node name="p2p_planner" pkg="auv_simple_motion_planner" type="p2p_planner.py" output="screen">
+    <param name="goal_tolerance" value="$(arg goal_tolerance)" />
+    <param name="heading_offsets" value="$(arg heading_offsets)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+  </node> -->
+
+  <node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen">
+      <param name="system_name" value="$(arg system_name)" />
+  </node>   
+
+  <node name="mbes_switch" pkg="auv_simple_motion_planner" type="fake_mbes_switch.py" output="screen">
+      <param name="mbes_gazebo" value="$(arg auv_name)/mbes_laser" />
+      <param name="enable_mbes" value="$(arg auv_name)/enable_mbes" />
+      <param name="mbes_output" value="$(arg auv_name)/mbes_data" />
+  </node>   
+
+</launch>

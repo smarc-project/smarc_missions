@@ -1,0 +1,6 @@
+*~
+# Python archives
+*.pyc
+
+# Rviz files
+*.rviz
