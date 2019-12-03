@@ -100,34 +100,35 @@ class YawPlanner(object):
             # Publish feedback
             if counter % 100 == 0:
                 try:
-                    (trans, rot) = self.listener.lookupTransform("/world", "sam/base_link", rospy.Time(0))
-                    pose_fb = PoseStamped()
-                    pose_fb.header.frame_id = "/world"
-                    pose_fb.pose.position.x = trans[0]
-                    pose_fb.pose.position.y = trans[1]
-                    pose_fb.pose.position.z = trans[2]
-                    self._feedback.base_position = pose_fb
-                    self._feedback.base_position.header.stamp = rospy.get_rostime()
-                    self._as.publish_feedback(self._feedback)
-                    rospy.loginfo("Sending feedback")
-
-                    #Compute yaw setpoint.
-                    xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
-                    ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
-                    yaw_setpoint= Float64()
-                    yaw_setpoint = atan2(ydiff,xdiff)
-                    self.yaw_pub.publish(yaw_setpoint)
-                    rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
-
-                      # Thruster forward
-                    rpm = ThrusterRPMs()
-                    rpm.thruster_1_rpm = 1000.
-                    self.rpm_pub.publish(rpm)
-                    rospy.loginfo("Thrusters forward")
-
+                    (trans, rot) = self.listener.lookupTransform("/world_local", "sam/base_link", rospy.Time(0))
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                     rospy.loginfo("Error with tf")
                     continue
+
+                pose_fb = PoseStamped()
+                pose_fb.header.frame_id = "/world_local"
+                pose_fb.pose.position.x = trans[0]
+                pose_fb.pose.position.y = trans[1]
+                pose_fb.pose.position.z = trans[2]
+                self._feedback.base_position = pose_fb
+                self._feedback.base_position.header.stamp = rospy.get_rostime()
+                self._as.publish_feedback(self._feedback)
+                rospy.loginfo("Sending feedback")
+
+                #Compute yaw setpoint.
+                xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
+                ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
+                yaw_setpoint= Float64()
+                yaw_setpoint = atan2(ydiff,xdiff)
+                self.yaw_pub.publish(yaw_setpoint)
+                rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
+
+                # Thruster forward
+                rpm = ThrusterRPMs()
+                rpm.thruster_1_rpm = 400.
+                rpm.thruster_2_rpm = 400.
+                self.rpm_pub.publish(rpm)
+                rospy.loginfo("Thrusters forward")
 
                 counter += 1
                 r.sleep()
@@ -137,7 +138,6 @@ class YawPlanner(object):
             rpm = ThrusterRPMs()
             rpm.thruster_1_rpm = 0.0
             rpm.thruster_2_rpm = 0.0
-
             #Stop yaw controller
             self.yaw_pid_enable.publish(False)
             rospy.loginfo('%s: Succeeded' % self._action_name)
