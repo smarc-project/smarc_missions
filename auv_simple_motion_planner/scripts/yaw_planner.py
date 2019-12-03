@@ -1,26 +1,6 @@
 #!/usr/bin/python
 
-# Copyright original bezier planner code (c) 2016 Atsushi Sakai,
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-# Copyright 2018 Nils Bore (nbore@kth.se)
+# Copyright 2018 Nils Bore, Sriharsha Bhat (nbore@kth.se, svbhat@kth.se)
 #
 # Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #
@@ -45,6 +25,7 @@ import rospy
 import tf
 from sam_msgs.msg import ThrusterRPMs, ThrusterAngles
 from std_msgs.msg import Float64, Header, Bool
+import math
 
 class YawPlanner(object):
 
@@ -53,9 +34,11 @@ class YawPlanner(object):
     _result = MoveBaseResult()
     
     def execute_cb(self, goal):
-        # helper variables
-        #r = rospy.Rate(1)
+
         rospy.loginfo("Goal received")
+
+        success = True
+        self.nav_goal = goal.target_pose.pose
         
         goal_point = PointStamped()
         goal_point.header.frame_id = "/world_utm"
@@ -74,7 +57,7 @@ class YawPlanner(object):
         
         rospy.loginfo('Nav goal in local %s ' % self.nav_goal.position.x)
         
-        r = rospy.Rate(10.) # 10hz
+        r = rospy.Rate(11.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
 
@@ -91,14 +74,11 @@ class YawPlanner(object):
                 rpm.thruster_1_rpm = 0.
                 rpm.thruster_2_rpm = 0.
                 self.rpm_pub.publish(rpm)
-                #vector= ThrusterAngles()
-                #vector.thruster_horizontal_radians = 0.
-                #vector.thruster_vertical_radians= 0.
                 self.yaw_pid_enable.publish(False)
                 break
 
             # Publish feedback
-            if counter % 100 == 0:
+            if counter % 10 == 0:
                 try:
                     (trans, rot) = self.listener.lookupTransform("/world_local", "sam/base_link", rospy.Time(0))
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
@@ -118,30 +98,30 @@ class YawPlanner(object):
                 #Compute yaw setpoint.
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
-                yaw_setpoint= Float64()
-                yaw_setpoint = atan2(ydiff,xdiff)
-                self.yaw_pub.publish(yaw_setpoint)
-                rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
+                yaw_setpoint = math.atan2(ydiff,xdiff)
+                
+            self.yaw_pub.publish(yaw_setpoint)
+            rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
 
-                # Thruster forward
-                rpm = ThrusterRPMs()
-                rpm.thruster_1_rpm = 400.
-                rpm.thruster_2_rpm = 400.
-                self.rpm_pub.publish(rpm)
-                rospy.loginfo("Thrusters forward")
-
-                counter += 1
-                r.sleep()
-        
-        if success:
-            # Stop thruster
+            # Thruster forward
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 0.0
-            rpm.thruster_2_rpm = 0.0
-            #Stop yaw controller
-            self.yaw_pid_enable.publish(False)
-            rospy.loginfo('%s: Succeeded' % self._action_name)
-            self._as.set_succeeded(self._result)
+            rpm.thruster_1_rpm = 400.
+            rpm.thruster_2_rpm = 400.
+            self.rpm_pub.publish(rpm)
+            rospy.loginfo("Thrusters forward")
+
+            counter += 1
+            r.sleep()
+        
+        # Stop thruster
+        rpm = ThrusterRPMs()
+        rpm.thruster_1_rpm = 0.0
+        rpm.thruster_2_rpm = 0.0
+        self.rpm_pub.publish(rpm)
+        #Stop yaw controller
+        self.yaw_pid_enable.publish(False)
+        rospy.loginfo('%s: Succeeded' % self._action_name)
+        self._as.set_succeeded(self._result)
 
 
     def timer_callback(self, event):
@@ -161,14 +141,6 @@ class YawPlanner(object):
         goal_point.point.x = self.nav_goal.position.x
         goal_point.point.y = self.nav_goal.position.y
         goal_point.point.z = self.nav_goal.position.z
-        try:
-            goal_point_base = self.listener.transformPoint(self.base_frame, goal_point)
-            if goal_point_base.point.x < 0.:
-                rospy.loginfo("Ahead of goal, returning success!")
-                self.nav_goal = None
-                return
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            pass
 
         #print("Checking if nav goal is reached!")
 
@@ -198,12 +170,10 @@ class YawPlanner(object):
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
-        
-        r = rospy.Rate(10) # 10hz
 
         rospy.spin()
 
 if __name__ == '__main__':
 
-    rospy.init_node('Yaw_planner')
+    rospy.init_node('yaw_planner')
     planner = YawPlanner(rospy.get_name())
