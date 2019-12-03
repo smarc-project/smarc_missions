@@ -415,7 +415,7 @@ class Safe(ptr.subscribers.Handler):
             # get band zone
             band = self.bb.get("band")
 
-            print("UTM:", utmz)
+            #print("UTM:", utmz)
 
             # make utm point
             pnt = UTMPoint(easting=msg[0], northing=msg[1], altitude=0, zone=utmz, band=band)

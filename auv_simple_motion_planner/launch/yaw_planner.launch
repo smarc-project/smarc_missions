@@ -1,0 +1,67 @@
+<launch>
+
+    <!-- Configurable arguments -->
+    <arg name="robot_name" default="sam"/>
+    <arg name="latitude" default="43.93183"/>
+    <arg name="longitude" default="15.44264"/>
+
+    <arg name="base_frame" default="sam/base_link"/>
+    <arg name="goal_tolerance" default="5."/>
+    <arg name="namespace" default="sam"/>
+
+    <arg name="server_addr" default="127.0.0.1"/>
+    <arg name="server_port" default="6002"/>
+    <arg name="system_name" default="$(arg robot_name)"/>
+    <arg name="imc_id" default="5"/>
+
+    <!-- Static transform -->
+    <node pkg="tf" type="static_transform_publisher" name="world_utm_broadcaster" args="535529 4864397 0 0 0 0 1 world_utm world_local 100" />
+
+    <node pkg="rostopic" type="rostopic" name="fake_gps_fix"
+        args="pub /gps/fix sensor_msgs/NavSatFix --latch
+        '{header: {seq: 999, stamp: {secs: 0, nsecs: 0}, frame_id: 'world_local'},
+        status: {status: 0, service: 1},
+        latitude: $(arg latitude),
+        longitude: $(arg longitude),
+        altitude: 0,
+        position_covariance: [3.9561210000000004, 0.0, 0.0, 0.0, 3.9561210000000004, 0.0, 0.0, 0.0, 7.650756],
+        position_covariance_type: 2}'" output="screen"/>
+
+    <group ns="$(arg namespace)">
+        <group ns="ctrl">
+
+            <node name="yaw_planner" pkg="auv_simple_motion_planner" type="yaw_planner.py" output="screen">
+                <param name="goal_tolerance" value="$(arg goal_tolerance)" />
+                <param name="base_frame" value="$(arg base_frame)" />
+            </node>
+
+            <!--
+            <node name="pid_tf_listener" pkg="sam_basic_controllers" type="pid_tf_listener" output="screen" >
+                <param name="odom_frame" value="$(arg namespace)_odom"/>
+                <param name="base_frame" value="$(arg namespace)/base_link"/>
+                <param name="world_frame" value="$(arg namespace)_odom"/>
+                <param name="loop_freq" value="50" />
+            </node>
+
+            <include file="$(find sam_basic_controllers)/launch/dynamic_heading_ctrl.launch" if="$(arg with_heading)">
+            <arg name="namespace" value="$(arg namespace)" />
+            </include>
+            -->
+
+        </group>
+
+        <include file="$(find imc_ros_bridge)/launch/bridge.launch">
+            <arg name="server_addr" value="$(arg server_addr)"/>
+            <arg name="server_port" value="$(arg server_port)" type="str"/>
+            <arg name="imc_system_name" value="$(arg system_name)"/>
+            <arg name="imc_id" value="$(arg imc_id)"/>
+        </include>
+
+        <node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen">
+            <param name="system_name" value="$(arg system_name)" />
+            <remap from="/bezier_planner" to="ctrl/yaw_planner"/>
+        </node>
+
+    </group>
+
+</launch>
