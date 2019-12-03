@@ -1,0 +1,50 @@
+<launch>
+
+  <arg name="base_frame" default="sam/base_link"/>
+  <arg name="goal_tolerance" default="5."/>
+  <arg name="system_name" default=""/>
+  <arg name="auv_name" default="sam"/>
+  <arg name="namespace" default="sam"/>
+
+  <node name="yaw_planner" pkg="auv_simple_motion_planner" type="yaw_planner.py" output="screen">
+    <param name="goal_tolerance" value="$(arg goal_tolerance)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+  </node>
+
+  <node name="pid_tf_listener" pkg="sam_basic_controllers" type="pid_tf_listener" output="screen" >
+      <param name="odom_frame" value="$(arg namespace)_odom"/>
+      <param name="base_frame" value="$(arg namespace)/base_link"/>
+      <param name="world_frame" value="$(arg namespace)_odom"/>
+      <param name="loop_freq" value="50" />
+  </node>
+
+  <node name="controller1" pkg="pid" type="controller" ns="dynamic_heading" output="screen" >
+    <param name="Kp" value="1.0" />
+    <param name="Ki" value="0.0" />
+    <param name="Kd" value="0.0" />
+    <param name="upper_limit" value="0.5" />
+    <param name="lower_limit" value="-0.5" />
+    <param name="windup_limit" value="100" />
+    <param name="max_loop_frequency" value="100.0" />
+    <param name="min_loop_frequency" value="100.0" />
+    <!--CHANGE LAUNCH FILE TO CHOOSE SUBSCRIBER AND PUBLISHER TOPICS!! /-->
+    <param name="topic_from_plant" value="/$(arg namespace)/ctrl/yaw_feedback" />
+    <param name="topic_from_controller" value="r_setpoint" />
+    <!-- NOTE to Harsha: this is very weird -->
+    <remap from="setpoint" to="setpoint" />
+    <!--remap from="pitch_setpoint" to="/pitch_setpoint" /-->
+    <!--remap from="/plant_state_pitch" to="state" />
+    <remap from="control_effort" to="/control_effort" /-->
+   </node>
+
+  <node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen">
+      <param name="system_name" value="$(arg system_name)" />
+  </node>
+
+  <node name="mbes_switch" pkg="auv_simple_motion_planner" type="fake_mbes_switch.py" output="screen">
+      <param name="mbes_gazebo" value="$(arg auv_name)/mbes_laser" />
+      <param name="enable_mbes" value="$(arg auv_name)/enable_mbes" />
+      <param name="mbes_output" value="$(arg auv_name)/mbes_data" />
+  </node>
+
+</launch>
