@@ -43,7 +43,8 @@ from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 import actionlib
 import rospy
 import tf
-from sam_msgs.msg import ThrusterRPMs
+from sam_msgs.msg import ThrusterRPMs, ThrusterAngles
+from std_msgs.msg import Float64, Header, Bool
 
 class YawPlanner(object):
 
@@ -56,12 +57,28 @@ class YawPlanner(object):
         #r = rospy.Rate(1)
         rospy.loginfo("Goal received")
         
-        success = True
-        self.nav_goal = goal.target_pose.pose
+        goal_point = PointStamped()
+        goal_point.header.frame_id = "/world_utm"
+        goal_point.header.stamp = rospy.Time(0)
+        goal_point.point.x = self.nav_goal.position.x
+        goal_point.point.y = self.nav_goal.position.y
+        goal_point.point.z = self.nav_goal.position.z
+        try:
+            goal_point_local = self.listener.transformPoint("/world_local", goal_point)
+            self.nav_goal.position.x = goal_point_local.point.x
+            self.nav_goal.position.y = goal_point_local.point.y
+            self.nav_goal.position.z = goal_point_local.point.z
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            print ("Not transforming point to world local")
+            pass
+        
+        rospy.loginfo('Nav goal in local %s ' % self.nav_goal.position.x)
         
         r = rospy.Rate(10.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
+
+            self.yaw_pid_enable.publish(True)
             # Preempted
             if self._as.is_preempt_requested():
                 rospy.loginfo('%s: Preempted' % self._action_name)
@@ -72,7 +89,12 @@ class YawPlanner(object):
                 # Stop thrusters
                 rpm = ThrusterRPMs()
                 rpm.thruster_1_rpm = 0.
+                rpm.thruster_2_rpm = 0.
                 self.rpm_pub.publish(rpm)
+                #vector= ThrusterAngles()
+                #vector.thruster_horizontal_radians = 0.
+                #vector.thruster_vertical_radians= 0.
+                self.yaw_pid_enable.publish(False)
                 break
 
             # Publish feedback
@@ -87,34 +109,37 @@ class YawPlanner(object):
                     self._feedback.base_position = pose_fb
                     self._feedback.base_position.header.stamp = rospy.get_rostime()
                     self._as.publish_feedback(self._feedback)
-
                     rospy.loginfo("Sending feedback")
+
+                    #Compute yaw setpoint.
+                    xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
+                    ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
+                    yaw_setpoint= Float64()
+                    yaw_setpoint = atan2(ydiff,xdiff)
+                    self.yaw_pub.publish(yaw_setpoint)
+                    rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
+
+                      # Thruster forward
+                    rpm = ThrusterRPMs()
+                    rpm.thruster_1_rpm = 1000.
+                    self.rpm_pub.publish(rpm)
+                    rospy.loginfo("Thrusters forward")
+
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                     rospy.loginfo("Error with tf")
                     continue
 
-            # Thruster forward
-            rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 1000.
-            self.rpm_pub.publish(rpm)
-            rospy.loginfo("Thrusters forward")
-
-            counter += 1
-            r.sleep()
+                counter += 1
+                r.sleep()
         
         if success:
             # Stop thruster
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = -1000.0
-            
-            cnt = 0
-            while not rospy.is_shutdown() and cnt < 50:
-                self.rpm_pub.publish(rpm)
-                cnt += 1
-                r.sleep()
+            rpm.thruster_1_rpm = 0.0
+            rpm.thruster_2_rpm = 0.0
 
-
-            #self._result.sequence = self._feedback.sequence
+            #Stop yaw controller
+            self.yaw_pid_enable.publish(False)
             rospy.loginfo('%s: Succeeded' % self._action_name)
             self._as.set_succeeded(self._result)
 
@@ -147,30 +172,29 @@ class YawPlanner(object):
 
         #print("Checking if nav goal is reached!")
 
-        current_pos = np.array(trans)
-        current_pos[2] = 0.0
-        end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, 0.])
-        if np.linalg.norm(current_pos - end_pos) < self.goal_tolerance:
+        start_pos = np.array(trans)
+        end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
+        if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
-        #else:
-        #    print("Did not reach nav goal!")
 
     def __init__(self, name):
         
-        """Plot an example bezier curve."""
+        """Publish yaw setpoints based on waypoints"""
         self._action_name = name
         
-        self.heading_offset = rospy.get_param('~heading_offsets', 5.)
+        #self.heading_offset = rospy.get_param('~heading_offsets', 5.)
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
-        self.base_frame = rospy.get_param('~base_frame', "lolo_auv_1/base_link")
+        self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
 
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
         rospy.Timer(rospy.Duration(2), self.timer_callback)
 
-        self.rpm_pub = rospy.Publisher('/uavcan_rpm_command', ThrusterRPMs, queue_size=10)
+        self.rpm_pub = rospy.Publisher('/sam/core/rpm_cmd', ThrusterRPMs, queue_size=10)
+        self.yaw_pub = rospy.Publisher('/sam/ctrl/dynamic_heading/setpoint', Float64, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher('/sam/ctrl/dynamic_heading/pid_enable', Bool, queue_size=10)
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
@@ -181,5 +205,5 @@ class YawPlanner(object):
 
 if __name__ == '__main__':
 
-    rospy.init_node('p2p_planner')
-    planner = P2PPlanner(rospy.get_name())
+    rospy.init_node('Yaw_planner')
+    planner = YawPlanner(rospy.get_name())
