@@ -18,24 +18,9 @@
       <param name="loop_freq" value="50" />
   </node>
 
-  <node name="controller1" pkg="pid" type="controller" ns="dynamic_heading" output="screen" >
-    <param name="Kp" value="1.0" />
-    <param name="Ki" value="0.0" />
-    <param name="Kd" value="0.0" />
-    <param name="upper_limit" value="0.5" />
-    <param name="lower_limit" value="-0.5" />
-    <param name="windup_limit" value="100" />
-    <param name="max_loop_frequency" value="100.0" />
-    <param name="min_loop_frequency" value="100.0" />
-    <!--CHANGE LAUNCH FILE TO CHOOSE SUBSCRIBER AND PUBLISHER TOPICS!! /-->
-    <param name="topic_from_plant" value="/$(arg namespace)/ctrl/yaw_feedback" />
-    <param name="topic_from_controller" value="r_setpoint" />
-    <!-- NOTE to Harsha: this is very weird -->
-    <remap from="setpoint" to="setpoint" />
-    <!--remap from="pitch_setpoint" to="/pitch_setpoint" /-->
-    <!--remap from="/plant_state_pitch" to="state" />
-    <remap from="control_effort" to="/control_effort" /-->
-   </node>
+  <include file="$(find sam_basic_controllers)/launch/dynamic_heading_ctrl.launch" if="$(arg with_heading)">
+      <arg name="namespace" value="$(arg namespace)" />
+  </include>
 
   <node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen">
       <param name="system_name" value="$(arg system_name)" />
