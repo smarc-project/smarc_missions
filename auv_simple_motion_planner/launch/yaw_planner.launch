@@ -4,6 +4,7 @@
     <arg name="robot_name" default="sam"/>
     <arg name="latitude" default="43.93183"/>
     <arg name="longitude" default="15.44264"/>
+    <arg name="utm_zone" default="32"/>
 
     <arg name="base_frame" default="sam/base_link"/>
     <arg name="goal_tolerance" default="5."/>
@@ -15,7 +16,7 @@
     <arg name="imc_id" default="5"/>
 
     <!-- Static transform -->
-    <node pkg="tf" type="static_transform_publisher" name="world_utm_broadcaster" args="535529 4864397 0 0 0 0 1 world_utm world_local 100" />
+    <!-- <node pkg="tf" type="static_transform_publisher" name="world_utm_broadcaster" args="535529 4864397 0 0 0 0 1 world_utm world_local 100" /> -->
 
     <node pkg="rostopic" type="rostopic" name="fake_gps_fix"
         args="pub /gps/fix sensor_msgs/NavSatFix --latch
@@ -59,6 +60,7 @@
 
         <node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen">
             <param name="system_name" value="$(arg system_name)" />
+            <param name="utm_zone" value="$(arg utm_zone)" />
             <remap from="/bezier_planner" to="ctrl/yaw_planner"/>
         </node>
 
