@@ -10,6 +10,7 @@ from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from imc_ros_bridge.msg import PlanControlState
 from geometry_msgs.msg import Pose, Quaternion
+from std_msgs.msg import Float64
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
@@ -393,12 +394,14 @@ class Safe(ptr.subscribers.Handler):
 
         # emergency action publisher
         self.emergency = rospy.Publisher('/vbs_control_action', std_msgs.msg.Float64, queue_size=1)
+        self.pid_enabled = rospy.Publisher('/sam/ctrl/vbs/pid_enable', std_msgs.msg.Bool, queue_size=1)
+        self.vbs_setpoint = rospy.Publisher('/sam/ctrl/vbs/setpoint', Float64, queue_size=1)
         self.sent = False
 
         # hacky depth and altitude checkers
-        self.dept_check = rospy.Subscriber('sam/ctrl/depth_feedback', Float64, update_depth)
+        self.dept_check = rospy.Subscriber('sam/ctrl/depth_feedback', Float64, self.update_depth)
         self.depth = None
-        self.alt_check = rospy.Subscriber('sam/ctrl/altitude_feedback', Float64, update_alt)
+        self.alt_check = rospy.Subscriber('sam/ctrl/altitude_feedback', Float64, self.update_alt)
         self.alt = None
 
     def update_depth(data):
@@ -463,6 +466,8 @@ class Safe(ptr.subscribers.Handler):
                 msg = std_msgs.msg.Float64()
                 msg.data = -10
                 self.emergency.publish(msg)
+                self.pid_enabled.publish(False)
+                self.vbs_setpoint.publish(-10)
                 self.sent = True
 
             # return failure :(
@@ -476,6 +481,8 @@ class Safe(ptr.subscribers.Handler):
                 msg = std_msgs.msg.Float64()
                 msg.data = -10
                 self.emergency.publish(msg)
+                self.pid_enabled.publish(False)
+                self.vbs_setpoint.publish(-10)
                 self.sent = True
 
             # return failure :(
@@ -487,6 +494,8 @@ class Safe(ptr.subscribers.Handler):
                 msg = std_msgs.msg.Float64()
                 msg.data = -10
                 self.emergency.publish(msg)
+                self.pid_enabled.publish(False)
+                self.vbs_setpoint.publish(-10)
                 self.sent = True
 
             # return failure :(
