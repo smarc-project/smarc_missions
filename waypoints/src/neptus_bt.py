@@ -13,6 +13,20 @@ from behaviours import Sequence, Safe, SynchroniseMission, AtFinalWaypoint, GoTo
 class BehaviourTree(ptr.trees.BehaviourTree):
 
     def __init__(self, plan_db_ns):
+        """
+        SEQ[
+            Safe
+            Synch Mission
+            FB[
+                AtFinalWP
+                SEQ[
+                    GoToWP
+                    SetNextWP
+                   ]
+              ]
+            Idle
+            ]
+        """
 
         # blackboard access
         self.bb = pt.blackboard.Blackboard()

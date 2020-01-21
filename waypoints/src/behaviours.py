@@ -1,7 +1,3 @@
-# Christopher Iliffe Sprague
-# sprague@kth.se
-# Behaviours to use within a behaviour tree.
-# https://arxiv.org/abs/1811.00426
 
 import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy, numpy as np
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -125,6 +121,8 @@ class Counter(pt.behaviour.Behaviour):
 
     def terminate(self, status):
         self.i = 0 if status == pt.common.Status.SUCCESS and self.reset else self.i
+
+
 
 class SetNextWaypoint(pt.behaviour.Behaviour):
 
@@ -383,6 +381,7 @@ class Safe(ptr.subscribers.Handler):
         self.bb = pt.blackboard.Blackboard()
         self.utm_zone = rospy.get_param("~utm_zone", 33)
 
+        # TODO:NEPTUS separate anything that touches neptus
         # publish back to neptus
         self.listener = tf.TransformListener()
         self.listener.waitForTransform("world_utm", self.namespace + "/base_link", rospy.Time(), rospy.Duration(4.0))
@@ -539,7 +538,10 @@ class GoToWayPoint(ptr.actions.ActionClient):
 
         # construct current progress message for neptus
         msg = PlanControlState()
-        msg.plan_id = 'Going to waypoint {}'.format(self.bb.get("waypoint_i"))
+        waypoint_i = self.bb.get("waypoint_i")
+        num_wps = len(self.bb.get("plan"))
+        msg.state = 'Going to waypoint #{}'.format(waypoint_i)
+        msg.plan_progress =  waypoint_i / num_wps
 
         # send message to neptus
         self.neptus_state.publish(msg)
