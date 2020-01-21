@@ -16,6 +16,9 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
 import tf
 
+ALTITUDE_LOWER_BOUND = 1.5
+DEPTH_UPPER_BOUND = 50
+
 class Sequence(pt.composites.Selector):
 
     """
@@ -392,6 +395,19 @@ class Safe(ptr.subscribers.Handler):
         self.emergency = rospy.Publisher('/vbs_control_action', std_msgs.msg.Float64, queue_size=1)
         self.sent = False
 
+        # hacky depth and altitude checkers
+        self.dept_check = rospy.Subscriber('sam/ctrl/depth_feedback', Float64, update_depth)
+        self.depth = None
+        self.alt_check = rospy.Subscriber('sam/ctrl/altitude_feedback', Float64, update_alt)
+        self.alt = None
+
+    def update_depth(data):
+        self.depth = data.data
+
+    def update_alt(data):
+        self.alt = data.data
+
+
     def update(self):
 
         try:
@@ -451,6 +467,31 @@ class Safe(ptr.subscribers.Handler):
 
             # return failure :(
             return pt.common.Status.FAILURE
+
+
+        # hacky altitude and depth checks
+        if self.alt is not None and self.alt < ALTITUDE_LOWER_BOUND:
+            # send surfacing command
+            if not self.sent:
+                msg = std_msgs.msg.Float64()
+                msg.data = -10
+                self.emergency.publish(msg)
+                self.sent = True
+
+            # return failure :(
+            return pt.common.Status.FAILURE
+
+        if self.depth is not None and self.depth > DEPTH_UPPER_BOUND:
+            # send surfacing command
+            if not self.sent:
+                msg = std_msgs.msg.Float64()
+                msg.data = -10
+                self.emergency.publish(msg)
+                self.sent = True
+
+            # return failure :(
+            return pt.common.Status.FAILURE
+
 
 class GoToWayPoint(ptr.actions.ActionClient):
 
