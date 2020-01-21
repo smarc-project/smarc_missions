@@ -6,7 +6,6 @@
 import py_trees as pt, py_trees_ros as ptr, itertools, std_msgs.msg, copy, json, rospy, numpy as np
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geodesy.utm import fromLatLong, UTMPoint
-from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from imc_ros_bridge.msg import PlanControlState
 from geometry_msgs.msg import Pose, Quaternion

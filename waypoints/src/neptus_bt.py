@@ -13,20 +13,6 @@ from behaviours import Sequence, Safe, SynchroniseMission, AtFinalWaypoint, GoTo
 class BehaviourTree(ptr.trees.BehaviourTree):
 
     def __init__(self, plan_db_ns):
-        """
-        SEQ[
-            Safe
-            Synch Mission
-            FB[
-                AtFinalWP
-                SEQ[
-                    GoToWP
-                    SetNextWP
-                   ]
-              ]
-            Idle
-            ]
-        """
 
         # blackboard access
         self.bb = pt.blackboard.Blackboard()
@@ -58,9 +44,6 @@ if __name__ == "__main__":
 
     # initialise node
     rospy.init_node("neptus_bt")
-    
-    # get the namespace for the topics
-    plan_db_ns = rospy.get_param("~system_name")
 
     # execute behaviour tree
     try:

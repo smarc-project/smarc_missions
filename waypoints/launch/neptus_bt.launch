@@ -1,7 +1,7 @@
 <launch>
 
 	<!-- AUV model -->
-	<arg name="namespace" default="sam_auv"/>
+	<arg name="namespace" default="sam"/>
 
 	<!-- Index of the AUV to be launched -->
 	<arg name="number" default="1"/>
