@@ -10,11 +10,15 @@ from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from imc_ros_bridge.msg import PlanControlState
 from geometry_msgs.msg import Pose, Quaternion
+from std_msgs.msg import Float64
 
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
 import tf
+
+ALTITUDE_LOWER_BOUND = 1.5
+DEPTH_UPPER_BOUND = 50
 
 class Sequence(pt.composites.Selector):
 
@@ -390,7 +394,22 @@ class Safe(ptr.subscribers.Handler):
 
         # emergency action publisher
         self.emergency = rospy.Publisher('/vbs_control_action', std_msgs.msg.Float64, queue_size=1)
+        self.pid_enabled = rospy.Publisher('/sam/ctrl/vbs/pid_enable', std_msgs.msg.Bool, queue_size=1)
+        self.vbs_setpoint = rospy.Publisher('/sam/ctrl/vbs/setpoint', Float64, queue_size=1)
         self.sent = False
+
+        # hacky depth and altitude checkers
+        self.dept_check = rospy.Subscriber('sam/ctrl/depth_feedback', Float64, self.update_depth)
+        self.depth = None
+        self.alt_check = rospy.Subscriber('sam/ctrl/altitude_feedback', Float64, self.update_alt)
+        self.alt = None
+
+    def update_depth(data):
+        self.depth = data.data
+
+    def update_alt(data):
+        self.alt = data.data
+
 
     def update(self):
 
@@ -415,7 +434,7 @@ class Safe(ptr.subscribers.Handler):
             # get band zone
             band = self.bb.get("band")
 
-            print("UTM:", utmz)
+            #print("UTM:", utmz)
 
             # make utm point
             pnt = UTMPoint(easting=msg[0], northing=msg[1], altitude=0, zone=utmz, band=band)
@@ -447,10 +466,41 @@ class Safe(ptr.subscribers.Handler):
                 msg = std_msgs.msg.Float64()
                 msg.data = -10
                 self.emergency.publish(msg)
+                self.pid_enabled.publish(False)
+                self.vbs_setpoint.publish(-10)
                 self.sent = True
 
             # return failure :(
             return pt.common.Status.FAILURE
+
+
+        # hacky altitude and depth checks
+        if self.alt is not None and self.alt < ALTITUDE_LOWER_BOUND:
+            # send surfacing command
+            if not self.sent:
+                msg = std_msgs.msg.Float64()
+                msg.data = -10
+                self.emergency.publish(msg)
+                self.pid_enabled.publish(False)
+                self.vbs_setpoint.publish(-10)
+                self.sent = True
+
+            # return failure :(
+            return pt.common.Status.FAILURE
+
+        if self.depth is not None and self.depth > DEPTH_UPPER_BOUND:
+            # send surfacing command
+            if not self.sent:
+                msg = std_msgs.msg.Float64()
+                msg.data = -10
+                self.emergency.publish(msg)
+                self.pid_enabled.publish(False)
+                self.vbs_setpoint.publish(-10)
+                self.sent = True
+
+            # return failure :(
+            return pt.common.Status.FAILURE
+
 
 class GoToWayPoint(ptr.actions.ActionClient):
 
