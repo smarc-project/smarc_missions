@@ -30,7 +30,6 @@ class C_NoAbortReceived(ptr.subscribers.Handler):
 
     def update(self):
         with self.data_guard:
-            # do not abort
             if self.msg is None:
                 return pt.Status.SUCCESS
             # abort
@@ -50,7 +49,6 @@ class C_DepthOK(ptr.subscribers.Handler):
 
     def update(self):
         with self.data_guard:
-            # do not abort
             if self.msg is not None:
                 if self.msg.data < SAM_MAX_DEPTH:
                     return pt.Status.SUCCESS

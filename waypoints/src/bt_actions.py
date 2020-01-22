@@ -17,6 +17,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from imc_ros_bridge.msg import PlanControlState
 from geometry_msgs.msg import Pose, Quaternion
 from sensor_msgs.msg import NavSatFix
+from std_msgs.msg import Float64
 
 import actionlib_msgs.msg as actionlib_msgs
 
@@ -263,6 +264,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         if not self.sent_goal:
             self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
             self.sent_goal = True
+            rospy.loginfo("Sent goal to bezier planner:"+str(self.action_goal))
             return pt.Status.RUNNING
 
 
@@ -285,6 +287,8 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
+#TODO split the data gathering part from this
+# and make that its own subtree before everything
 class A_PublishToNeptus(pt.behaviour.Behaviour):
     def __init__(self):
         """
@@ -298,6 +302,9 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
         self.listener = tf.TransformListener()
         self.listener.waitForTransform("world_utm", BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+
+        self.depth_sub = rospy.Subscriber(DEPTH_TOPIC, Float64, self.depth_cb)
+        self.depth = -9999
 
         super(A_PublishToNeptus, self).__init__("A_PublishToNeptus")
 
@@ -330,8 +337,7 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         mmsg = Pose()
         mmsg.position.x = np.radians(pnt.longitude)
         mmsg.position.y = np.radians(pnt.latitude)
-        #TODO z = depth?
-        #  mmsg.position.z
+        mmsg.position.z = self.depth
         mmsg.orientation = orientation
         # send the message to neptus
         self.estimated_state_pub.publish(mmsg)
@@ -348,16 +354,18 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         num_done = len(mission_plan.visited_wps)
         total = len(mission_plan.waypoints)
 
-        msg.man_id = "Going to wp:"+str(current_wp)+", remaining:"+str(num_remaining)+" visited:"+str(num_done)
+        msg.man_id = "Going to wp:"+str(current_wp)+" remaining:"+str(num_remaining)+" visited:"+str(num_done)
         msg.plan_progress = 100* (num_done / total)
 
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
 
+    def depth_cb(self, data):
+        self.depth = data.data
 
     def update(self):
         """
-        Scavenged from Chris's stuff (sprague@kth.se)
+        mostly scavenged from Chris's stuff (sprague@kth.se)
         """
         self.update_estimated_state()
         self.update_plan_control_state()
