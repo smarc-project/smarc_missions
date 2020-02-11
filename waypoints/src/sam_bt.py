@@ -7,6 +7,7 @@ import py_trees as pt, py_trees_ros as ptr
 # just convenience really
 from py_trees.composites import Selector as Fallback
 from sensor_msgs.msg import NavSatFix
+from std_msgs.msg import Float64
 
 import rospy
 
@@ -16,17 +17,19 @@ from bt_actions import A_SetMissionPlan, \
                        A_SetManualWaypoint, \
                        A_GotoManualWaypoint, \
                        A_SetNextPlanAction, \
-                       A_GetGPSFix
+                       A_UpdateTF
 
 
 from bt_conditions import C_PlanCompleted, \
-                          C_NoAbortReceived, \
                           C_HaveManualWaypoint, \
                           C_ManualWaypointReceived, \
                           C_NewMissionPlanReceived, \
-                          C_AltOK, C_DepthOK
+                          C_DepthOK
+                          #  C_AltOK, \ # unused for now
 
-from bt_common import *
+from bt_common import Sequence
+
+from sam_globals import *
 
 def const_tree():
     """
@@ -34,6 +37,25 @@ def const_tree():
     the structure of the code reflects the structure of the tree itself.
     sub-trees are constructed in inner functions.
     """
+
+    def const_data_ingestion_tree():
+        read_depth = ptr.subscribers.ToBlackboard(
+            name = "A_ReadDepth",
+            topic_name = DEPTH_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {DEPTH_BB:'data'} # this takes the Float64.data field and puts into the bb
+        )
+        #read_alt = same as depth eventually goes here
+        #  update_tf = A_UpdateTF()
+
+        return Sequence(name="SQ-DataIngestion",
+                        children=[
+                            read_depth
+                            #  update_tf
+                        ])
+
+
+
     def const_feedback_tree():
         neptus_feedback = A_PublishToNeptus()
         # more feedback options will go here
@@ -46,7 +68,13 @@ def const_tree():
 
 
     def const_safety_tree():
-        no_abort = C_NoAbortReceived()
+        #  no_abort = C_NoAbortReceived()
+        # TODO does not exist in our version of py_trees!
+        no_abort = pt.behaviours.CheckBlackboardVariableValue(
+            variable_name=ABORT_BB,
+            expected_value=False,
+            name="C_NoAbortReceived"
+        )
         #TODO re-enable when the topic is there
         #  altOK = C_AltOK()
         depthOK = C_DepthOK()
@@ -165,7 +193,7 @@ def const_tree():
                         ])
 
 
-    get_gps_fix = A_GetGPSFix()
+    data_ingestion_tree = const_data_ingestion_tree()
     feedback_tree = const_feedback_tree()
     safety_tree = const_safety_tree()
     synch_mission_tree = const_synch_tree()
@@ -174,7 +202,6 @@ def const_tree():
 
     root = Sequence(name='SQ-ROOT',
                     children=[
-                              get_gps_fix,
                               feedback_tree,
                               safety_tree,
                               synch_mission_tree,
@@ -184,9 +211,16 @@ def const_tree():
     return ptr.trees.BehaviourTree(root)
 
 
-if __name__ == '__main__':
-    # init the node
-    rospy.init_node("sam_bt")
+
+def main():
+
+    utm_zone = rospy.get_param("utm_zone")
+    utm_band = rospy.get_param("utm_band")
+
+    bb = pt.blackboard.Blackboard()
+    bb.set(UTM_ZONE_BB, utm_zone)
+    bb.set(UTM_BAND_BB, utm_band)
+
 
     try:
         rospy.loginfo("Constructing tree")
@@ -201,3 +235,13 @@ if __name__ == '__main__':
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")
+
+
+if __name__ == '__main__':
+    # init the node
+    rospy.init_node("sam_bt")
+
+    #  main()
+    tree = const_tree()
+    pt.display.ascii_tree(tree.root)
+

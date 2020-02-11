@@ -24,6 +24,8 @@ import actionlib_msgs.msg as actionlib_msgs
 import rospy
 import tf
 
+from sam_globals import *
+
 
 from bt_common import *
 
@@ -66,46 +68,47 @@ class MissionPlan:
         self.current_wp = None
 
 
-class A_GetGPSFix(pt.behaviour.Behaviour):
-    def __init__(self):
-        """
-        Listens to a gps fix, puts it in the blackboard and sets the utm zone and band
-        stuff once.
-
-        Returns FAILURE if there is nothing in the gps topic AND there was no GPS fixes before
-        """
-
-        self.bb = pt.blackboard.Blackboard()
-
-        self.gps_sub = rospy.Subscriber(name=SAM_GPS_TOPIC, data_class=NavSatFix, callback=self.gps_cb)
-        self.msg = None
-        self.set_utm_stuff = False
-
-        super(A_GetGPSFix, self).__init__(name="A_GetGPSFix")
-
-    def gps_cb(self, data):
-        self.msg = data
-
-    def update(self):
-        if self.msg is not None:
-            msg = self.msg
-            self.bb.set(GPS_FIX_BB, msg)
-
-            # we wanna do this calculation just once
-            if not self.set_utm_stuff:
-                f = fromLatLong(msg.latitude, msg.longitude)
-                gz, band = f.gridZone()
-                self.bb.set(UTM_BAND_BB, band)
-                self.bb.set(UTM_ZONE_BB, gz)
-                self.set_utm_stuff = True
-
-            return pt.Status.SUCCESS
-
-        elif self.msg is None and self.bb.get(GPS_FIX_BB) is not None:
-            return pt.Status.SUCCESS
-        else:
-            return pt.Status.FAILURE
-
+# Remove entirely. Use the tf-tree to find position etc.
+#  class A_GetGPSFix(pt.behaviour.Behaviour):
+    #  def __init__(self):
+        #  """
+        #  Listens to a gps fix, puts it in the blackboard and sets the utm zone and band
+        #  stuff once.
+#
+        #  Returns FAILURE if there is nothing in the gps topic AND there was no GPS fixes before
+        #  """
+#
+        #  self.bb = pt.blackboard.Blackboard()
+#
+        #  self.gps_sub = rospy.Subscriber(name=SAM_GPS_TOPIC, data_class=NavSatFix, callback=self.gps_cb)
+        #  self.msg = None
+        #  self.set_utm_stuff = False
+#
+        #  super(A_GetGPSFix, self).__init__(name="A_GetGPSFix")
+#
+    #  def gps_cb(self, data):
+        #  self.msg = data
+#
+    #  def update(self):
+        #  if self.msg is not None:
+            #  msg = self.msg
+            #  self.bb.set(GPS_FIX_BB, msg)
+#
+            #  # we wanna do this calculation just once
+            #  if not self.set_utm_stuff:
+                #  f = fromLatLong(msg.latitude, msg.longitude)
+                #  gz, band = f.gridZone()
+                #  self.bb.set(UTM_BAND_BB, band)
+                #  self.bb.set(UTM_ZONE_BB, gz)
+                #  self.set_utm_stuff = True
+#
+            #  return pt.Status.SUCCESS
+#
+        #  elif self.msg is None and self.bb.get(GPS_FIX_BB) is not None:
+            #  return pt.Status.SUCCESS
+        #  else:
+            #  return pt.Status.FAILURE
+#
 
 
 
@@ -126,7 +129,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
 
         # there was no plan to be set
         if plan_str is None or len(plan_str) < MINIMUM_PLAN_STR_LEN:
-            rospyl.loginfo("Mission plan (set) was bad:"+str(plan_str))
+            self.logger.info("Tried to set bad mission plan:"+str(plan_str))
             return pt.Status.FAILURE
 
         # there is a plan we can at least look at
@@ -135,9 +138,10 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
                                    utm_zone = zone,
                                    utm_band = band)
 
-        self.bb.set(MISSION_PLAN_OBJ, mission_plan)
-        rospy.loginfo("Set the mission plan to:"+str(mission_plan.waypoints))
-        self.bb.set(CURRENT_PLAN_ACTION, mission_plan.pop_wp())
+        self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
+        self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
+        # XXX is this needed?
+        #  self.bb.set(CURRENT_PLAN_ACTION, mission_plan.pop_wp())
         return pt.Status.SUCCESS
 
     @staticmethod
@@ -206,7 +210,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(MISSION_PLAN_OBJ)
         next_action = mission_plan.pop_wp()
-        rospy.loginfo("Set CURRENT_PLAN_ACTION to"+str(next_action))
+        self.logger.info("Set CURRENT_PLAN_ACTION to:"+str(next_action))
         self.bb.set(CURRENT_PLAN_ACTION, next_action)
 
         if next_action is None:
@@ -287,6 +291,35 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
+class A_UpdateTF(pt.behaviour.Behaviour):
+    def __init__(self):
+        """
+        reads the current translation and orientation from the TF tree
+        and puts that into the BB
+        """
+        self.bb = pt.blackboard.Blackboard()
+
+        self.listener = tf.TransformListener()
+        self.listener.waitForTransform("world_utm", BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+
+        super(A_UpdateTF, self).__init__("A_UpdateTF")
+
+    def update(self):
+        try:
+            now = rospy.Time(0)
+            (world_trans, world_rot) = self.listener.lookupTransform("world_utm",
+                                                                     BASE_LINK,
+                                                                     now)
+        except (tf.LookupException, tf.ConnectivityException):
+            self.logger.warning("Could not get transform between world_utm and "+str(BASE_LINK))
+            return pt.Status.FAILURE
+
+        self.bb.set(WORLD_TRANS_BB, world_trans)
+        self.bb.set(WORLD_ROT_BB, world_rot)
+
+        return pt.Status.SUCCESS
+
+
 #TODO split the data gathering part from this
 # and make that its own subtree before everything
 class A_PublishToNeptus(pt.behaviour.Behaviour):
@@ -299,41 +332,29 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         self.estimated_state_pub = rospy.Publisher(ESTIMATED_STATE_TOPIC, Pose, queue_size=1)
         self.plan_control_state_pub = rospy.Publisher(PLAN_CONTROL_STATE_TOPIC, PlanControlState, queue_size=1)
 
-
-        self.listener = tf.TransformListener()
-        self.listener.waitForTransform("world_utm", BASE_LINK, rospy.Time(), rospy.Duration(4.0))
-
-        self.depth_sub = rospy.Subscriber(DEPTH_TOPIC, Float64, self.depth_cb)
-        self.depth = -9999
-
         super(A_PublishToNeptus, self).__init__("A_PublishToNeptus")
 
     def update_estimated_state(self):
-        try:
-            now = rospy.Time(0)
-            (world_trans, world_rot) = self.listener.lookupTransform("world_utm",
-                                                                     BASE_LINK,
-                                                                     now)
-        except (tf.LookupException, tf.ConnectivityException):
-            print("Could not get transform between world_utm and",BASE_LINK)
-
-        # get positional feedback of the p2p goal
-        orientation = Quaternion(*world_rot)
-        msg = world_trans
-
+        world_rot = self.bb.get(WORLD_ROT_BB)
+        world_trans = self.bb.get(WORLD_TRANS_BB)
         # get the utm zone of our current lat,lon
         utmz = self.bb.get(UTM_ZONE_BB)
         band = self.bb.get(UTM_BAND_BB)
-
         if utmz is None or band is None:
             rospy.loginfo("Utmz or band was None!!")
             return pt.Status.FAILURE
+
+        # XXX here be dragons
+        # get positional feedback of the p2p goal
+        orientation = Quaternion(*world_rot)
+        msg = world_trans
 
         # make utm point
         pnt = UTMPoint(easting=msg[0], northing=msg[1], altitude=0, zone=utmz, band=band)
         # get lat-lon
         pnt = pnt.toMsg()
         # construct message for neptus
+        # TODO replace Pose with imc_bridge::EstimatedState that Niklas made
         mmsg = Pose()
         mmsg.position.x = np.radians(pnt.longitude)
         mmsg.position.y = np.radians(pnt.latitude)
@@ -360,8 +381,8 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
 
-    def depth_cb(self, data):
-        self.depth = data.data
+    #  def depth_cb(self, data):
+        #  self.depth = data.data
 
     def update(self):
         """

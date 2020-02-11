@@ -6,38 +6,6 @@
 # common definitions and global variables
 
 import py_trees as pt
-import py_trees_ros as ptr
-
-
-MISSION_PLAN_STR = 'plan_str'
-MINIMUM_PLAN_STR_LEN = 135 # somehow Chris found this number, i'll reuse this
-MISSION_PLAN_OBJ = 'misison_plan'
-
-CURRENT_PLAN_ACTION = 'current_plan_action'
-LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
-
-# DO NOT PUT SLASHES BEFORE TOPIC NAMES
-# BECAUSE ROS THINKS THEN IT WANTS NOTHING TO DO WITH
-# LAUNCH FILE DEFINED NAMESPACES
-PLAN_TOPIC = 'plan_db'
-SAM_GPS_TOPIC = 'core/gps'
-ESTIMATED_STATE_TOPIC = 'estimated_state'
-PLAN_CONTROL_STATE_TOPIC = 'plan_control_state'
-ABORT_TOPIC = 'abort'
-
-#TODO a better way...
-BASE_LINK = '/sam/base_link'
-
-GPS_FIX_BB = 'gps_fix'
-UTM_BAND_BB = 'utm_band'
-UTM_ZONE_BB = 'utm_zone'
-
-DEPTH_TOPIC = 'ctrl/depth_feedback'
-ALTITUDE_TOPIC = ''
-
-SAM_MAX_DEPTH = 5
-SAM_MIN_ALTITUDE = 2
-
 
 ###############################################################
 # GENERIC TREE NODES AND SUCH
