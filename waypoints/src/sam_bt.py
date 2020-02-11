@@ -7,7 +7,7 @@ import py_trees as pt, py_trees_ros as ptr
 # just convenience really
 from py_trees.composites import Selector as Fallback
 from sensor_msgs.msg import NavSatFix
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Empty, String
 
 import rospy
 
@@ -24,10 +24,12 @@ from bt_conditions import C_PlanCompleted, \
                           C_HaveManualWaypoint, \
                           C_ManualWaypointReceived, \
                           C_NewMissionPlanReceived, \
-                          C_DepthOK
-                          #  C_AltOK, \ # unused for now
+                          C_DepthOK, \
+                          C_AltOK
 
-from bt_common import Sequence
+from bt_common import Sequence, \
+                      CheckBlackboardVariableValue, \
+                      ReadTopic
 
 from sam_globals import *
 
@@ -39,19 +41,42 @@ def const_tree():
     """
 
     def const_data_ingestion_tree():
-        read_depth = ptr.subscribers.ToBlackboard(
+        read_abort = ptr.subscribers.EventToBlackboard(
+            name = "A_ReadAbort",
+            topic_name = ABORT_TOPIC,
+            variable_name = ABORT_BB
+        )
+
+        read_depth = ReadTopic(
             name = "A_ReadDepth",
             topic_name = DEPTH_TOPIC,
             topic_type = Float64,
             blackboard_variables = {DEPTH_BB:'data'} # this takes the Float64.data field and puts into the bb
         )
-        #read_alt = same as depth eventually goes here
-        #  update_tf = A_UpdateTF()
+
+        read_alt = ReadTopic(
+            name = "A_ReadAlt",
+            topic_name = ALTITUDE_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {ALTITUDE_BB:'data'} # this takes the Float64.data field and puts into the bb
+        )
+
+        update_tf = A_UpdateTF()
+
+        read_mission_plan = ReadTopic(
+            name = "A_ReadMissionPlan",
+            topic_name = PLAN_TOPIC,
+            topic_type = String,
+            blackboard_variables = {MISSION_PLAN_STR_BB:'data'}
+        )
 
         return Sequence(name="SQ-DataIngestion",
                         children=[
-                            read_depth
-                            #  update_tf
+                            read_abort,
+                            read_depth,
+                            read_alt,
+                            update_tf,
+                            read_mission_plan
                         ])
 
 
@@ -68,22 +93,19 @@ def const_tree():
 
 
     def const_safety_tree():
-        #  no_abort = C_NoAbortReceived()
-        # TODO does not exist in our version of py_trees!
-        no_abort = pt.behaviours.CheckBlackboardVariableValue(
+        no_abort = CheckBlackboardVariableValue(
             variable_name=ABORT_BB,
             expected_value=False,
             name="C_NoAbortReceived"
         )
-        #TODO re-enable when the topic is there
-        #  altOK = C_AltOK()
+        altOK = C_AltOK()
         depthOK = C_DepthOK()
         # more safety checks will go here
 
         return Sequence(name="SQ-Safety",
                         children=[
                                   no_abort,
-                                  #  altOK,
+                                  altOK,
                                   depthOK
                         ])
 
@@ -125,7 +147,7 @@ def const_tree():
 
         # in the end, we want to succeed somehow.
         have_mission = pt.blackboard.CheckBlackboardVariable(name="C_HaveMission",
-                                                             variable_name=MISSION_PLAN_OBJ)
+                                                             variable_name=MISSION_PLAN_OBJ_BB)
 
         return Fallback(name="FB-SynchroniseMission",
                         children=[
@@ -202,6 +224,7 @@ def const_tree():
 
     root = Sequence(name='SQ-ROOT',
                     children=[
+                              data_ingestion_tree,
                               feedback_tree,
                               safety_tree,
                               synch_mission_tree,
@@ -214,8 +237,8 @@ def const_tree():
 
 def main():
 
-    utm_zone = rospy.get_param("utm_zone")
-    utm_band = rospy.get_param("utm_band")
+    utm_zone = rospy.get_param("~utm_zone", DEFAULT_UTM_ZONE)
+    utm_band = rospy.get_param("~utm_band", DEFAULT_UTM_BAND)
 
     bb = pt.blackboard.Blackboard()
     bb.set(UTM_ZONE_BB, utm_zone)
@@ -237,11 +260,15 @@ def main():
         rospy.loginfo("ROS Interrupt")
 
 
+def test():
+    tree = const_tree()
+    pt.display.ascii_tree(tree.root)
+
+
 if __name__ == '__main__':
     # init the node
     rospy.init_node("sam_bt")
 
-    #  main()
-    tree = const_tree()
-    pt.display.ascii_tree(tree.root)
+    main()
+    #  test()
 

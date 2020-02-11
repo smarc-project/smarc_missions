@@ -10,32 +10,9 @@
 
 
 from bt_common import *
+from sam_globals import *
 import py_trees as pt
-#  from std_msgs.msg import Empty, String, Float64
 
-# XXX replaced with builit-in blackboard checker
-#  class C_NoAbortReceived(pt.subscribers.Handler):
-    #  def __init__(self):
-        #  """
-        #  copied from Chris, simplified
-        #  Returns success as long as there is not
-        #  any message recieved at /abort.
-        #  """
-        #  # become a behaviour
-        #  super(C_NoAbortReceived, self).__init__(
-            #  name="C_NoAbortReceived",
-            #  topic_name=ABORT_TOPIC,
-            #  topic_type=Empty,
-            #  clearing_policy=pt.common.ClearingPolicy.ON_SUCCESS
-        #  )
-#
-    #  def update(self):
-        #  with self.data_guard:
-            #  if self.msg is None:
-                #  return pt.Status.SUCCESS
-            #  # abort
-            #  else:
-                #  return pt.Status.FAILURE
 
 
 class C_DepthOK(pt.behaviour.Behaviour):
@@ -51,16 +28,19 @@ class C_DepthOK(pt.behaviour.Behaviour):
 
 
 # currently unused because sam doesnt measure altitude yet
-#  class C_AltOK(pt.behaviour.Behaviour):
-    #  def __init__(self):
-        #  self.bb = pt.blackboard.Blackboard()
-        #  super(C_AltOK, self).__init__(name="C_AltOK")
-#
-    #  def update(self):
-        #  if self.bb.get(ALTITUDE_BB) > SAM_MIN_ALTITUDE:
-            #  return pt.Status.SUCCESS
-        #  else:
-            #  return pt.Status.FAILURE
+class C_AltOK(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        super(C_AltOK, self).__init__(name="C_AltOK")
+
+    def update(self):
+        # remove this when there is altitude available
+        return pt.Status.SUCCESS
+
+        if self.bb.get(ALTITUDE_BB) > SAM_MIN_ALTITUDE:
+            return pt.Status.SUCCESS
+        else:
+            return pt.Status.FAILURE
 
 
 class C_NewMissionPlanReceived(pt.behaviour.Behaviour):

@@ -68,48 +68,6 @@ class MissionPlan:
         self.current_wp = None
 
 
-# Remove entirely. Use the tf-tree to find position etc.
-#  class A_GetGPSFix(pt.behaviour.Behaviour):
-    #  def __init__(self):
-        #  """
-        #  Listens to a gps fix, puts it in the blackboard and sets the utm zone and band
-        #  stuff once.
-#
-        #  Returns FAILURE if there is nothing in the gps topic AND there was no GPS fixes before
-        #  """
-#
-        #  self.bb = pt.blackboard.Blackboard()
-#
-        #  self.gps_sub = rospy.Subscriber(name=SAM_GPS_TOPIC, data_class=NavSatFix, callback=self.gps_cb)
-        #  self.msg = None
-        #  self.set_utm_stuff = False
-#
-        #  super(A_GetGPSFix, self).__init__(name="A_GetGPSFix")
-#
-    #  def gps_cb(self, data):
-        #  self.msg = data
-#
-    #  def update(self):
-        #  if self.msg is not None:
-            #  msg = self.msg
-            #  self.bb.set(GPS_FIX_BB, msg)
-#
-            #  # we wanna do this calculation just once
-            #  if not self.set_utm_stuff:
-                #  f = fromLatLong(msg.latitude, msg.longitude)
-                #  gz, band = f.gridZone()
-                #  self.bb.set(UTM_BAND_BB, band)
-                #  self.bb.set(UTM_ZONE_BB, gz)
-                #  self.set_utm_stuff = True
-#
-            #  return pt.Status.SUCCESS
-#
-        #  elif self.msg is None and self.bb.get(GPS_FIX_BB) is not None:
-            #  return pt.Status.SUCCESS
-        #  else:
-            #  return pt.Status.FAILURE
-#
-
 
 
 class A_SetMissionPlan(pt.behaviour.Behaviour):
@@ -125,7 +83,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         super(A_SetMissionPlan, self).__init__('A_SetMissionPlan')
 
     def update(self):
-        plan_str = self.bb.get(MISSION_PLAN_STR)
+        plan_str = self.bb.get(MISSION_PLAN_STR_BB)
 
         # there was no plan to be set
         if plan_str is None or len(plan_str) < MINIMUM_PLAN_STR_LEN:
@@ -140,8 +98,6 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
 
         self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
         self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
-        # XXX is this needed?
-        #  self.bb.set(CURRENT_PLAN_ACTION, mission_plan.pop_wp())
         return pt.Status.SUCCESS
 
     @staticmethod
@@ -208,13 +164,14 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         super(A_SetNextPlanAction, self).__init__('A_SetNextPlanAction')
 
     def update(self):
-        mission_plan = self.bb.get(MISSION_PLAN_OBJ)
+        mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
         next_action = mission_plan.pop_wp()
+        if next_action is None:
+            self.feedback_message = "Next action was None"
+            return pt.Status.FAILURE
+
         self.logger.info("Set CURRENT_PLAN_ACTION to:"+str(next_action))
         self.bb.set(CURRENT_PLAN_ACTION, next_action)
-
-        if next_action is None:
-            return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
 
@@ -244,6 +201,12 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
 
     def initialise(self):
         wp = self.bb.get(CURRENT_PLAN_ACTION)
+        # if this is the first ever action, we need to get it ourselves
+        #TODO hacky :/
+        if wp is None:
+            mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            wp = mission_plan.pop_wp()
+            self.logger.info("Got the first action from the plan!")
 
         # construct the message
         self.action_goal = MoveBaseGoal()
@@ -337,28 +300,46 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
     def update_estimated_state(self):
         world_rot = self.bb.get(WORLD_ROT_BB)
         world_trans = self.bb.get(WORLD_TRANS_BB)
+        depth = self.bb.get(DEPTH_BB)
+
         # get the utm zone of our current lat,lon
         utmz = self.bb.get(UTM_ZONE_BB)
         band = self.bb.get(UTM_BAND_BB)
+
         if utmz is None or band is None:
-            rospy.loginfo("Utmz or band was None!!")
+            reason = "Utmz or band was None!!"
+            rospy.loginfo(reason)
+            self.feedback_message = reason
             return pt.Status.FAILURE
+
+        if world_rot is None or world_trans is None:
+            reason = "world_rot or world_trans was None!!"
+            rospy.loginfo(reason)
+            self.feedback_message = reason
+            return pt.Status.FAILURE
+
+        if depth is None:
+            reason = "depth was None!!"
+            self.feedback_message = reason
+            depth = 0
+
+
 
         # XXX here be dragons
         # get positional feedback of the p2p goal
         orientation = Quaternion(*world_rot)
-        msg = world_trans
-
+        easting, northing = world_trans[0], world_trans[1]
         # make utm point
-        pnt = UTMPoint(easting=msg[0], northing=msg[1], altitude=0, zone=utmz, band=band)
+        pnt = UTMPoint(easting=easting, northing=northing, altitude=0, zone=utmz, band=band)
         # get lat-lon
         pnt = pnt.toMsg()
+
         # construct message for neptus
         # TODO replace Pose with imc_bridge::EstimatedState that Niklas made
         mmsg = Pose()
         mmsg.position.x = np.radians(pnt.longitude)
         mmsg.position.y = np.radians(pnt.latitude)
-        mmsg.position.z = self.depth
+        mmsg.position.z = depth
         mmsg.orientation = orientation
         # send the message to neptus
         self.estimated_state_pub.publish(mmsg)
@@ -366,7 +347,7 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
     def update_plan_control_state(self):
         # construct current progress message for neptus
         msg = PlanControlState()
-        mission_plan = self.bb.get(MISSION_PLAN_OBJ)
+        mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
         if mission_plan is None:
             return pt.Status.FAILURE
 
@@ -381,8 +362,6 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
 
-    #  def depth_cb(self, data):
-        #  self.depth = data.data
 
     def update(self):
         """

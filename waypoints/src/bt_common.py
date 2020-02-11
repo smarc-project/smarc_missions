@@ -6,10 +6,90 @@
 # common definitions and global variables
 
 import py_trees as pt
+import py_trees_ros as ptr
+import rospy
+
+import copy # used in ReadTopic
 
 ###############################################################
 # GENERIC TREE NODES AND SUCH
 ###############################################################
+
+class ReadTopic(pt.behaviour.Behaviour):
+    """
+    A simple subscriber that returns SUCCESS all the time,
+    even if there is no data in the topic.
+    Puts the data into BB if there is any data
+    Same usage as ptr.subscribers.ToBlackboard, except it doesnt return RUNNING when
+    there is no data.
+
+    mostly copied from the "ToBlackboard" behaviour of ptr
+    """
+    def __init__(self, name, topic_name, topic_type, blackboard_variables):
+        self.bb = pt.blackboard.Blackboard()
+        self.blackboard_variables = blackboard_variables
+        self.last_read_value = None
+
+        self.topic_name = topic_name
+        self.topic_type = topic_type
+        self.subs = None
+        self.msg = None
+
+        super(ReadTopic, self).__init__(name)
+
+    def setup(self, timeout):
+        self.subs = rospy.Subscriber(self.topic_name, self.topic_type, self._cb, queue_size=2)
+        return True
+
+    def _cb(self, msg):
+        self.msg = msg
+
+    def update(self):
+        if self.msg is not None:
+            self.last_read_value = copy.copy(self.msg)
+            for k,v in self.blackboard_variables.iteritems():
+                if v is None:
+                    self.bb.set(k, self.msg, overwrite=True)
+                else:
+                    fields = v.split(".")
+                    value = copy.copy(self.msg)
+                    for field in fields:
+                        value = getattr(value, field)
+                        self.bb.set(k, value, overwrite=True)
+
+        self.feedback_message = "Last read:"+str(self.last_read_value)
+        return pt.Status.SUCCESS
+
+
+
+
+
+class CheckBlackboardVariableValue(pt.behaviour.Behaviour):
+    """
+    re-implementation of a future node that we do not have in our version of
+    the py-trees library.
+    Checks that the given blackboard variable has the given value.
+    returns succcess if there IS a value, and it is what we expected,
+    otherwiser FAILURE
+    """
+    def __init__(self, variable_name, expected_value, name):
+        self.bb = pt.blackboard.Blackboard()
+        self.variable_name = variable_name
+        self.expected_value = expected_value
+
+        super(CheckBlackboardVariableValue, self).__init__(name)
+
+    def update(self):
+        current_value = self.bb.get(self.variable_name)
+        if current_value is None or current_value != self.expected_value:
+            self.feedback_message = "Received value:"+str(current_value)
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+
+
 class Sequence(pt.composites.Selector):
 
     """

@@ -4,35 +4,53 @@
 # Ozer Ozkahraman (ozero@kth.se)
 
 
-MINIMUM_PLAN_STR_LEN = 135 # somehow Chris found this number, i'll reuse this
 
 CURRENT_PLAN_ACTION = 'current_plan_action'
 LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
 
+##########################
+# ROS TOPICS
+##########################
 # DO NOT PUT SLASHES BEFORE TOPIC NAMES, that puts them in 'root' in ros's eyes.
 PLAN_TOPIC = 'plan_db'
-#  SAM_GPS_TOPIC = 'core/gps'
 ESTIMATED_STATE_TOPIC = 'estimated_state'
 PLAN_CONTROL_STATE_TOPIC = 'plan_control_state'
 ABORT_TOPIC = 'abort'
+DEPTH_TOPIC = 'ctrl/depth_feedback'
+ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
 
-#TODO a better way...
 BASE_LINK = '/sam/base_link'
 
-# TODO remove
-#  GPS_FIX_BB = 'gps_fix'
-#  UTM_BAND_BB = 'utm_band'
-#  UTM_ZONE_BB = 'utm_zone'
 
-# TODO fill in from data ingestion tree
+######################
+# BLACKBOARD VARIABLES
+######################
 ABORT_BB = 'abort'
+
 DEPTH_BB = 'depth'
 ALTITUDE_BB = 'altitude'
+
 MISSION_PLAN_STR_BB = 'plan_str'
 MISSION_PLAN_OBJ_BB = 'misison_plan'
 
-DEPTH_TOPIC = 'ctrl/depth_feedback'
-ALTITUDE_TOPIC = ''
+UTM_BAND_BB = 'utm_band'
+UTM_ZONE_BB = 'utm_zone'
 
+WORLD_ROT_BB = 'world_rot'
+WORLD_TRANS_BB = 'world_trans'
+
+
+
+
+
+########################
+# DEFAULT VALUES
+########################
 SAM_MAX_DEPTH = 5
 SAM_MIN_ALTITUDE = 2
+
+MINIMUM_PLAN_STR_LEN = 135 # somehow Chris found this number, i'll reuse this
+
+# these are from croatia, biograd coast
+DEFAULT_UTM_ZONE = 33
+DEFAULT_UTM_BAND = 'T'
