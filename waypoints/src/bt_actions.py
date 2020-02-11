@@ -51,6 +51,8 @@ class MissionPlan:
         self.visited_wps = []
         self.current_wp = None
 
+        self.completed = False
+
     def pop_wp(self):
         """
         pop a wp from the remaining wps and return it
@@ -59,6 +61,7 @@ class MissionPlan:
             self.current_wp = self.remaining_wps[0]
             self.remaining_wps = self.remaining_wps[1:]
         else:
+            self.completed = True
             self.current_wp = None
 
         return self.current_wp
@@ -98,7 +101,9 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
 
         self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
         self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
-        return pt.Status.SUCCESS
+
+        # XXX Testing....
+        return pt.Status.RUNNING
 
     @staticmethod
     def clean(f):
@@ -188,6 +193,8 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
 
         self.bb = pt.blackboard.Blackboard()
 
+        self.action_goal_handle = None
+
         # become action client
         ptr.actions.ActionClient.__init__(
             self,
@@ -229,7 +236,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
 
         # if goal hasn't been sent yet
         if not self.sent_goal:
-            self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
             self.sent_goal = True
             rospy.loginfo("Sent goal to bezier planner:"+str(self.action_goal))
             return pt.Status.RUNNING
@@ -246,9 +253,9 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         if result:
             return pt.Status.SUCCESS
 
+
         # if we're still trying to accomplish the goal
-        else:
-            return pt.Status.RUNNING
+        return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
         self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
@@ -283,8 +290,6 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
-#TODO split the data gathering part from this
-# and make that its own subtree before everything
 class A_PublishToNeptus(pt.behaviour.Behaviour):
     def __init__(self):
         """
@@ -346,18 +351,17 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
     def update_plan_control_state(self):
         # construct current progress message for neptus
-        msg = PlanControlState()
         mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
         if mission_plan is None:
-            return pt.Status.FAILURE
+            return
 
+        msg = PlanControlState()
         current_wp = mission_plan.current_wp
         num_remaining = len(mission_plan.remaining_wps)
         num_done = len(mission_plan.visited_wps)
         total = len(mission_plan.waypoints)
 
-        msg.man_id = "Going to wp:"+str(current_wp)+" remaining:"+str(num_remaining)+" visited:"+str(num_done)
-        msg.plan_progress = 100* (num_done / total)
+        msg.plan_id = "Going to wp:"+str(current_wp)+" remaining:"+str(num_remaining)+" visited:"+str(num_done)
 
         # send message to neptus
         self.plan_control_state_pub.publish(msg)

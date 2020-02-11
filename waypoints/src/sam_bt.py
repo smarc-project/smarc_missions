@@ -24,6 +24,7 @@ from bt_conditions import C_PlanCompleted, \
                           C_HaveManualWaypoint, \
                           C_ManualWaypointReceived, \
                           C_NewMissionPlanReceived, \
+                          C_NoAbortReceived, \
                           C_DepthOK, \
                           C_AltOK
 
@@ -93,11 +94,7 @@ def const_tree():
 
 
     def const_safety_tree():
-        no_abort = CheckBlackboardVariableValue(
-            variable_name=ABORT_BB,
-            expected_value=False,
-            name="C_NoAbortReceived"
-        )
+        no_abort = C_NoAbortReceived()
         altOK = C_AltOK()
         depthOK = C_DepthOK()
         # more safety checks will go here

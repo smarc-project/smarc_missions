@@ -14,6 +14,18 @@ from sam_globals import *
 import py_trees as pt
 
 
+class C_NoAbortReceived(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        self.aborted = False
+        super(C_NoAbortReceived, self).__init__(name="C_NoAbortReceived")
+
+    def update(self):
+        if self.bb.get(ABORT_BB) or self.aborted:
+            self.aborted = True
+            return pt.Status.FAILURE
+        else:
+            return pt.Status.SUCCESS
 
 class C_DepthOK(pt.behaviour.Behaviour):
     def __init__(self):
@@ -85,7 +97,7 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
 
     def update(self):
         mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
-        if mission_plan is None or len(mission_plan.remaining_wps) > 0:
+        if mission_plan is None or not mission_plan.completed:
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
