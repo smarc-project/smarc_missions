@@ -17,7 +17,8 @@ from bt_actions import A_SetMissionPlan, \
                        A_SetManualWaypoint, \
                        A_GotoManualWaypoint, \
                        A_SetNextPlanAction, \
-                       A_UpdateTF
+                       A_UpdateTF, \
+                       A_EmergencySurface
 
 
 from bt_conditions import C_PlanCompleted, \
@@ -99,12 +100,23 @@ def const_tree():
         depthOK = C_DepthOK()
         # more safety checks will go here
 
-        return Sequence(name="SQ-Safety",
+        safety_checks = Sequence(name="SQ-SafetyChecks",
                         children=[
                                   no_abort,
                                   altOK,
                                   depthOK
                         ])
+
+        surface = A_EmergencySurface()
+
+        # if anything about safety is 'bad', we abort everything
+        fallback_to_abort = Fallback(name='FB_SafetyOK',
+                                     children = [
+                                         safety_checks,
+                                         surface
+                                     ])
+        return fallback_to_abort
+
 
 
     def const_synch_tree():

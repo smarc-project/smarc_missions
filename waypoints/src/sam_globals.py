@@ -9,7 +9,7 @@ CURRENT_PLAN_ACTION = 'current_plan_action'
 LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
 
 ##########################
-# ROS TOPICS
+# ROS THINGS
 ##########################
 # DO NOT PUT SLASHES BEFORE TOPIC NAMES, that puts them in 'root' in ros's eyes.
 PLAN_TOPIC = 'plan_db'
@@ -19,7 +19,13 @@ ABORT_TOPIC = 'abort'
 DEPTH_TOPIC = 'ctrl/depth_feedback'
 ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
 
+SAM_VBS_SETPOINT_TOPIC = 'ctrl/vbs/setpoint'
+# yes, this one is in the root.
+SAM_VBS_CONTROL_ACTION_TOPIC = '/vbs_control_action'
+SAM_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
+
 BASE_LINK = '/sam/base_link'
+ACTION_NAMESPACE = '/bezier_planner'
 
 
 ######################
@@ -39,6 +45,16 @@ UTM_ZONE_BB = 'utm_zone'
 WORLD_ROT_BB = 'world_rot'
 WORLD_TRANS_BB = 'world_trans'
 
+IMC_STATE_BB = 'imc_state'
+
+
+########################
+# IMC Enums
+########################
+IMC_STATE_BLOCKED = 0
+IMC_STATE_READY = 1
+IMC_STATE_INITIALIZING = 2
+IMC_STATE_EXECUTING = 3
 
 
 

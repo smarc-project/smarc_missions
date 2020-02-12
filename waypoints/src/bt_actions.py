@@ -17,7 +17,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from imc_ros_bridge.msg import PlanControlState
 from geometry_msgs.msg import Pose, Quaternion
 from sensor_msgs.msg import NavSatFix
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Bool
 
 import actionlib_msgs.msg as actionlib_msgs
 
@@ -33,7 +33,8 @@ class MissionPlan:
     def __init__(self,
                  actions,
                  utm_zone,
-                 utm_band):
+                 utm_band,
+                 plan_id=None):
         """
         A container object to keep things related to the mission plan.
         actions is a list of (x,y,z,type:string) tuples
@@ -47,11 +48,19 @@ class MissionPlan:
         self.utm_zone = utm_zone
         self.utm_band = utm_band
 
+        if plan_id is None:
+            plan_id = "Follow "+str(len(self.waypoints))+" waypoints"
+        self.plan_id = plan_id
+
         self.remaining_wps = self.waypoints
         self.visited_wps = []
         self.current_wp = None
+        self.current_wp_index = -1
 
         self.completed = False
+
+    def __str__(self):
+        return 'wps:'+str(self.waypoints)+'\nremaining:'+str(self.remaining_wps)
 
     def pop_wp(self):
         """
@@ -60,6 +69,7 @@ class MissionPlan:
         if len(self.remaining_wps) > 0:
             self.current_wp = self.remaining_wps[0]
             self.remaining_wps = self.remaining_wps[1:]
+            self.current_wp_index += 1
         else:
             self.completed = True
             self.current_wp = None
@@ -71,6 +81,36 @@ class MissionPlan:
         self.current_wp = None
 
 
+class A_EmergencySurface(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+
+        self.emergency_vbs_control_pub = None
+        self.emergency_pid_enabled_pub = None
+        self.emergency_vbs_setpoint_pub = None
+        super(A_EmergencySurface, self).__init__('A_EmergencySurface')
+
+    def setup(self, timeout):
+        try:
+            self.emergency_vbs_control_pub = rospy.Publisher(SAM_VBS_CONTROL_ACTION_TOPIC, Float64, queue_size=1)
+            self.emergency_pid_enabled_pub = rospy.Publisher(SAM_PID_ENABLE_TOPIC, Bool, queue_size=1)
+            self.emergency_vbs_setpoint_pub = rospy.Publisher(SAM_VBS_SETPOINT_TOPIC, Float64, queue_size=1)
+            return True
+        except:
+            return False
+
+
+    def update(self):
+        self.bb.set(CURRENT_PLAN_ACTION, None)
+        self.bb.set(IMC_STATE_BB, IMC_STATE_BLOCKED)
+
+        self.emergency_pid_enabled_pub.publish(True)
+        self.emergency_vbs_setpoint_pub.publish(0)
+        self.emergency_vbs_control_pub.publish(-10)
+
+        self.feedback_message = "ABORTED"
+        return pt.Status.RUNNING
+
 
 
 class A_SetMissionPlan(pt.behaviour.Behaviour):
@@ -79,8 +119,14 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         Reads the mission plan string from the black board
         and creates a new Mission object.
 
-        returns SUCCESS if there was a plan in MISSION_PLAN_STR and we successfully set it
+        returns RUNNING if there was a plan in MISSION_PLAN_STR and we successfully set it
         returns FAILURE otherwise
+
+        The RUNNING return makes sure that the currently running actions that were set up for
+        a previous plan are all pre-empted.
+
+        Make sure to have a guard before this so that it doesnt keep getting ticked.
+        C_NewMissionPlanReceived is a good example.
         """
         self.bb = pt.blackboard.Blackboard()
         super(A_SetMissionPlan, self).__init__('A_SetMissionPlan')
@@ -102,7 +148,6 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
         self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
 
-        # XXX Testing....
         return pt.Status.RUNNING
 
     @staticmethod
@@ -112,7 +157,9 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         parses it and returns a list of utm xyz waypoints and the utm zone
 
         By: Christopher Iliffe Sprague (sprague@kth.se)
+
         """
+        #TODO replace with a proper ros message.
 
         # make the neptus message into a string
         f = str(f)
@@ -131,7 +178,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         # convert to json
         f = json.loads(f)
 
-        #json.dump(f, open('plan.json', 'w'))
+        #  json.dump(f, open('/home/ozer/cleaned_up_plan.json', 'w'))
 
         # convert lat lon to utm
         depths = [float(d['data']['z']) for d in f]
@@ -201,7 +248,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
             name="A_ExecutePlanAction",
             action_spec=MoveBaseAction,
             action_goal=None,
-            action_namespace="/bezier_planner",
+            action_namespace = ACTION_NAMESPACE,
             override_feedback_message_on_running="Moving to waypoint"
         )
 
@@ -212,9 +259,20 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         #TODO hacky :/
         if wp is None:
             mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
-            wp = mission_plan.pop_wp()
-            self.logger.info("Got the first action from the plan!")
+            if mission_plan is None:
+                # okay, we got no plan, dont do shit
+                self.feedback_message = "No plan!"
+                rospy.logwarn("Mission plan not found when trying initialise action goal")
+                return
 
+            wp = mission_plan.pop_wp()
+            if wp is None:
+                # okay, now we are in trouble
+                self.feedback_message = "No action could be found in the mission plan!"
+                rospy.logerr("Waypoint from mission plan is None:"+str(mission_plan))
+                return
+
+        self.logger.info("Got the first action from the plan:"+str(wp))
         # construct the message
         self.action_goal = MoveBaseGoal()
         self.action_goal.target_pose.pose.position.x = wp[0]
@@ -232,25 +290,38 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         """
         # if your action client is not valid
         if not self.action_client:
-            return pt.Status.INVALID
+            self.feedback_message = "ActionClient is invalid!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if the action_goal is invalid
+        if not self.action_goal:
+            self.feedback_message = "No action_goal!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
 
         # if goal hasn't been sent yet
         if not self.sent_goal:
             self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
             self.sent_goal = True
-            rospy.loginfo("Sent goal to bezier planner:"+str(self.action_goal))
+            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
+            self.feedback_message = "Goal sent"
             return pt.Status.RUNNING
 
 
         # if the goal was aborted or preempted
         if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
+            self.feedback_message = "Aborted goal"
+            rospy.loginfo(self.feedback_message)
             return pt.Status.FAILURE
 
         result = self.action_client.get_result()
 
         # if the goal was accomplished
         if result:
+            self.feedback_message = "Completed goal"
+            rospy.loginfo(self.feedback_message)
             return pt.Status.SUCCESS
 
 
@@ -270,9 +341,17 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         self.bb = pt.blackboard.Blackboard()
 
         self.listener = tf.TransformListener()
-        self.listener.waitForTransform("world_utm", BASE_LINK, rospy.Time(), rospy.Duration(4.0))
 
         super(A_UpdateTF, self).__init__("A_UpdateTF")
+
+    def setup(self, timeout):
+        try:
+            self.listener.waitForTransform("world_utm", BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+            return True
+        except:
+            self.logger.error("Could not find TF!!")
+            return False
+
 
     def update(self):
         try:
@@ -282,6 +361,9 @@ class A_UpdateTF(pt.behaviour.Behaviour):
                                                                      now)
         except (tf.LookupException, tf.ConnectivityException):
             self.logger.warning("Could not get transform between world_utm and "+str(BASE_LINK))
+            return pt.Status.FAILURE
+        except:
+            self.logger.warning("Could not do tf lookup for some other reason")
             return pt.Status.FAILURE
 
         self.bb.set(WORLD_TRANS_BB, world_trans)
@@ -356,12 +438,22 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
             return
 
         msg = PlanControlState()
+        current_wp_index = mission_plan.current_wp_index
         current_wp = mission_plan.current_wp
-        num_remaining = len(mission_plan.remaining_wps)
-        num_done = len(mission_plan.visited_wps)
         total = len(mission_plan.waypoints)
+        plan_progress = float(current_wp_index / total)
 
-        msg.plan_id = "Going to wp:"+str(current_wp)+" remaining:"+str(num_remaining)+" visited:"+str(num_done)
+        if self.bb.get(IMC_STATE_BB):
+            msg.state = self.bb.get(IMC_STATE_BB)
+        else:
+            if current_wp is not None:
+                msg.state = IMC_STATE_EXECUTING
+            else:
+                msg.state = IMC_STATE_READY
+
+        msg.plan_id = str(mission_plan.plan_id)
+        msg.man_id = 'Goto'+str(current_wp_index+1)
+        msg.plan_progress = plan_progress
 
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
