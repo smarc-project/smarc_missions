@@ -141,12 +141,19 @@ def const_tree():
 
         def const_mission_plan_update():
             got_new_plan = C_NewMissionPlanReceived()
+
             set_new_plan = A_SetMissionPlan()
+            set_next_plan_action = A_SetNextPlanAction()
+            set_new_plan_and_action = Sequence(name="SQ-SetNewPlanAndAction",
+                                               children=[
+                                                   set_new_plan,
+                                                   set_next_plan_action
+                                               ])
 
             return Sequence(name="SQ-UpdateMissionPlan",
                             children=[
                                       got_new_plan,
-                                      set_new_plan
+                                      set_new_plan_and_action
                             ])
 
 
@@ -180,7 +187,7 @@ def const_tree():
             goto_manual = const_gotomanualwp()
             # add more manual commands here
 
-            return Fallback(name="FB-ExecuteManualComamands",
+            return Fallback(name="FB-ExecuteManualCommands",
                             children=[
                                       goto_manual
                             ])

@@ -119,14 +119,8 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         Reads the mission plan string from the black board
         and creates a new Mission object.
 
-        returns RUNNING if there was a plan in MISSION_PLAN_STR and we successfully set it
+        returns SUCCESS if there was a plan in MISSION_PLAN_STR and we successfully set it
         returns FAILURE otherwise
-
-        The RUNNING return makes sure that the currently running actions that were set up for
-        a previous plan are all pre-empted.
-
-        Make sure to have a guard before this so that it doesnt keep getting ticked.
-        C_NewMissionPlanReceived is a good example.
         """
         self.bb = pt.blackboard.Blackboard()
         super(A_SetMissionPlan, self).__init__('A_SetMissionPlan')
@@ -148,7 +142,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
         self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
 
-        return pt.Status.RUNNING
+        return pt.Status.SUCCESS
 
     @staticmethod
     def clean(f):
@@ -209,7 +203,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def __init__(self):
         """
         Sets the current plan action to the next one
-        SUCCESS if it can set it to something that is not None
+        RUNNING if it can set it to something that is not None
         FAILURE otherwise
         """
         self.bb = pt.blackboard.Blackboard()
@@ -225,7 +219,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         self.logger.info("Set CURRENT_PLAN_ACTION to:"+str(next_action))
         self.bb.set(CURRENT_PLAN_ACTION, next_action)
 
-        return pt.Status.SUCCESS
+        return pt.Status.RUNNING
 
 
 
@@ -256,28 +250,16 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
     def initialise(self):
         wp = self.bb.get(CURRENT_PLAN_ACTION)
         # if this is the first ever action, we need to get it ourselves
-        #TODO hacky :/
         if wp is None:
-            mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
-            if mission_plan is None:
-                # okay, we got no plan, dont do shit
-                self.feedback_message = "No plan!"
-                rospy.logwarn("Mission plan not found when trying initialise action goal")
-                return
+            rospy.logwarn("No action found to execute! Was A_SetNextPlanAction called before this?")
+            return
 
-            wp = mission_plan.pop_wp()
-            if wp is None:
-                # okay, now we are in trouble
-                self.feedback_message = "No action could be found in the mission plan!"
-                rospy.logerr("Waypoint from mission plan is None:"+str(mission_plan))
-                return
-
-        self.logger.info("Got the first action from the plan:"+str(wp))
         # construct the message
         self.action_goal = MoveBaseGoal()
         self.action_goal.target_pose.pose.position.x = wp[0]
         self.action_goal.target_pose.pose.position.y = wp[1]
         self.action_goal.target_pose.pose.position.z = wp[2]
+        rospy.loginfo("Action goal initialized")
 
         # ensure that we still need to send the goal
         self.sent_goal = False
