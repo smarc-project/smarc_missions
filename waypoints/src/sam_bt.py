@@ -270,7 +270,7 @@ def main():
         while not rospy.is_shutdown():
             # rate is period in ms
             #  tree.tick_tock(1, post_tick_handler=lambda t: pt.display.print_ascii_tree(tree.root, show_status=True))
-            tree.tick_tock(100)
+            tree.tick_tock(BT_TICKING_PERIOD)
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")

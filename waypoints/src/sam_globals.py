@@ -7,6 +7,12 @@
 
 CURRENT_PLAN_ACTION = 'current_plan_action'
 LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
+# set this from any action that might return RUNNING.
+# useful for feedback purposes
+CURRENTLY_RUNNING_ACTION = 'currently_running_action'
+
+# in ms.
+BT_TICKING_PERIOD = 50
 
 ##########################
 # ROS THINGS

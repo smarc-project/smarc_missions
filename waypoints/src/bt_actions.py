@@ -109,6 +109,7 @@ class A_EmergencySurface(pt.behaviour.Behaviour):
         self.emergency_vbs_control_pub.publish(-10)
 
         self.feedback_message = "ABORTED"
+        self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
         return pt.Status.RUNNING
 
 
@@ -219,6 +220,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         self.logger.info("Set CURRENT_PLAN_ACTION to:"+str(next_action))
         self.bb.set(CURRENT_PLAN_ACTION, next_action)
 
+        self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_SetNextPlanAction')
         return pt.Status.RUNNING
 
 
@@ -288,6 +290,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
             self.sent_goal = True
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Goal sent"
+            self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
             return pt.Status.RUNNING
 
 
@@ -296,6 +299,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
             self.feedback_message = "Aborted goal"
             rospy.loginfo(self.feedback_message)
+            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.FAILURE
 
         result = self.action_client.get_result()
@@ -304,10 +308,12 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         if result:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
+            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.SUCCESS
 
 
         # if we're still trying to accomplish the goal
+        self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
@@ -415,27 +421,35 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
     def update_plan_control_state(self):
         # construct current progress message for neptus
-        mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
-        if mission_plan is None:
-            return
-
         msg = PlanControlState()
-        current_wp_index = mission_plan.current_wp_index
-        current_wp = mission_plan.current_wp
-        total = len(mission_plan.waypoints)
-        plan_progress = float(current_wp_index / total)
+
+        mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        if mission_plan is None or mission_plan.completed:
+            msg.plan_id = 'No plan'
+            msg.man_id = 'Idle'
+            msg.plan_progress = 100.0
+        else:
+            current_wp_index = mission_plan.current_wp_index
+            current_wp = mission_plan.current_wp
+            total = len(mission_plan.waypoints)
+            plan_progress = (current_wp_index * 100.0) / total # percent float
+            msg.plan_id = str(mission_plan.plan_id)
+            msg.man_id = 'Goto'+str(current_wp_index+1)
+            msg.plan_progress = plan_progress
 
         if self.bb.get(IMC_STATE_BB):
             msg.state = self.bb.get(IMC_STATE_BB)
         else:
-            if current_wp is not None:
+            currently_running = self.bb.get(CURRENTLY_RUNNING_ACTION)
+            if currently_running == 'A_ExecutePlanAction':
                 msg.state = IMC_STATE_EXECUTING
+            elif currently_running == 'A_EmergencySurface':
+                msg.state = IMC_STATE_BLOCKED
+                msg.plan_id = 'SAFETY FALLBACK'
+                msg.man_id = 'EMERGENCY SURFACE'
+                msg.plan_progress = 0.0
             else:
                 msg.state = IMC_STATE_READY
-
-        msg.plan_id = str(mission_plan.plan_id)
-        msg.man_id = 'Goto'+str(current_wp_index+1)
-        msg.plan_progress = plan_progress
 
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
