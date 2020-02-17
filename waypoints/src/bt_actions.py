@@ -17,7 +17,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from imc_ros_bridge.msg import PlanControlState
 from geometry_msgs.msg import Pose, Quaternion
 from sensor_msgs.msg import NavSatFix
-from std_msgs.msg import Float64, Bool
+from std_msgs.msg import Float64, Bool, Empty
 from sam_msgs.msg import PercentStamped
 
 import actionlib_msgs.msg as actionlib_msgs
@@ -88,18 +88,14 @@ class A_EmergencySurface(pt.behaviour.Behaviour):
     def __init__(self):
         self.bb = pt.blackboard.Blackboard()
 
-        self.emergency_pid_enabled_pub = None
-        #  self.emergency_vbs_control_pub = None
-        #  self.emergency_vbs_setpoint_pub = None
         self.emergency_vbs_cmd = None
+        self.abort_pub = None
         super(A_EmergencySurface, self).__init__('A_EmergencySurface')
 
     def setup(self, timeout):
         try:
-            self.emergency_pid_enabled_pub = rospy.Publisher(SAM_PID_ENABLE_TOPIC, Bool, queue_size=1)
-            #  self.emergency_vbs_control_pub = rospy.Publisher(SAM_VBS_CONTROL_ACTION_TOPIC, Float64, queue_size=1)
-            #  self.emergency_vbs_setpoint_pub = rospy.Publisher(SAM_VBS_SETPOINT_TOPIC, Float64, queue_size=1)
             self.emergency_vbs_cmd = rospy.Publisher(SAM_VBS_CMD_TOPIC, PercentStamped, queue_size=1)
+            self.abort_pub = rospy.Publisher(ABORT_TOPIC, Empty, queue_size=1)
             return True
         except:
             return False
@@ -109,10 +105,13 @@ class A_EmergencySurface(pt.behaviour.Behaviour):
         self.bb.set(CURRENT_PLAN_ACTION, None)
         self.bb.set(IMC_STATE_BB, IMC_STATE_BLOCKED)
 
-        self.emergency_pid_enabled_pub.publish(False)
-        #  self.emergency_vbs_setpoint_pub.publish(0)
-        #  self.emergency_vbs_control_pub.publish(-10)
+        # latch the abort so the rest of the system can listen to it
+        e = Empty()
+        self.abort_pub.publish(e)
 
+        # set the VBS to 0, so it empties the tank
+        # if someone else is also setting it, nothing else
+        # we can do but trust that they will listen to the /abort too
         ps = PercentStamped()
         ps.value = 0
         ps.header.stamp = rospy.Time.now()
