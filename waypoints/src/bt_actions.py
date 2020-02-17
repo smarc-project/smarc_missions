@@ -34,6 +34,7 @@ class MissionPlan:
                  actions,
                  utm_zone,
                  utm_band,
+                 frame,
                  plan_id=None):
         """
         A container object to keep things related to the mission plan.
@@ -47,6 +48,7 @@ class MissionPlan:
 
         self.utm_zone = utm_zone
         self.utm_band = utm_band
+        self.frame = frame
 
         if plan_id is None:
             plan_id = "Follow "+str(len(self.waypoints))+" waypoints"
@@ -74,7 +76,7 @@ class MissionPlan:
             self.completed = True
             self.current_wp = None
 
-        return self.current_wp
+        return self.current_wp, self.frame
 
     def visit(self):
         self.visited_wps.append(self.current_wp)
@@ -135,10 +137,11 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
         # there is a plan we can at least look at
-        wps_types, zone, band = self.clean(plan_str)
+        wps_types, zone, band, frame = self.clean(plan_str)
         mission_plan = MissionPlan(actions=wps_types,
                                    utm_zone = zone,
-                                   utm_band = band)
+                                   utm_band = band,
+                                   frame = frame)
 
         self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
         self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
@@ -197,7 +200,10 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         f = [(d.x, d.y, depth, wt) for d, depth, wt in zip(f, depths, wtypes)]
 
         # return list of utm xyz waypoints and the utm zone
-        return f, gz, band
+        #TODO unhack this
+        # Neptus gives us the plan in UTM coordinates
+        frame = '/world_utm'
+        return f, gz, band, frame
 
 
 class A_SetNextPlanAction(pt.behaviour.Behaviour):
@@ -250,7 +256,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
 
 
     def initialise(self):
-        wp = self.bb.get(CURRENT_PLAN_ACTION)
+        wp, frame = self.bb.get(CURRENT_PLAN_ACTION)
         # if this is the first ever action, we need to get it ourselves
         if wp is None:
             rospy.logwarn("No action found to execute! Was A_SetNextPlanAction called before this?")
@@ -261,6 +267,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         self.action_goal.target_pose.pose.position.x = wp[0]
         self.action_goal.target_pose.pose.position.y = wp[1]
         self.action_goal.target_pose.pose.position.z = wp[2]
+        self.action_goal.target_pose.header.frame_id = frame
         rospy.loginfo("Action goal initialized")
 
         # ensure that we still need to send the goal
