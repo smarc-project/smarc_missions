@@ -29,6 +29,7 @@ SAM_VBS_SETPOINT_TOPIC = 'ctrl/vbs/setpoint'
 # yes, this one is in the root.
 SAM_VBS_CONTROL_ACTION_TOPIC = '/vbs_control_action'
 SAM_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
+SAM_VBS_CMD_TOPIC = 'core/vbs_cmd'
 
 BASE_LINK = '/sam/base_link'
 ACTION_NAMESPACE = '/bezier_planner'
