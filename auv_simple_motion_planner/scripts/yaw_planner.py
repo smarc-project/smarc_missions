@@ -39,15 +39,19 @@ class YawPlanner(object):
 
         success = True
         self.nav_goal = goal.target_pose.pose
+        self.nav_goal_frame = goal.target_pose.header.frame_id
+        if self.nav_goal_frame is None or self.nav_goal_frame == '':
+            rospy.logwarn("Goal has no frame id! Using /world_utm by default")
+            self.nav_goal_frame = '/world_utm'
         
         goal_point = PointStamped()
-        goal_point.header.frame_id = "/world_utm"
+        goal_point.header.frame_id = self.nav_goal_frame
         goal_point.header.stamp = rospy.Time(0)
         goal_point.point.x = self.nav_goal.position.x
         goal_point.point.y = self.nav_goal.position.y
         goal_point.point.z = self.nav_goal.position.z
         try:
-            goal_point_local = self.listener.transformPoint("/world_local", goal_point)
+            goal_point_local = self.listener.transformPoint(self.nav_goal_frame, goal_point)
             self.nav_goal.position.x = goal_point_local.point.x
             self.nav_goal.position.y = goal_point_local.point.y
             self.nav_goal.position.z = goal_point_local.point.z
@@ -80,20 +84,20 @@ class YawPlanner(object):
             # Publish feedback
             if counter % 10 == 0:
                 try:
-                    (trans, rot) = self.listener.lookupTransform("/world_local", "sam/base_link", rospy.Time(0))
+                    (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                     rospy.loginfo("Error with tf")
                     continue
 
                 pose_fb = PoseStamped()
-                pose_fb.header.frame_id = "/world_local"
+                pose_fb.header.frame_id = self.nav_goal_frame
                 pose_fb.pose.position.x = trans[0]
                 pose_fb.pose.position.y = trans[1]
                 pose_fb.pose.position.z = trans[2]
                 self._feedback.base_position = pose_fb
                 self._feedback.base_position.header.stamp = rospy.get_rostime()
                 self._as.publish_feedback(self._feedback)
-                rospy.loginfo("Sending feedback")
+                #rospy.loginfo("Sending feedback")
 
                 #Compute yaw setpoint.
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
@@ -101,14 +105,14 @@ class YawPlanner(object):
                 yaw_setpoint = math.atan2(ydiff,xdiff)
                 
             self.yaw_pub.publish(yaw_setpoint)
-            rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
+            #rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
 
             # Thruster forward
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 400.
-            rpm.thruster_2_rpm = 400.
+            rpm.thruster_1_rpm = 700.
+            rpm.thruster_2_rpm = 700.
             self.rpm_pub.publish(rpm)
-            rospy.loginfo("Thrusters forward")
+            #rospy.loginfo("Thrusters forward")
 
             counter += 1
             r.sleep()
@@ -126,17 +130,17 @@ class YawPlanner(object):
 
     def timer_callback(self, event):
         if self.nav_goal is None:
-            rospy.loginfo("Nav goal is None!")
+            #rospy.loginfo_throttle(30, "Nav goal is None!")
             return
         
         try:
-            (trans, rot) = self.listener.lookupTransform("/world", self.base_frame, rospy.Time(0))
+            (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             return
 
         # TODO: we could use this code for the other check also
         goal_point = PointStamped()
-        goal_point.header.frame_id = "/world"
+        goal_point.header.frame_id = self.nav_goal_frame
         goal_point.header.stamp = rospy.Time(0)
         goal_point.point.x = self.nav_goal.position.x
         goal_point.point.y = self.nav_goal.position.y
@@ -146,6 +150,8 @@ class YawPlanner(object):
 
         start_pos = np.array(trans)
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
+     
+        rospy.loginfo("diff "+ str(np.linalg.norm(start_pos - end_pos)))
         if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None

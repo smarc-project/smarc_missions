@@ -4,7 +4,7 @@
     <arg name="robot_name" default="sam"/>
     <arg name="latitude" default="43.93183"/>
     <arg name="longitude" default="15.44264"/>
-    <arg name="utm_zone" default="33"/>
+    <arg name="utm_zone" default="34"/>
     <arg name="utm_band" default="V"/>
 
     <arg name="base_frame" default="sam/base_link"/>
