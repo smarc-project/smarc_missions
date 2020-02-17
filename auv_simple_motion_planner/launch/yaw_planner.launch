@@ -4,7 +4,8 @@
     <arg name="robot_name" default="sam"/>
     <arg name="latitude" default="43.93183"/>
     <arg name="longitude" default="15.44264"/>
-    <arg name="utm_zone" default="32"/>
+    <arg name="utm_zone" default="33"/>
+    <arg name="utm_band" default="V"/>
 
     <arg name="base_frame" default="sam/base_link"/>
     <arg name="goal_tolerance" default="5."/>
@@ -18,6 +19,7 @@
     <!-- Static transform -->
     <!-- <node pkg="tf" type="static_transform_publisher" name="world_utm_broadcaster" args="535529 4864397 0 0 0 0 1 world_utm world_local 100" /> -->
 
+<!--
     <node pkg="rostopic" type="rostopic" name="fake_gps_fix"
         args="pub /gps/fix sensor_msgs/NavSatFix --latch
         '{header: {seq: 999, stamp: {secs: 0, nsecs: 0}, frame_id: 'world_local'},
@@ -27,6 +29,7 @@
         altitude: 0,
         position_covariance: [3.9561210000000004, 0.0, 0.0, 0.0, 3.9561210000000004, 0.0, 0.0, 0.0, 7.650756],
         position_covariance_type: 2}'" output="screen"/>
+-->
 
     <group ns="$(arg namespace)">
         <group ns="ctrl">
@@ -51,16 +54,19 @@
 
         </group>
 
+<!--
         <include file="$(find imc_ros_bridge)/launch/bridge.launch">
             <arg name="server_addr" value="$(arg server_addr)"/>
             <arg name="server_port" value="$(arg server_port)" type="str"/>
             <arg name="imc_system_name" value="$(arg system_name)"/>
             <arg name="imc_id" value="$(arg imc_id)"/>
         </include>
+-->
 
-        <node name="neptus_bt" pkg="waypoints" type="neptus_bt.py" output="screen">
+        <node name="sam_bt" pkg="waypoints" type="sam_bt.py" output="screen">
             <param name="system_name" value="$(arg system_name)" />
             <param name="utm_zone" value="$(arg utm_zone)" />
+            <param name="utm_band" value="$(arg utm_band)" />
             <remap from="/bezier_planner" to="ctrl/yaw_planner"/>
         </node>
 
