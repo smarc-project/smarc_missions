@@ -8,6 +8,7 @@ import py_trees as pt, py_trees_ros as ptr
 from py_trees.composites import Selector as Fallback
 from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64, Empty, String
+from sam_msgs.msg import Leak
 
 import rospy
 
@@ -63,6 +64,13 @@ def const_tree():
             blackboard_variables = {ALTITUDE_BB:'data'} # this takes the Float64.data field and puts into the bb
         )
 
+        read_leak = ReadTopic(
+            name = "A_ReadLeak",
+            topic_name = LEAK_TOPIC,
+            topic_type = Leak,
+            blackboard_variables = {LEAK_BB:'value'}
+        )
+
         update_tf = A_UpdateTF()
 
         read_mission_plan = ReadTopic(
@@ -75,6 +83,7 @@ def const_tree():
         return Sequence(name="SQ-DataIngestion",
                         children=[
                             read_abort,
+                            read_leak,
                             read_depth,
                             read_alt,
                             update_tf,

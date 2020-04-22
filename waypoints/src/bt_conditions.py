@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
-# Ozer Ozkahraman (ozero@kth.se)
+
 
 
 #TODO
@@ -37,6 +37,20 @@ class C_DepthOK(pt.behaviour.Behaviour):
             return pt.Status.SUCCESS
         else:
             return pt.Status.FAILURE
+
+
+class C_LeakOK(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        super(C_LeakOK, self).__init__(name="C_LeakOK")
+
+    def update(self):
+        # TODO confirm that leak==true means there is a leak
+        if self.bb.get(LEAK_BB) == True:
+            return pt.Status.FAILURE
+        else:
+            return pt.Status.SUCCESS
+
 
 
 # currently unused because sam doesnt measure altitude yet

@@ -30,6 +30,7 @@ SAM_VBS_CONTROL_ACTION_TOPIC = 'ctrl/vbs/control_action'
 
 # direct access to vbs command, skipping the controller in between
 SAM_VBS_CMD_TOPIC = 'core/vbs_cmd'
+LEAK_TOPIC = 'core/leak_fb'
 
 BASE_LINK = '/sam/base_link'
 ACTION_NAMESPACE = '/bezier_planner'
@@ -39,6 +40,7 @@ ACTION_NAMESPACE = '/bezier_planner'
 # BLACKBOARD VARIABLES
 ######################
 ABORT_BB = 'abort'
+LEAK_BB = 'leak'
 
 DEPTH_BB = 'depth'
 ALTITUDE_BB = 'altitude'
