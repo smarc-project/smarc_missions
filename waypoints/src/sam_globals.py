@@ -5,11 +5,6 @@
 
 
 
-CURRENT_PLAN_ACTION = 'current_plan_action'
-LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
-# set this from any action that might return RUNNING.
-# useful for feedback purposes
-CURRENTLY_RUNNING_ACTION = 'currently_running_action'
 
 # in ms.
 BT_TICKING_PERIOD = 50
@@ -18,17 +13,22 @@ BT_TICKING_PERIOD = 50
 # ROS THINGS
 ##########################
 # DO NOT PUT SLASHES BEFORE TOPIC NAMES, that puts them in 'root' in ros's eyes.
-PLAN_TOPIC = 'plan_db'
-ESTIMATED_STATE_TOPIC = 'estimated_state'
-PLAN_CONTROL_STATE_TOPIC = 'plan_control_state'
-ABORT_TOPIC = 'abort'
+
+# IMC Bridge connections
+PLAN_TOPIC = 'imc/plan_db'
+ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
+PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'
+ABORT_TOPIC = 'imc/abort'
+VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
+
+# Controller connections
 DEPTH_TOPIC = 'ctrl/depth_feedback'
 ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
-
 SAM_VBS_SETPOINT_TOPIC = 'ctrl/vbs/setpoint'
-# yes, this one is in the root.
-SAM_VBS_CONTROL_ACTION_TOPIC = '/vbs_control_action'
 SAM_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
+SAM_VBS_CONTROL_ACTION_TOPIC = 'ctrl/vbs/control_action'
+
+# direct access to vbs command, skipping the controller in between
 SAM_VBS_CMD_TOPIC = 'core/vbs_cmd'
 
 BASE_LINK = '/sam/base_link'
@@ -54,6 +54,12 @@ WORLD_TRANS_BB = 'world_trans'
 
 IMC_STATE_BB = 'imc_state'
 
+CURRENT_PLAN_ACTION = 'current_plan_action'
+LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
+# set this from any action that might return RUNNING.
+# useful for feedback purposes
+CURRENTLY_RUNNING_ACTION = 'currently_running_action'
+
 
 ########################
 # IMC Enums
@@ -62,6 +68,13 @@ IMC_STATE_BLOCKED = 0
 IMC_STATE_READY = 1
 IMC_STATE_INITIALIZING = 2
 IMC_STATE_EXECUTING = 3
+
+IMC_OP_MODE_SERVICE = 0
+IMC_OP_MODE_CALIBRATION = 1
+IMC_OP_MODE_ERROR = 2
+IMC_OP_MODE_MANEUVER = 3
+IMC_OP_MODE_EXTERNAL = 4
+IMC_OP_MODE_BOOT = 5
 
 
 

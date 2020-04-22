@@ -167,7 +167,7 @@ def const_tree():
 
         return Fallback(name="FB-SynchroniseMission",
                         children=[
-                                  manual_commands,
+                                  #  manual_commands,
                                   mission_plan,
                                   have_mission
                         ])
@@ -216,7 +216,7 @@ def const_tree():
 
         return Fallback(name="FB-ExecuteMission",
                         children=[
-                                  manual_commands,
+                                  #  manual_commands,
                                   mission_plan
                         ])
 

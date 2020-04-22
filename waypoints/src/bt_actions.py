@@ -20,6 +20,10 @@ from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64, Bool, Empty
 from sam_msgs.msg import PercentStamped
 
+
+from imc_ros_bridge.msg import EstimatedState, VehicleState
+
+
 import actionlib_msgs.msg as actionlib_msgs
 
 import rospy
@@ -381,10 +385,30 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         Always returns SUCCESS
         """
         self.bb = pt.blackboard.Blackboard()
-        self.estimated_state_pub = rospy.Publisher(ESTIMATED_STATE_TOPIC, Pose, queue_size=1)
+        self.estimated_state_pub = rospy.Publisher(ESTIMATED_STATE_TOPIC, EstimatedState, queue_size=1)
         self.plan_control_state_pub = rospy.Publisher(PLAN_CONTROL_STATE_TOPIC, PlanControlState, queue_size=1)
+        self.vehicle_state_pub = rospy.Publisher(VEHICLE_STATE_TOPIC, VehicleState, queue_size=1)
 
         super(A_PublishToNeptus, self).__init__("A_PublishToNeptus")
+
+    def update_vehicle_state(self):
+        """
+        this is the message that makes SAM:DISCONNECTED better.
+        """
+
+        vs = VehicleState()
+
+        currently_running = self.bb.get(CURRENTLY_RUNNING_ACTION)
+        if currently_running == 'A_ExecutePlanAction':
+            vs.op_mode = IMC_OP_MODE_MANEUVER
+        elif currently_running == 'A_EmergencySurface':
+            vs.op_mode = IMC_OP_MODE_ERROR
+        else:
+            vs.op_mode = IMC_OP_MODE_SERVICE
+
+        self.vehicle_state_pub.publish(vs)
+
+
 
     def update_estimated_state(self):
         world_rot = self.bb.get(WORLD_ROT_BB)
@@ -416,7 +440,7 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
         # XXX here be dragons
         # get positional feedback of the p2p goal
-        orientation = Quaternion(*world_rot)
+        #  orientation = Quaternion(*world_rot)
         easting, northing = world_trans[0], world_trans[1]
         # make utm point
         pnt = UTMPoint(easting=easting, northing=northing, altitude=0, zone=utmz, band=band)
@@ -424,14 +448,20 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         pnt = pnt.toMsg()
 
         # construct message for neptus
-        # TODO replace Pose with imc_bridge::EstimatedState that Niklas made
-        mmsg = Pose()
-        mmsg.position.x = np.radians(pnt.longitude)
-        mmsg.position.y = np.radians(pnt.latitude)
-        mmsg.position.z = depth
-        mmsg.orientation = orientation
+        #  mmsg = Pose()
+        #  mmsg.position.x = np.radians(pnt.longitude)
+        #  mmsg.position.y = np.radians(pnt.latitude)
+        #  mmsg.position.z = depth
+        #  mmsg.orientation = orientation
+        e_state = EstimatedState()
+        e_state.lat = np.radians(pnt.latitude)
+        e_state.lon= np.radians(pnt.longitude)
+        e_state.depth = depth
+        roll, pitch, yaw = tf.transformations.euler_from_quaternion(world_rot)
+        e_state.psi = np.pi/2. - yaw
+
         # send the message to neptus
-        self.estimated_state_pub.publish(mmsg)
+        self.estimated_state_pub.publish(e_state)
 
     def update_plan_control_state(self):
         # construct current progress message for neptus
@@ -475,6 +505,7 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         """
         self.update_estimated_state()
         self.update_plan_control_state()
+        self.update_vehicle_state()
 
         return pt.Status.SUCCESS
 
