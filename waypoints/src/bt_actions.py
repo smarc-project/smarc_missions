@@ -37,8 +37,6 @@ from bt_common import *
 class MissionPlan:
     def __init__(self,
                  actions,
-                 utm_zone,
-                 utm_band,
                  frame,
                  plan_id=None):
         """
@@ -51,8 +49,6 @@ class MissionPlan:
         for a in actions:
             self.waypoints.append(a[:3])
 
-        self.utm_zone = utm_zone
-        self.utm_band = utm_band
         self.frame = frame
 
         if plan_id is None:
@@ -140,81 +136,61 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         super(A_SetMissionPlan, self).__init__('A_SetMissionPlan')
 
     def update(self):
-        plan_str = self.bb.get(MISSION_PLAN_STR_BB)
+        plandb = self.bb.get(MISSION_PLAN_MSG_BB)
 
         # there was no plan to be set
-        if plan_str is None or len(plan_str) < MINIMUM_PLAN_STR_LEN:
-            self.logger.info("Tried to set bad mission plan:"+str(plan_str))
+        if plandb is None:
+            self.logger.info("No plan")
             return pt.Status.FAILURE
 
-        # there is a plan we can at least look at
-        wps_types, zone, band, frame = self.clean(plan_str)
-        mission_plan = MissionPlan(actions=wps_types,
-                                   utm_zone = zone,
-                                   utm_band = band,
-                                   frame = frame)
+        # ignore other plan actions for now
+        if plandb.op == IMC_PLANDB_OP_SET:
+            # there is a plan we can at least look at
+            wps_types, frame = self.read_plandb(plandb)
 
-        self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
-        self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
+            mission_plan = MissionPlan(actions=wps_types,
+                                       frame = frame)
 
-        return pt.Status.SUCCESS
+            self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
+            self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
+
+            return pt.Status.SUCCESS
+        else:
+            self.logger.info("The accepted mission plandb message was not a SET!")
+            return pt.Status.FAILURE
 
     @staticmethod
-    def clean(f):
+    def read_plandb(plandb):
         """
-        Given a json printed string from imc_ros_bridge, cleans it up
-        parses it and returns a list of utm xyz waypoints and the utm zone
-
-        By: Christopher Iliffe Sprague (sprague@kth.se)
-
+        planddb message is a bunch of nested objects,
+        we want a list of waypoints and types for now,
+        the utm zone and band and the frame in which the mission is defined
         """
-        #TODO replace with a proper ros message.
-
-        # make the neptus message into a string
-        f = str(f)
-
-        # clean the neptus message
-        f = f.replace(' ', '')
-        f = f.replace('\\n', '')
-        f = f.replace('\\"', '"')
-        f = f.replace('"\\', '"')
-        f = f.replace('\\', '')
-        f = f.split(',"transitions":')[0]
-        f = f.split('"maneuvers":')[1]
-        f = f.replace('\n', '')
-        f = f.split(',"transitions"')[0]
-
-        # convert to json
-        f = json.loads(f)
-
-        #  json.dump(f, open('/home/ozer/cleaned_up_plan.json', 'w'))
-
-        # convert lat lon to utm
-        depths = [float(d['data']['z']) for d in f]
-
-        # ensure signs of depths
-        depths = [-d if d > 0 else d for d in depths]
-
-        # get waypoint types
-        wtypes = [str(d['data']['abbrev']) for d in f]
-
-        # get latitute and longitude
-        f = [fromLatLong(np.degrees(float(d['data']['lat'])), np.degrees(float(d['data']['lon']))) for d in f]
-
-        # get the grid-zone
-        gz, band = f[0].gridZone()
-
-        # convert utm to point
-        f = [d.toPoint() for d in f]
-
-        # convert point to xyz
-        f = [(d.x, d.y, depth, wt) for d, depth, wt in zip(f, depths, wtypes)]
-
-        # return list of utm xyz waypoints and the utm zone
-        #TODO unhack this
-        # Neptus gives us the plan in UTM coordinates
+        wps_types = []
         frame = '/world_utm'
-        return f, gz, band, frame
+
+        request_id = plandb.request_id
+        plan_id = plandb.plan_id
+        plan_spec = plandb.plan_spec
+
+        for plan_man in plan_spec.maneuvers:
+            man_id = plan_man.maneuver_id
+            man_name = plan_man.maneuver.maneuver_name
+            man_imc_id = plan_man.maneuver.maneuver_imc_id
+            maneuver = plan_man.maneuver
+            # probably every maneuver has lat lon z in them, but just in case...
+            if man_imc_id == IMC_MANEUVER_GOTO:
+                lat = maneuver.lat
+                lon = maneuver.lon
+                depth = maneuver.z
+                # w/e f is...
+                f = fromLatLong(np.degrees(lat), np.degrees(lon)).toPoint()
+                f = (f.x, f.y, depth, IMC_MANEUVER_GOTO)
+                wps_types.append(f)
+            else:
+                print("UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
+
+        return wps_types, frame
 
 
 class A_SetNextPlanAction(pt.behaviour.Behaviour):
@@ -250,6 +226,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         Copied from Chris's code mostly
         """
         #TODO support more than waypoints
+        # in progress with the introduvtion of a proper planDB message
 
         self.bb = pt.blackboard.Blackboard()
 

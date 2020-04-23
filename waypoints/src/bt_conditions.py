@@ -81,20 +81,26 @@ class C_NewMissionPlanReceived(pt.behaviour.Behaviour):
         """
 
         self.bb = pt.blackboard.Blackboard()
-        self.last_known_plan_str=''
+        self.last_known_plan_msg=''
         super(C_NewMissionPlanReceived, self).__init__(name="C_NewMissionPlanReceived")
 
 
     def update(self):
-        current_plan_str = self.bb.get(MISSION_PLAN_STR_BB)
-        if current_plan_str is None or\
-           len(str(current_plan_str)) < MINIMUM_PLAN_STR_LEN or\
-           current_plan_str == self.last_known_plan_str:
+        current_plan_msg = self.bb.get(MISSION_PLAN_MSG_BB)
+
+        # a bad message or a duplicate
+        if current_plan_msg is None or\
+           current_plan_msg == self.last_known_plan_msg:
             return pt.Status.FAILURE
-        else:
-            self.last_known_plan_str = current_plan_str
-            self.logger.info("New mission plan received:"+str(current_plan_str))
-            return pt.Status.SUCCESS
+
+        # we ignore other types of plan operations for now.
+        if current_plan_msg.op != IMC_PLANDB_OP_SET:
+            return pt.Status.FAILURE
+
+        # all is well, let the tree read it.
+        self.last_known_plan_msg = current_plan_msg
+        self.logger.info("New mission plan received:"+str(current_plan_msg))
+        return pt.Status.SUCCESS
 
 
 

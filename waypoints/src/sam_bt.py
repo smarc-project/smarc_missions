@@ -8,7 +8,9 @@ import py_trees as pt, py_trees_ros as ptr
 from py_trees.composites import Selector as Fallback
 from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64, Empty, String
+
 from sam_msgs.msg import Leak
+from imc_ros_bridge.msg import PlanDB
 
 import rospy
 
@@ -73,11 +75,13 @@ def const_tree():
 
         update_tf = A_UpdateTF()
 
+        # TESTING PLANDB
         read_mission_plan = ReadTopic(
             name = "A_ReadMissionPlan",
             topic_name = PLAN_TOPIC,
-            topic_type = String,
-            blackboard_variables = {MISSION_PLAN_STR_BB:'data'}
+            topic_type = PlanDB,
+            # passing None reads the entire message
+            blackboard_variables = {MISSION_PLAN_MSG_BB:None}
         )
 
         return Sequence(name="SQ-DataIngestion",

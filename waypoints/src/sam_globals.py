@@ -45,7 +45,7 @@ LEAK_BB = 'leak'
 DEPTH_BB = 'depth'
 ALTITUDE_BB = 'altitude'
 
-MISSION_PLAN_STR_BB = 'plan_str'
+MISSION_PLAN_MSG_BB = 'plan_msg'
 MISSION_PLAN_OBJ_BB = 'misison_plan'
 
 UTM_BAND_BB = 'utm_band'
@@ -78,6 +78,22 @@ IMC_OP_MODE_MANEUVER = 3
 IMC_OP_MODE_EXTERNAL = 4
 IMC_OP_MODE_BOOT = 5
 
+IMC_PLANDB_TYPE_REQUEST = 0
+IMC_PLANDB_TYPE_SUCCESS = 1
+IMC_PLANDB_TYPE_FAILURE = 2
+IMC_PLANDB_TYPE_IN_PROGRESS = 3
+IMC_PLANDB_OP_SET = 0
+IMC_PLANDB_OP_DEL = 1
+IMC_PLANDB_OP_GET = 2
+IMC_PLANDB_OP_GET_INFO = 3
+IMC_PLANDB_OP_CLEAR = 4
+IMC_PLANDB_OP_GET_STATE = 5
+IMC_PLANDB_OP_GET_DSTATE = 6
+IMC_PLANDB_OP_BOOT = 7
+
+# TODO eventually implement other types of maneuvers
+IMC_MANEUVER_GOTO = 450
+
 
 
 
@@ -87,7 +103,6 @@ IMC_OP_MODE_BOOT = 5
 SAM_MAX_DEPTH = 5
 SAM_MIN_ALTITUDE = 2
 
-MINIMUM_PLAN_STR_LEN = 135 # somehow Chris found this number, i'll reuse this
 
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33
