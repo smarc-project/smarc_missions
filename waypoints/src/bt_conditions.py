@@ -45,7 +45,6 @@ class C_LeakOK(pt.behaviour.Behaviour):
         super(C_LeakOK, self).__init__(name="C_LeakOK")
 
     def update(self):
-        # TODO confirm that leak==true means there is a leak
         if self.bb.get(LEAK_BB) == True:
             return pt.Status.FAILURE
         else:

@@ -329,7 +329,8 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            self.listener.waitForTransform("world_utm", BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+            base_link = self.bb.get(BASE_LINK_BB)
+            self.listener.waitForTransform("world_utm", base_link, rospy.Time(), rospy.Duration(4.0))
             return True
         except:
             self.logger.error("Could not find TF!!")
@@ -339,11 +340,12 @@ class A_UpdateTF(pt.behaviour.Behaviour):
     def update(self):
         try:
             now = rospy.Time(0)
+            base_link = self.bb.get(BASE_LINK_BB)
             (world_trans, world_rot) = self.listener.lookupTransform("world_utm",
-                                                                     BASE_LINK,
+                                                                     base_link,
                                                                      now)
         except (tf.LookupException, tf.ConnectivityException):
-            self.logger.warning("Could not get transform between world_utm and "+str(BASE_LINK))
+            self.logger.warning("Could not get transform between world_utm and "+str(base_link))
             return pt.Status.FAILURE
         except:
             self.logger.warning("Could not do tf lookup for some other reason")

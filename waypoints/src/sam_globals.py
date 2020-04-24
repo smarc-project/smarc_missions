@@ -28,12 +28,12 @@ SAM_VBS_SETPOINT_TOPIC = 'ctrl/vbs/setpoint'
 SAM_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
 SAM_VBS_CONTROL_ACTION_TOPIC = 'ctrl/vbs/control_action'
 
+ACTION_NAMESPACE = 'ctrl/yaw_planner'
+
 # direct access to vbs command, skipping the controller in between
 SAM_VBS_CMD_TOPIC = 'core/vbs_cmd'
 LEAK_TOPIC = 'core/leak_fb'
 
-BASE_LINK = '/sam/base_link'
-ACTION_NAMESPACE = '/bezier_planner'
 
 
 ######################
@@ -53,6 +53,7 @@ UTM_ZONE_BB = 'utm_zone'
 
 WORLD_ROT_BB = 'world_rot'
 WORLD_TRANS_BB = 'world_trans'
+BASE_LINK_BB = 'base_link'
 
 IMC_STATE_BB = 'imc_state'
 
@@ -103,6 +104,7 @@ IMC_MANEUVER_GOTO = 450
 SAM_MAX_DEPTH = 5
 SAM_MIN_ALTITUDE = 2
 
+DEFAULT_BASE_LINK = '/sam/base_link'
 
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33
