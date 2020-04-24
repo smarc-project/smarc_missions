@@ -14,6 +14,7 @@ BT_TICKING_PERIOD = 50
 ##########################
 # DO NOT PUT SLASHES BEFORE TOPIC NAMES, that puts them in 'root' in ros's eyes.
 
+#TODO move these out into the launch file
 # IMC Bridge connections
 PLAN_TOPIC = 'imc/plan_db'
 ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
