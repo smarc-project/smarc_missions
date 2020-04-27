@@ -14,7 +14,7 @@
     <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
     <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
 
-    <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="yaw_planner.py" output="screen" ns="$(arg robot_name)/ctrl" pass_all_args="true" />
+    <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl" pass_all_args="true" />
 
 
 </launch>
