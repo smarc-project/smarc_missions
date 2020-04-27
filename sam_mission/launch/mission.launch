@@ -1,0 +1,28 @@
+<launch>
+
+    <!-- Configurable arguments -->
+    <arg name="robot_name" default="sam"/>
+
+	<!-- BT Related -->
+	<!-- Croatia, biograd coast, lat lon zone band, all four from there -->
+    <arg name="utm_zone" default="33"/>
+    <arg name="utm_band" default="T"/>
+
+
+	<!-- Bridge related -->
+    <arg name="neptus_addr" default="127.0.0.1"/>
+    <arg name="bridge_addr" default="127.0.0.1"/>
+    <arg name="bridge_port" default="6002"/>
+	<arg name="node_name" default="imc_bridge"/>
+	<!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
+    <arg name="imc_id" default="5"/>
+
+	<!-- Yaw planner related -->
+    <arg name="goal_tolerance" default="5."/>
+
+
+	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
+	<include file="$(find waypoints)/launch/bt_sam.launch" pass_all_args="true"/>
+	<include file="$(find auv_simple_motion_planner)/launch/yaw_planner.launch" pass_all_args="true"/>
+    
+</launch>

@@ -14,6 +14,7 @@ BT_TICKING_PERIOD = 50
 ##########################
 # DO NOT PUT SLASHES BEFORE TOPIC NAMES, that puts them in 'root' in ros's eyes.
 
+#TODO move these out into the launch file
 # IMC Bridge connections
 PLAN_TOPIC = 'imc/plan_db'
 ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
@@ -28,12 +29,12 @@ SAM_VBS_SETPOINT_TOPIC = 'ctrl/vbs/setpoint'
 SAM_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
 SAM_VBS_CONTROL_ACTION_TOPIC = 'ctrl/vbs/control_action'
 
+ACTION_NAMESPACE = 'ctrl/yaw_planner'
+
 # direct access to vbs command, skipping the controller in between
 SAM_VBS_CMD_TOPIC = 'core/vbs_cmd'
 LEAK_TOPIC = 'core/leak_fb'
 
-BASE_LINK = '/sam/base_link'
-ACTION_NAMESPACE = '/bezier_planner'
 
 
 ######################
@@ -45,7 +46,7 @@ LEAK_BB = 'leak'
 DEPTH_BB = 'depth'
 ALTITUDE_BB = 'altitude'
 
-MISSION_PLAN_STR_BB = 'plan_str'
+MISSION_PLAN_MSG_BB = 'plan_msg'
 MISSION_PLAN_OBJ_BB = 'misison_plan'
 
 UTM_BAND_BB = 'utm_band'
@@ -53,6 +54,7 @@ UTM_ZONE_BB = 'utm_zone'
 
 WORLD_ROT_BB = 'world_rot'
 WORLD_TRANS_BB = 'world_trans'
+BASE_LINK_BB = 'base_link'
 
 IMC_STATE_BB = 'imc_state'
 
@@ -78,6 +80,22 @@ IMC_OP_MODE_MANEUVER = 3
 IMC_OP_MODE_EXTERNAL = 4
 IMC_OP_MODE_BOOT = 5
 
+IMC_PLANDB_TYPE_REQUEST = 0
+IMC_PLANDB_TYPE_SUCCESS = 1
+IMC_PLANDB_TYPE_FAILURE = 2
+IMC_PLANDB_TYPE_IN_PROGRESS = 3
+IMC_PLANDB_OP_SET = 0
+IMC_PLANDB_OP_DEL = 1
+IMC_PLANDB_OP_GET = 2
+IMC_PLANDB_OP_GET_INFO = 3
+IMC_PLANDB_OP_CLEAR = 4
+IMC_PLANDB_OP_GET_STATE = 5
+IMC_PLANDB_OP_GET_DSTATE = 6
+IMC_PLANDB_OP_BOOT = 7
+
+# TODO eventually implement other types of maneuvers
+IMC_MANEUVER_GOTO = 450
+
 
 
 
@@ -87,7 +105,7 @@ IMC_OP_MODE_BOOT = 5
 SAM_MAX_DEPTH = 5
 SAM_MIN_ALTITUDE = 2
 
-MINIMUM_PLAN_STR_LEN = 135 # somehow Chris found this number, i'll reuse this
+DEFAULT_BASE_LINK = '/sam/base_link'
 
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33

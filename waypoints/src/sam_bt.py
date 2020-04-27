@@ -8,7 +8,9 @@ import py_trees as pt, py_trees_ros as ptr
 from py_trees.composites import Selector as Fallback
 from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64, Empty, String
+
 from sam_msgs.msg import Leak
+from imc_ros_bridge.msg import PlanDB
 
 import rospy
 
@@ -28,7 +30,8 @@ from bt_conditions import C_PlanCompleted, \
                           C_NewMissionPlanReceived, \
                           C_NoAbortReceived, \
                           C_DepthOK, \
-                          C_AltOK
+                          C_AltOK, \
+                          C_LeakOK
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -71,13 +74,16 @@ def const_tree():
             blackboard_variables = {LEAK_BB:'value'}
         )
 
+
         update_tf = A_UpdateTF()
 
+        # TESTING PLANDB
         read_mission_plan = ReadTopic(
             name = "A_ReadMissionPlan",
             topic_name = PLAN_TOPIC,
-            topic_type = String,
-            blackboard_variables = {MISSION_PLAN_STR_BB:'data'}
+            topic_type = PlanDB,
+            # passing None reads the entire message
+            blackboard_variables = {MISSION_PLAN_MSG_BB:None}
         )
 
         return Sequence(name="SQ-DataIngestion",
@@ -107,13 +113,15 @@ def const_tree():
         no_abort = C_NoAbortReceived()
         altOK = C_AltOK()
         depthOK = C_DepthOK()
+        leakOK = C_LeakOK()
         # more safety checks will go here
 
         safety_checks = Sequence(name="SQ-SafetyChecks",
                         children=[
                                   no_abort,
                                   altOK,
-                                  depthOK
+                                  depthOK,
+                                  leakOK
                         ])
 
         surface = A_EmergencySurface()
@@ -264,10 +272,12 @@ def main():
 
     utm_zone = rospy.get_param("~utm_zone", DEFAULT_UTM_ZONE)
     utm_band = rospy.get_param("~utm_band", DEFAULT_UTM_BAND)
+    base_link = rospy.get_param("~base_frame", DEFAULT_BASE_LINK)
 
     bb = pt.blackboard.Blackboard()
     bb.set(UTM_ZONE_BB, utm_zone)
     bb.set(UTM_BAND_BB, utm_band)
+    bb.set(BASE_LINK_BB, base_link)
 
 
     try:

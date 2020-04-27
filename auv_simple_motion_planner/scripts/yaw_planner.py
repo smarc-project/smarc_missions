@@ -86,7 +86,7 @@ class YawPlanner(object):
                 try:
                     (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                    rospy.loginfo("Error with tf")
+                    rospy.loginfo("Error with tf:"+str(self.nav_goal_frame) + " to "+str(self.base_frame))
                     continue
 
                 pose_fb = PoseStamped()
@@ -109,8 +109,8 @@ class YawPlanner(object):
 
             # Thruster forward
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 700.
-            rpm.thruster_2_rpm = 700.
+            rpm.thruster_1_rpm = self.forward_rpm
+            rpm.thruster_2_rpm = self.forward_rpm
             self.rpm_pub.publish(rpm)
             #rospy.loginfo("Thrusters forward")
 
@@ -165,14 +165,20 @@ class YawPlanner(object):
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
 
+        rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
+        heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')
+        yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
+
+        self.forward_rpm = int(rospy.get_param('~forward_rpm', 700))
+
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
         rospy.Timer(rospy.Duration(2), self.timer_callback)
 
-        self.rpm_pub = rospy.Publisher('/sam/core/rpm_cmd', ThrusterRPMs, queue_size=10)
-        self.yaw_pub = rospy.Publisher('/sam/ctrl/dynamic_heading/setpoint', Float64, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher('/sam/ctrl/dynamic_heading/pid_enable', Bool, queue_size=10)
+        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
