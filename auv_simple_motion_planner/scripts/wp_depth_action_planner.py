@@ -27,7 +27,7 @@ from sam_msgs.msg import ThrusterRPMs, ThrusterAngles
 from std_msgs.msg import Float64, Header, Bool
 import math
 
-class YawPlanner(object):
+class WPDepthPlanner(object):
 
     # create messages that are used to publish feedback/result
     _feedback = MoveBaseFeedback()
@@ -66,6 +66,7 @@ class YawPlanner(object):
         while not rospy.is_shutdown() and self.nav_goal is not None:
 
             self.yaw_pid_enable.publish(True)
+            self.depth_pid_enable.publish(True)
             # Preempted
             if self._as.is_preempt_requested():
                 rospy.loginfo('%s: Preempted' % self._action_name)
@@ -79,6 +80,7 @@ class YawPlanner(object):
                 rpm.thruster_2_rpm = 0.
                 self.rpm_pub.publish(rpm)
                 self.yaw_pid_enable.publish(False)
+                self.depth_pid_enable.publish(False)
                 break
 
             # Publish feedback
@@ -86,7 +88,7 @@ class YawPlanner(object):
                 try:
                     (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                    rospy.loginfo("Error with tf")
+                    rospy.loginfo("Error with tf:"+str(self.nav_goal_frame) + " to "+str(self.base_frame))
                     continue
 
                 pose_fb = PoseStamped()
@@ -103,14 +105,17 @@ class YawPlanner(object):
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
                 yaw_setpoint = math.atan2(ydiff,xdiff)
+
+                depth_setpoint = self.nav_goal.position.z 
                 
             self.yaw_pub.publish(yaw_setpoint)
+            self.depth_pub.publish(depth_setpoint)
             #rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
 
             # Thruster forward
             rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 700.
-            rpm.thruster_2_rpm = 700.
+            rpm.thruster_1_rpm = self.forward_rpm
+            rpm.thruster_2_rpm = self.forward_rpm
             self.rpm_pub.publish(rpm)
             #rospy.loginfo("Thrusters forward")
 
@@ -165,14 +170,24 @@ class YawPlanner(object):
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
 
+        rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
+        heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')
+        yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
+        depth_setpoint_topic = rospy.get_param('~depth_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
+        depth_pid_enable_topic = rospy.get_param('~depth_pid_enable_topic', '/sam/ctrl/dynamic_depth/pid_enable')
+
+        self.forward_rpm = int(rospy.get_param('~forward_rpm', 1000))
+
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
         rospy.Timer(rospy.Duration(2), self.timer_callback)
 
-        self.rpm_pub = rospy.Publisher('/sam/core/rpm_cmd', ThrusterRPMs, queue_size=10)
-        self.yaw_pub = rospy.Publisher('/sam/ctrl/dynamic_heading/setpoint', Float64, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher('/sam/ctrl/dynamic_heading/pid_enable', Bool, queue_size=10)
+        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
+        self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
+
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
@@ -181,5 +196,5 @@ class YawPlanner(object):
 
 if __name__ == '__main__':
 
-    rospy.init_node('yaw_planner')
-    planner = YawPlanner(rospy.get_name())
+    rospy.init_node('wp_depth_action_planner')
+    planner = WPDepthPlanner(rospy.get_name())
