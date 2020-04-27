@@ -129,6 +129,7 @@ class WPDepthPlanner(object):
         self.rpm_pub.publish(rpm)
         #Stop yaw controller
         self.yaw_pid_enable.publish(False)
+        self.depth_pid_enable.publish(False)
         rospy.loginfo('%s: Succeeded' % self._action_name)
         self._as.set_succeeded(self._result)
 
@@ -163,7 +164,7 @@ class WPDepthPlanner(object):
 
     def __init__(self, name):
         
-        """Publish yaw setpoints based on waypoints"""
+        """Publish yaw and depth setpoints based on waypoints"""
         self._action_name = name
         
         #self.heading_offset = rospy.get_param('~heading_offsets', 5.)

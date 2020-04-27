@@ -1,0 +1,20 @@
+<launch>
+
+    <!-- Configurable arguments -->
+    <arg name="robot_name" default="sam"/>
+    <arg name="goal_tolerance" default="5."/>
+    <arg name="base_frame" default="$(arg robot_name)/base_link"/>
+    <arg name="forward_rpm" default="700"/>
+	
+
+	<!-- topics, note the root! -->
+	<arg name="rpm_cmd_topic" default="/$(arg robot_name)/core/rpm_cmd" />
+	<arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
+	<arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
+    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
+    <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
+
+    <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="yaw_planner.py" output="screen" ns="$(arg robot_name)/ctrl" pass_all_args="true" />
+
+
+</launch>
