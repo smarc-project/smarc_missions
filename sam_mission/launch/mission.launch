@@ -23,6 +23,9 @@
 
 	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
 	<include file="$(find waypoints)/launch/bt_sam.launch" pass_all_args="true"/>
-	<include file="$(find auv_simple_motion_planner)/launch/yaw_planner.launch" pass_all_args="true"/>
+    <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
+    <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/>
+	<!--include file="$(find auv_simple_motion_planner)/launch/yaw_planner.launch" pass_all_args="true"/-->
+
     
 </launch>
