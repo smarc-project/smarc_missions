@@ -17,15 +17,17 @@
 	<!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
     <arg name="imc_id" default="5"/>
 
-	<!-- Yaw planner related -->
-    <arg name="goal_tolerance" default="5."/>
+	<!-- WP-Depth planner related -->
+    <arg name="wp_tolerance" default="5."/>
+    <arg name="depth_tolerance" default="0.5"/>
 
 
-	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
-	<include file="$(find waypoints)/launch/bt_sam.launch" pass_all_args="true"/>
-    <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
+	<!-- Start all actions before the BT -->
     <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/>
-	<!--include file="$(find auv_simple_motion_planner)/launch/yaw_planner.launch" pass_all_args="true"/-->
+    <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
+
+	<include file="$(find waypoints)/launch/bt_sam.launch" pass_all_args="true"/>
+	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
 
     
 </launch>

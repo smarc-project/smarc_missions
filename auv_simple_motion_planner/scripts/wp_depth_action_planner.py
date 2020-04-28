@@ -32,7 +32,7 @@ class WPDepthPlanner(object):
     # create messages that are used to publish feedback/result
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
-    
+
     def execute_cb(self, goal):
 
         rospy.loginfo("Goal received")
@@ -43,7 +43,7 @@ class WPDepthPlanner(object):
         if self.nav_goal_frame is None or self.nav_goal_frame == '':
             rospy.logwarn("Goal has no frame id! Using /world_utm by default")
             self.nav_goal_frame = '/world_utm'
-        
+
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
         goal_point.header.stamp = rospy.Time(0)
@@ -58,9 +58,9 @@ class WPDepthPlanner(object):
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             print ("Not transforming point to world local")
             pass
-        
+
         rospy.loginfo('Nav goal in local %s ' % self.nav_goal.position.x)
-        
+
         r = rospy.Rate(11.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
@@ -70,7 +70,6 @@ class WPDepthPlanner(object):
             # Preempted
             if self._as.is_preempt_requested():
                 rospy.loginfo('%s: Preempted' % self._action_name)
-                self._as.set_preempted()
                 success = False
                 self.nav_goal = None
 
@@ -81,7 +80,10 @@ class WPDepthPlanner(object):
                 self.rpm_pub.publish(rpm)
                 self.yaw_pid_enable.publish(False)
                 self.depth_pid_enable.publish(False)
-                break
+
+                print('wp depth action planner: stopped thrusters')
+                self._as.set_preempted(self._result, "Preempted WP action")
+                return
 
             # Publish feedback
             if counter % 10 == 0:
@@ -106,10 +108,11 @@ class WPDepthPlanner(object):
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
                 yaw_setpoint = math.atan2(ydiff,xdiff)
 
-                depth_setpoint = self.nav_goal.position.z 
-                
+                depth_setpoint = self.nav_goal.position.z
+
             self.yaw_pub.publish(yaw_setpoint)
             self.depth_pub.publish(depth_setpoint)
+            #  self.vbs_pub.publish(depth_setpoint)
             #rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
 
             # Thruster forward
@@ -121,7 +124,7 @@ class WPDepthPlanner(object):
 
             counter += 1
             r.sleep()
-        
+
         # Stop thruster
         rpm = ThrusterRPMs()
         rpm.thruster_1_rpm = 0.0
@@ -138,7 +141,7 @@ class WPDepthPlanner(object):
         if self.nav_goal is None:
             #rospy.loginfo_throttle(30, "Nav goal is None!")
             return
-        
+
         try:
             (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
@@ -156,19 +159,26 @@ class WPDepthPlanner(object):
 
         start_pos = np.array(trans)
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
-     
-        rospy.loginfo("diff "+ str(np.linalg.norm(start_pos - end_pos)))
-        if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:
+
+        # We check for success out of the main control loop in case the main control loop is 
+        # running at 300Hz or sth. like that. We dont need to check succes that frequently.
+        xydiff = start_pos[:2] - end_pos[:2]
+        zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
+        xydiff_norm = np.linalg.norm(xydiff)
+        rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
+        if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
 
     def __init__(self, name):
-        
+
         """Publish yaw and depth setpoints based on waypoints"""
         self._action_name = name
-        
+
         #self.heading_offset = rospy.get_param('~heading_offsets', 5.)
-        self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
+        self.wp_tolerance = rospy.get_param('~wp_tolerance', 5.)
+        self.depth_tolerance = rospy.get_param('~depth_tolerance', 0.5)
+
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
 
         rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
@@ -182,10 +192,13 @@ class WPDepthPlanner(object):
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
-        rospy.Timer(rospy.Duration(2), self.timer_callback)
+        rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
         self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
+        self.depth_pub = rospy.Publisher(depth_setpoint_topic, Float64, queue_size=10)
+        #TODO make proper if it works.
+        #  self.vbs_pub = rospy.Publisher('/sam/ctrl/vbs/setpoint', Float64, queue_size=10)
         self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
         self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
 

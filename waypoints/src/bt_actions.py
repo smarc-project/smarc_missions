@@ -29,8 +29,8 @@ import actionlib_msgs.msg as actionlib_msgs
 import rospy
 import tf
 
+import sam_globals
 from sam_globals import *
-
 
 from bt_common import *
 
@@ -84,42 +84,77 @@ class MissionPlan:
         self.current_wp = None
 
 
-class A_EmergencySurface(pt.behaviour.Behaviour):
+
+class A_EmergencySurface(ptr.actions.ActionClient):
     def __init__(self):
+        """
+        Calls Harsha's wp_depth_action_planner action
+        """
         self.bb = pt.blackboard.Blackboard()
+        self.action_goal_handle = None
 
-        self.emergency_vbs_cmd = None
-        self.abort_pub = None
-        super(A_EmergencySurface, self).__init__('A_EmergencySurface')
+        ptr.actions.ActionClient.__init__(
+            self,
+            name="A_EmergencySurface",
+            action_spec=MoveBaseAction,
+            action_goal=None,
+            action_namespace= sam_globals.EMERGENCY_ACTION_NAMESPACE,
+            override_feedback_message_on_running="EMERGENCY SURFACING"
+        )
 
-    def setup(self, timeout):
-        try:
-            self.emergency_vbs_cmd = rospy.Publisher(SAM_VBS_CMD_TOPIC, PercentStamped, queue_size=1)
-            self.abort_pub = rospy.Publisher(ABORT_TOPIC, Empty, queue_size=1)
-            return True
-        except:
-            return False
-
+    def initialise(self):
+        rospy.logwarn("EMERGENCY SURFACING")
+        # construct the message
+        self.action_goal = MoveBaseGoal()
+        self.sent_goal = False
 
     def update(self):
-        self.bb.set(CURRENT_PLAN_ACTION, None)
-        self.bb.set(IMC_STATE_BB, IMC_STATE_BLOCKED)
+        # if your action client is not valid
+        if not self.action_client:
+            self.feedback_message = "ActionClient for emergency action is invalid!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
 
-        # latch the abort so the rest of the system can listen to it
-        e = Empty()
-        self.abort_pub.publish(e)
+        # if the action_goal is invalid
+        if not self.action_goal:
+            self.feedback_message = "No action_goal!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
 
-        # set the VBS to 0, so it empties the tank
-        # if someone else is also setting it, nothing else
-        # we can do but trust that they will listen to the /abort too
-        ps = PercentStamped()
-        ps.value = 0
-        ps.header.stamp = rospy.Time.now()
-        self.emergency_vbs_cmd.publish(ps)
+        # if goal hasn't been sent yet
+        if not self.sent_goal:
+            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+            self.sent_goal = True
+            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
+            self.feedback_message = "Emergency goal sent"
+            self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
+            return pt.Status.RUNNING
 
-        self.feedback_message = "ABORTED"
+
+        # if the goal was aborted or preempted
+        if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
+                                              actionlib_msgs.GoalStatus.PREEMPTED]:
+            self.feedback_message = "Aborted emergency"
+            rospy.loginfo(self.feedback_message)
+            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
+            return pt.Status.FAILURE
+
+        result = self.action_client.get_result()
+
+        # if the goal was accomplished
+        if result:
+            self.feedback_message = "Completed emergency"
+            rospy.loginfo(self.feedback_message)
+            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
+            return pt.Status.SUCCESS
+
+
+        # if we're still trying to accomplish the goal
         self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
         return pt.Status.RUNNING
+
+    def feedback_cb(self, msg):
+        self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
 
@@ -238,7 +273,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
             name="A_ExecutePlanAction",
             action_spec=MoveBaseAction,
             action_goal=None,
-            action_namespace = ACTION_NAMESPACE,
+            action_namespace = sam_globals.ACTION_NAMESPACE,
             override_feedback_message_on_running="Moving to waypoint"
         )
 
@@ -329,8 +364,7 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            base_link = self.bb.get(BASE_LINK_BB)
-            self.listener.waitForTransform("world_utm", base_link, rospy.Time(), rospy.Duration(4.0))
+            self.listener.waitForTransform("world_utm", sam_globals.BASE_LINK, rospy.Time(), rospy.Duration(4.0))
             return True
         except:
             self.logger.error("Could not find TF!!")
@@ -340,12 +374,11 @@ class A_UpdateTF(pt.behaviour.Behaviour):
     def update(self):
         try:
             now = rospy.Time(0)
-            base_link = self.bb.get(BASE_LINK_BB)
             (world_trans, world_rot) = self.listener.lookupTransform("world_utm",
-                                                                     base_link,
+                                                                     sam_globals.BASE_LINK,
                                                                      now)
         except (tf.LookupException, tf.ConnectivityException):
-            self.logger.warning("Could not get transform between world_utm and "+str(base_link))
+            self.logger.warning("Could not get transform between world_utm and "+ sam_globals.BASE_LINK)
             return pt.Status.FAILURE
         except:
             self.logger.warning("Could not do tf lookup for some other reason")
@@ -364,9 +397,9 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         Always returns SUCCESS
         """
         self.bb = pt.blackboard.Blackboard()
-        self.estimated_state_pub = rospy.Publisher(ESTIMATED_STATE_TOPIC, EstimatedState, queue_size=1)
-        self.plan_control_state_pub = rospy.Publisher(PLAN_CONTROL_STATE_TOPIC, PlanControlState, queue_size=1)
-        self.vehicle_state_pub = rospy.Publisher(VEHICLE_STATE_TOPIC, VehicleState, queue_size=1)
+        self.estimated_state_pub = rospy.Publisher(sam_globals.ESTIMATED_STATE_TOPIC, EstimatedState, queue_size=1)
+        self.plan_control_state_pub = rospy.Publisher(sam_globals.PLAN_CONTROL_STATE_TOPIC, PlanControlState, queue_size=1)
+        self.vehicle_state_pub = rospy.Publisher(sam_globals.VEHICLE_STATE_TOPIC, VehicleState, queue_size=1)
 
         super(A_PublishToNeptus, self).__init__("A_PublishToNeptus")
 
