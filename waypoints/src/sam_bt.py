@@ -37,6 +37,7 @@ from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
                       ReadTopic
 
+import sam_globals
 from sam_globals import *
 
 def const_tree():
@@ -49,7 +50,7 @@ def const_tree():
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
             name = "A_ReadAbort",
-            topic_name = ABORT_TOPIC,
+            topic_name = sam_globals.ABORT_TOPIC,
             variable_name = ABORT_BB
         )
 
@@ -80,7 +81,7 @@ def const_tree():
         # TESTING PLANDB
         read_mission_plan = ReadTopic(
             name = "A_ReadMissionPlan",
-            topic_name = PLAN_TOPIC,
+            topic_name = sam_globals.PLAN_TOPIC,
             topic_type = PlanDB,
             # passing None reads the entire message
             blackboard_variables = {MISSION_PLAN_MSG_BB:None}
@@ -272,12 +273,11 @@ def main():
 
     utm_zone = rospy.get_param("~utm_zone", DEFAULT_UTM_ZONE)
     utm_band = rospy.get_param("~utm_band", DEFAULT_UTM_BAND)
-    base_link = rospy.get_param("~base_frame", DEFAULT_BASE_LINK)
 
     bb = pt.blackboard.Blackboard()
     bb.set(UTM_ZONE_BB, utm_zone)
     bb.set(UTM_BAND_BB, utm_band)
-    bb.set(BASE_LINK_BB, base_link)
+
 
 
     try:
@@ -303,6 +303,17 @@ def test():
 if __name__ == '__main__':
     # init the node
     rospy.init_node("sam_bt")
+
+    sam_globals.BASE_LINK = rospy.get_param("~base_frame", sam_globals.BASE_LINK)
+
+    sam_globals.PLAN_TOPIC = rospy.get_param("~plan_topic", sam_globals.PLAN_TOPIC)
+    sam_globals.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", sam_globals.ESTIMATED_STATE_TOPIC)
+    sam_globals.PLAN_CONTROL_STATE_TOPIC = rospy.get_param("~plan_control_state_topic", sam_globals.PLAN_CONTROL_STATE_TOPIC)
+    sam_globals.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", sam_globals.VEHICLE_STATE_TOPIC)
+    sam_globals.ABORT_TOPIC = rospy.get_param("~abort_topic", sam_globals.ABORT_TOPIC)
+
+    sam_globals.ACTION_NAMESPACE = rospy.get_param("~action_namespace", sam_globals.ACTION_NAMESPACE)
+    sam_globals.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", sam_globals.EMERGENCY_ACTION_NAMESPACE)
 
     main()
     #  test()

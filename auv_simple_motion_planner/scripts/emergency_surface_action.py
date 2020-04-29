@@ -21,16 +21,34 @@ import rospy
 import tf
 from sam_msgs.msg import ThrusterRPMs, PercentStamped
 from std_msgs.msg import Float64, Header, Bool, Empty
+from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 import math
 
 class EmergencySurface(object):
-   
+
     def execute_cb(self, goal):
 
         rospy.loginfo("Emergency action initiated")
 
         r = rospy.Rate(11.) # 10hz
         while not rospy.is_shutdown():
+
+            # Preempted
+            if self._as.is_preempt_requested():
+                # Publish emergency command
+                self.emergency_pub.publish(False)
+
+                #Disable controllers
+                self.lcg_pid_enable.publish(True)
+                self.vbs_pid_enable.publish(True)
+                self.tcg_pid_enable.publish(True)
+                self.yaw_pid_enable.publish(True)
+                self.depth_pid_enable.publish(True)
+                self.vel_pid_enable.publish(True)
+                rospy.loginfo('%s: Preempted' % self._action_name)
+                self._as.set_preempted(MoveBaseResult(), "Preempted EmergencySurface action")
+                return
+
             # Publish emergency command
             self.emergency_pub.publish(True)
 
@@ -52,17 +70,18 @@ class EmergencySurface(object):
             rpm.thruster_1_rpm = 0.0
             rpm.thruster_2_rpm = 0.0
             self.rpm_pub.publish(rpm)
-        
+
+            r.sleep()
+
         rospy.loginfo('%s: Completed' % self._action_name)
-        #self._as.set_succeeded(self._result)
 
     #def timer_callback(self, event):
 
     def __init__(self, name):
-        
+
         """Publish 0 to VBS and disable all controllers"""
         self._action_name = name
-     
+
         emergency_topic = rospy.get_param('~emergency_topic', '/sam/abort')
         vbs_cmd_topic = rospy.get_param('~vbs_cmd_topic', '/sam/core/vbs_cmd')
         rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
@@ -72,7 +91,7 @@ class EmergencySurface(object):
         yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
         depth_pid_enable_topic = rospy.get_param('~depth_pid_enable_topic', '/sam/ctrl/dynamic_depth/pid_enable')
         vel_pid_enable_topic = rospy.get_param('~vel_pid_enable_topic', '/sam/ctrl/dynamic_velocity/pid_enable')
-        
+
         #rospy.Timer(rospy.Duration(2), self.timer_callback)
         self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
         self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
@@ -83,9 +102,9 @@ class EmergencySurface(object):
         self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
         self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
-        self._as = actionlib.SimpleActionServer(self._action_name, Empty, execute_cb=self.execute_cb, auto_start = False)
+        self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
-        
+
         rospy.loginfo("Announced action server with name: %s", self._action_name)
 
         rospy.spin()

@@ -2,9 +2,11 @@
 
     <!-- Configurable arguments -->
     <arg name="robot_name" default="sam"/>
-    <arg name="goal_tolerance" default="5."/>
+
+    <arg name="wp_tolerance" default="5."/>
+    <arg name="depth_tolerance" default="0.5"/>
     <arg name="base_frame" default="$(arg robot_name)/base_link"/>
-    <arg name="forward_rpm" default="700"/>
+    <arg name="forward_rpm" default="1000"/>
 	
 
 	<!-- topics, note the root! -->
@@ -14,7 +16,19 @@
     <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
     <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
 
-    <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl" pass_all_args="true" />
+
+    <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
+		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
+		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
+		<param name="base_frame" value="$(arg base_frame)"/>
+		<param name="forward_rpm" value="$(arg forward_rpm)"/>
+		
+		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />
+		<param name="heading_setpoint_topic" value="$(arg heading_setpoint_topic)" />
+		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
+		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
+		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
+	</node>
 
 
 </launch>
