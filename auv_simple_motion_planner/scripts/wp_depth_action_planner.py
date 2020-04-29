@@ -33,13 +33,13 @@ class WPDepthPlanner(object):
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
 
-    def turbo_turn(angle):
+    def turbo_turn(self, angle):
         rpm = self.turbo_turn_rpm
         rudder_angle = self.rudder_angle
         flip_rate = self.flip_rate
 
         left_turn = True
-        if angle > 0
+        if angle < 0:
             left_turn = False
 
         rospy.loginfo('Turbo Turning!')
@@ -48,25 +48,24 @@ class WPDepthPlanner(object):
 
         thrust_rate = 11.
         rate = rospy.Rate(thrust_rate)
-    
-        while not rospy.is_shutdown() and math.abs(angle) > self.turbo_angle_min :
-            self.vec_pub.publish(0., rudder_angle, Header())
-            loop_time = 0.
-        
-            while not rospy.is_shutdown() and loop_time < .5/flip_rate:
-                self.rpm_pub.publish(rpm, rpm, Header())
-                loop_time += 1./thrust_rate
-                rate.sleep()
 
-            self.vec_pub.publish(0., -rudder_angle, Header())
+        #  while not rospy.is_shutdown() and abs(angle) > self.turbo_angle_min :
+        self.vec_pub.publish(0., rudder_angle, Header())
+        loop_time = 0.
 
-            loop_time = 0.
-            while not rospy.is_shutdown() and loop_time < .5/flip_rate:
-                self.rpm_pub.publish(-rpm, -rpm, Header())
-                loop_time += 1./thrust_rate
-                rate.sleep()
+        while not rospy.is_shutdown() and loop_time < .5/flip_rate:
+            self.rpm_pub.publish(rpm, rpm, Header())
+            loop_time += 1./thrust_rate
+            rate.sleep()
 
-        self.vec_pub.publish(0., 0., Header())
+        self.vec_pub.publish(0., -rudder_angle, Header())
+
+        loop_time = 0.
+        while not rospy.is_shutdown() and loop_time < .5/flip_rate:
+            self.rpm_pub.publish(-rpm, -rpm, Header())
+            loop_time += 1./thrust_rate
+            rate.sleep()
+
 
     def execute_cb(self, goal):
 
@@ -144,20 +143,21 @@ class WPDepthPlanner(object):
                 yaw_setpoint = math.atan2(ydiff,xdiff)
 
                 depth_setpoint = self.nav_goal.position.z
-            
+
             self.depth_pub.publish(depth_setpoint)
             #  self.vbs_pub.publish(depth_setpoint)
 
-            #rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
-            if math.abs(yaw_setpoint) > self.turbo_angle_lim 
+            rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
+            if abs(yaw_setpoint) > self.turbo_angle_min:
                 #turbo turn with large deviations
-                self.yaw_pid_enable = False
-                turbo_turn(yaw_setpoint)
-            else 
+                self.yaw_pid_enable.publish(False)
+                self.turbo_turn(yaw_setpoint)
+            else:
+                print("Normal WP following")
                 #normal turning if the deviation is small
-                self.yaw_pid_enable = True
+                self.yaw_pid_enable.publish(True)
                 self.yaw_pub.publish(yaw_setpoint)
-            
+
                 # Thruster forward
                 rpm = ThrusterRPMs()
                 rpm.thruster_1_rpm = self.forward_rpm
@@ -165,7 +165,7 @@ class WPDepthPlanner(object):
                 self.rpm_pub.publish(rpm)
                 #rospy.loginfo("Thrusters forward")
 
-            
+
 
 
             counter += 1
@@ -206,12 +206,12 @@ class WPDepthPlanner(object):
         start_pos = np.array(trans)
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
 
-        # We check for success out of the main control loop in case the main control loop is 
+        # We check for success out of the main control loop in case the main control loop is
         # running at 300Hz or sth. like that. We dont need to check succes that frequently.
         xydiff = start_pos[:2] - end_pos[:2]
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
-        rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
+        rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
@@ -232,7 +232,7 @@ class WPDepthPlanner(object):
         yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
         depth_setpoint_topic = rospy.get_param('~depth_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
         depth_pid_enable_topic = rospy.get_param('~depth_pid_enable_topic', '/sam/ctrl/dynamic_depth/pid_enable')
-        
+
         #related to turbo turn
         thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
         self.turbo_angle_min_deg = rospy.get_param('~turbo_angle_min', 30)
@@ -240,8 +240,10 @@ class WPDepthPlanner(object):
         self.turbo_angle_min= np.radians(self.turbo_angle_min_deg)
         self.turbo_angle_lim= np.radians(self.turbo_angle_lim_deg)
         self.flip_rate = rospy.get_param('~flip_rate', 1.)
-        self.rudder_angle = rospy.get_param('~flip_rate', 0.08)
-        self.turbo_turn_rpm = rospy.get_param('~turbo_turn_rpm', 500)
+        #  self.rudder_angle = rospy.get_param('~rudder_angle', 0.08)
+        self.rudder_angle = 0.15
+        #  self.turbo_turn_rpm = rospy.get_param('~turbo_turn_rpm', 1000)
+        self.turbo_turn_rpm = 4000
 
         thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
 
