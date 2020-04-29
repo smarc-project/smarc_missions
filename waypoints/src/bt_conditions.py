@@ -10,8 +10,10 @@
 
 
 from bt_common import *
-from sam_globals import *
 import py_trees as pt
+
+from sam_globals import *
+import sam_globals
 
 
 class C_NoAbortReceived(pt.behaviour.Behaviour):

@@ -11,30 +11,26 @@ BT_TICKING_PERIOD = 50
 
 ##########################
 # ROS THINGS
+# THESE SHOULD BE RECEIVED FROM ROS_PARAMS AND SET IN THE MAIN FUNCTION
+# SET THEM AS sam_globals.THING and use as sam_globals.THING ELSEWHERE
 ##########################
 # DO NOT PUT SLASHES BEFORE TOPIC NAMES, that puts them in 'root' in ros's eyes.
 
-#TODO move these out into the launch file
-# IMC Bridge connections
+# topics blah
+DEPTH_TOPIC = 'ctrl/depth_feedback'
+ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
+LEAK_TOPIC = 'core/leak_fb'
+
+BASE_LINK = 'base_link'
+
 PLAN_TOPIC = 'imc/plan_db'
 ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
 PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'
-ABORT_TOPIC = 'imc/abort'
 VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
+ABORT_TOPIC = 'imc/abort'
 
-# Controller connections
-DEPTH_TOPIC = 'ctrl/depth_feedback'
-ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
-SAM_VBS_SETPOINT_TOPIC = 'ctrl/vbs/setpoint'
-SAM_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
-SAM_VBS_CONTROL_ACTION_TOPIC = 'ctrl/vbs/control_action'
-
-ACTION_NAMESPACE = 'ctrl/yaw_planner'
-
-# direct access to vbs command, skipping the controller in between
-SAM_VBS_CMD_TOPIC = 'core/vbs_cmd'
-LEAK_TOPIC = 'core/leak_fb'
-
+ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
+EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
 
 
 ######################
@@ -64,6 +60,11 @@ LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
 # useful for feedback purposes
 CURRENTLY_RUNNING_ACTION = 'currently_running_action'
 
+
+PLAN_TOPIC_BB = 'plan_topic'
+ESTIMATED_STATE_TOPIC_BB = 'estimated_state'
+PLAN_CONTROL_STATE_TOPIC_BB = 'plan_ctrl_state'
+VEHICLE_STATE_TOPIC_BB = 'vehicle_state'
 
 ########################
 # IMC Enums
@@ -104,8 +105,6 @@ IMC_MANEUVER_GOTO = 450
 ########################
 SAM_MAX_DEPTH = 5
 SAM_MIN_ALTITUDE = 2
-
-DEFAULT_BASE_LINK = '/sam/base_link'
 
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33
