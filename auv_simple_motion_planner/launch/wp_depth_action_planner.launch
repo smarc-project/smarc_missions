@@ -28,6 +28,16 @@
 		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
 		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
+		
+		<!--Turbo turn parameters-->
+		<param name="turbo_angle_min_deg" value="30.0" />
+		<param name="turbo_angle_lim_deg" value="90.0" />
+		<param name="flip_rate" value="1.0" />
+		<param name="rudder_angle" value="0.08" />
+		<param name="turbo_turn_rpm" value="500" />
+
+
+
 	</node>
 
 
