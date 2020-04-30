@@ -12,7 +12,7 @@
     <arg name="plan_topic" default="imc/plan_db"/>
     <arg name="estimated_state_topic" default="imc/estimated_state"/>
     <arg name="plan_control_state_topic" default="imc/plan_control_state"/>
-    <arg name="vehicle_state_topic" default="imc/vehicle_state_topic"/>
+    <arg name="vehicle_state_topic" default="imc/vehicle_state"/>
     <arg name="abort_topic" default="imc/abort"/>
 
 	<!-- Action Servers -->
