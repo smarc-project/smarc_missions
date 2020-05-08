@@ -4,17 +4,23 @@
     <arg name="robot_name" default="sam"/>
 
     <arg name="wp_tolerance" default="5."/>
-    <arg name="depth_tolerance" default="0.5"/>
+    <arg name="depth_tolerance" default="1."/>
     <arg name="base_frame" default="$(arg robot_name)/base_link"/>
     <arg name="forward_rpm" default="1000"/>
 	
 
-	<!-- topics, note the root! -->
-	<arg name="rpm_cmd_topic" default="/$(arg robot_name)/core/rpm_cmd" />
-	<arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
-	<arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
+    <!-- topics, note the root! -->
+    <arg name="rpm_cmd_topic" default="/$(arg robot_name)/core/rpm_cmd" />
+    <arg name="thrust_vector_cmd_topic" default="/$(arg robot_name)/core/thrust_vector_cmd" />
+    <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
+    <arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
     <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
     <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
+    <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/u_setpoint" />
+    <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
+    <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
+    <arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/yaw_feedback" />
+    
 
 
     <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
@@ -30,13 +36,21 @@
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		
 		<!--Turbo turn parameters-->
-		<param name="turbo_angle_min_deg" value="30.0" />
-		<param name="turbo_angle_lim_deg" value="90.0" />
+  		<param name="turbo_turn_flag" value="False" />
+		<param name="thrust_vector_cmd_topic" value="$(arg thrust_vector_cmd_topic)" />
+		<param name="yaw_feedback_topic" value="$(arg yaw_feedback_topic)" />
+		<param name="turbo_angle_min_deg" value="90.0" />		
 		<param name="flip_rate" value="0.5" />
-		<param name="rudder_angle" value="0.08" />
+		<param name="rudder_angle" value="0.1" />
 		<param name="turbo_turn_rpm" value="1000" />
-
-
+		
+		<!--Vel ctrl parameters-->
+  		<param name="vel_ctrl_flag" value="False" />
+		<param name="vel_setpoint" value="2.0" />
+		<param name="roll_setpoint" value="0.0" />
+		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
+		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />
+		<param name="vel_pid_enable_topic" value="$(arg vel_pid_enable_topic)" />
 
 	</node>
 
