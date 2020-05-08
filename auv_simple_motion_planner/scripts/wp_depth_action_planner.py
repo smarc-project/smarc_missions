@@ -33,13 +33,17 @@ class WPDepthPlanner(object):
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
 
-    def turbo_turn(angle):
+    
+    def yaw_feedback_cb(self,yaw_feedback):
+        self.yaw_feedback= yaw_feedback.data
+
+    def turbo_turn(self,angle):
         rpm = self.turbo_turn_rpm
         rudder_angle = self.rudder_angle
         flip_rate = self.flip_rate
 
         left_turn = True
-        if angle > 0
+        if angle < 0:
             left_turn = False
 
         rospy.loginfo('Turbo Turning!')
@@ -48,25 +52,22 @@ class WPDepthPlanner(object):
 
         thrust_rate = 11.
         rate = rospy.Rate(thrust_rate)
-    
-        while not rospy.is_shutdown() and math.abs(angle) > self.turbo_angle_min :
-            self.vec_pub.publish(0., rudder_angle, Header())
-            loop_time = 0.
-        
-            while not rospy.is_shutdown() and loop_time < .5/flip_rate:
-                self.rpm_pub.publish(rpm, rpm, Header())
-                loop_time += 1./thrust_rate
-                rate.sleep()
 
-            self.vec_pub.publish(0., -rudder_angle, Header())
+        self.vec_pub.publish(0., rudder_angle, Header())
+        loop_time = 0.
 
-            loop_time = 0.
-            while not rospy.is_shutdown() and loop_time < .5/flip_rate:
-                self.rpm_pub.publish(-rpm, -rpm, Header())
-                loop_time += 1./thrust_rate
-                rate.sleep()
+        while not rospy.is_shutdown() and loop_time < .5/flip_rate:
+            self.rpm_pub.publish(rpm, rpm, Header())
+            loop_time += 1./thrust_rate
+            rate.sleep()
 
-        self.vec_pub.publish(0., 0., Header())
+        self.vec_pub.publish(0., -rudder_angle, Header())
+
+        loop_time = 0.
+        while not rospy.is_shutdown() and loop_time < .5/flip_rate:
+            self.rpm_pub.publish(-rpm, -rpm, Header())
+            loop_time += 1./thrust_rate
+            rate.sleep()
 
     def execute_cb(self, goal):
 
@@ -115,6 +116,7 @@ class WPDepthPlanner(object):
                 self.rpm_pub.publish(rpm)
                 self.yaw_pid_enable.publish(False)
                 self.depth_pid_enable.publish(False)
+		self.vel_pid_enable.publish(False)
 
                 print('wp depth action planner: stopped thrusters')
                 self._as.set_preempted(self._result, "Preempted WP action")
@@ -142,43 +144,77 @@ class WPDepthPlanner(object):
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
                 yaw_setpoint = math.atan2(ydiff,xdiff)
+		
+		#compute yaw_error (e.g. for turbo_turn)
+        	yaw_error= (self.yaw_feedback - yaw_setpoint)
+        	if(yaw_error>3.141516):
+                    yaw_error= -(2*3.141516 - abs(yaw_error))
 
                 depth_setpoint = self.nav_goal.position.z
-            
+
             self.depth_pub.publish(depth_setpoint)
             #  self.vbs_pub.publish(depth_setpoint)
 
-            #rospy.loginfo("Yaw setpoint: %f", yaw_setpoint)
-            if math.abs(yaw_setpoint) > self.turbo_angle_lim 
-                #turbo turn with large deviations
-                self.yaw_pid_enable = False
-                turbo_turn(yaw_setpoint)
-            else 
-                #normal turning if the deviation is small
-                self.yaw_pid_enable = True
+	    if self.vel_ctrl_flag:
+		print("vel ctrl, no turbo turn")
+                #with Velocity control
+                self.yaw_pid_enable.publish(True)
                 self.yaw_pub.publish(yaw_setpoint)
-            
-                # Thruster forward
-                rpm = ThrusterRPMs()
-                rpm.thruster_1_rpm = self.forward_rpm
-                rpm.thruster_2_rpm = self.forward_rpm
-                self.rpm_pub.publish(rpm)
-                #rospy.loginfo("Thrusters forward")
 
-            
+                # Publish to velocity controller
+                self.vel_pid_enable.publish(True)
+                self.vel_pub.publish(self.vel_setpoint)
+		self.roll_pub.publish(self.roll_setpoint)
+                #rospy.loginfo("Velocity published")
 
+	    else:
+		if self.turbo_turn_flag:
+ 		    #if turbo turn is included	        
+		    rospy.loginfo("Yaw error: %f", yaw_error)
+                    if abs(yaw_error) > self.turbo_angle_min:
+                        #turbo turn with large deviations
+                        self.yaw_pid_enable.publish(False)
+                        self.turbo_turn(yaw_error)
+                    else:
+                        print("Normal WP following")
+                        #normal turning if the deviation is small
+                        self.yaw_pid_enable.publish(True)
+                        self.yaw_pub.publish(yaw_setpoint)
+
+                        # Thruster forward
+                        rpm = ThrusterRPMs()
+                        rpm.thruster_1_rpm = self.forward_rpm
+                        rpm.thruster_2_rpm = self.forward_rpm
+                        self.rpm_pub.publish(rpm)
+                        #rospy.loginfo("Thrusters forward")
+
+                else:
+		    #turbo turn not included, no velocity control
+                    print("Normal WP following, no turbo turn")
+                    self.yaw_pid_enable.publish(True)
+                    self.yaw_pub.publish(yaw_setpoint)
+
+                    # Thruster forward
+                    rpm = ThrusterRPMs()
+                    rpm.thruster_1_rpm = self.forward_rpm
+                    rpm.thruster_2_rpm = self.forward_rpm
+                    self.rpm_pub.publish(rpm)
+                    #rospy.loginfo("Thrusters forward")
 
             counter += 1
             r.sleep()
 
         # Stop thruster
-        rpm = ThrusterRPMs()
+	self.vel_pid_enable.publish(False)        
+	rpm = ThrusterRPMs()
         rpm.thruster_1_rpm = 0.0
         rpm.thruster_2_rpm = 0.0
         self.rpm_pub.publish(rpm)
-        #Stop yaw controller
+
+        #Stop controllers
         self.yaw_pid_enable.publish(False)
         self.depth_pid_enable.publish(False)
+        self.vel_pid_enable.publish(False)
         rospy.loginfo('%s: Succeeded' % self._action_name)
         self._as.set_succeeded(self._result)
 
@@ -206,12 +242,12 @@ class WPDepthPlanner(object):
         start_pos = np.array(trans)
         end_pos = np.array([self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
 
-        # We check for success out of the main control loop in case the main control loop is 
+        # We check for success out of the main control loop in case the main control loop is
         # running at 300Hz or sth. like that. We dont need to check succes that frequently.
         xydiff = start_pos[:2] - end_pos[:2]
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
-        rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
+        rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
@@ -232,33 +268,48 @@ class WPDepthPlanner(object):
         yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
         depth_setpoint_topic = rospy.get_param('~depth_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
         depth_pid_enable_topic = rospy.get_param('~depth_pid_enable_topic', '/sam/ctrl/dynamic_depth/pid_enable')
-        
-        #related to turbo turn
-        thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
-        self.turbo_angle_min_deg = rospy.get_param('~turbo_angle_min', 30)
-        self.turbo_angle_lim_deg = rospy.get_param('~turbo_angle_lim', 90)
-        self.turbo_angle_min= np.radians(self.turbo_angle_min_deg)
-        self.turbo_angle_lim= np.radians(self.turbo_angle_lim_deg)
-        self.flip_rate = rospy.get_param('~flip_rate', 1.)
-        self.rudder_angle = rospy.get_param('~flip_rate', 0.08)
-        self.turbo_turn_rpm = rospy.get_param('~turbo_turn_rpm', 500)
-
-        thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
 
         self.forward_rpm = int(rospy.get_param('~forward_rpm', 1000))
+        
+
+        #related to turbo turn
+	self.turbo_turn_flag = rospy.get_param('~turbo_turn_flag', True)	
+	thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
+	yaw_feedback_topic = rospy.get_param('~yaw_feedback_topic', '/sam/ctrl/yaw_feedback')
+        self.turbo_angle_min_deg = rospy.get_param('~turbo_angle_min', 90)
+        self.turbo_angle_min= np.radians(self.turbo_angle_min_deg)
+        self.flip_rate = rospy.get_param('~flip_rate', 0.5)
+        self.rudder_angle = rospy.get_param('~rudder_angle', 0.08)
+        self.turbo_turn_rpm = rospy.get_param('~turbo_turn_rpm', 1000)
+        
+
+	#related to velocity regulation instead of rpm
+	self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
+	self.vel_setpoint = rospy.get_param('~vel_setpoint', 2) #velocity setpoint in m/s
+	self.roll_setpoint = rospy.get_param('~roll_setpoint', 0) 
+	vel_setpoint_topic = rospy.get_param('~vel_setpoint_topic', '/sam/ctrl/dynamic_velocity/u_setpoint')
+	roll_setpoint_topic = rospy.get_param('~roll_setpoint_topic', '/sam/ctrl/dynamic_velocity/roll_setpoint')
+	vel_pid_enable_topic = rospy.get_param('~vel_pid_enable_topic', '/sam/ctrl/dynamic_velocity/pid_enable')
 
         self.nav_goal = None
 
         self.listener = tf.TransformListener()
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
+	self.yaw_feedback=0
+	rospy.Subscriber('/sam1/ctrl/yaw_feedback',Float64, self.yaw_feedback_cb)
+
         self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.depth_pub = rospy.Publisher(depth_setpoint_topic, Float64, queue_size=10)
+        self.vel_pub = rospy.Publisher(vel_setpoint_topic, Float64, queue_size=10)
+        self.roll_pub = rospy.Publisher(roll_setpoint_topic, Float64, queue_size=10)
+
         #TODO make proper if it works.
         #  self.vbs_pub = rospy.Publisher('/sam/ctrl/vbs/setpoint', Float64, queue_size=10)
         self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
         self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
+	self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
         self.vec_pub = rospy.Publisher(thrust_vector_cmd_topic, ThrusterAngles, queue_size=10)
 
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
