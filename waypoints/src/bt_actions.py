@@ -21,7 +21,7 @@ from std_msgs.msg import Float64, Bool, Empty
 from sam_msgs.msg import PercentStamped
 
 
-from imc_ros_bridge.msg import EstimatedState, VehicleState
+from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB
 
 
 import actionlib_msgs.msg as actionlib_msgs
@@ -38,7 +38,8 @@ class MissionPlan:
     def __init__(self,
                  actions,
                  frame,
-                 plan_id=None):
+                 plan_id=None,
+                 original_planddb_message=None):
         """
         A container object to keep things related to the mission plan.
         actions is a list of (x,y,z,type:string) tuples
@@ -53,12 +54,17 @@ class MissionPlan:
 
         if plan_id is None:
             plan_id = "Follow "+str(len(self.waypoints))+" waypoints"
+            if original_planddb_message is not None:
+                plan_id = original_planddb_message.plan_id
         self.plan_id = plan_id
 
         self.remaining_wps = self.waypoints
         self.visited_wps = []
         self.current_wp = None
         self.current_wp_index = -1
+
+        # keep it around just in case
+        self.original_planddb_message = original_planddb_message
 
         self.completed = False
 
@@ -157,6 +163,102 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
+class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
+    def __init__(self):
+        """
+        Gives neptus feedback that the plan has been received by the vehicle.
+        There is a whole conversation that happens between vehicle and neptus
+        when a plan is sent over. This node handles that entire conversation.
+        Stops the pop-ups that keep telling us that the plan is not synchronized.
+        """
+        self.bb = pt.blackboard.Blackboard()
+        super(A_AnswerNeptusPlanReceived, self).__init__('A_AnswerNeptusPlanReceived')
+
+        # the message body is largely the same, so we can re-use most of it
+        self.plandb_msg = PlanDB()
+        self.plandb_msg.type = IMC_PLANDB_TYPE_SUCCESS
+        self.plandb_msg.op = IMC_PLANDB_OP_SET
+
+        self.plandb_pub = rospy.Publisher(sam_globals.PLAN_TOPIC, PlanDB, queue_size=1)
+        self.plandb_sub = rospy.Subscriber(sam_globals.PLAN_TOPIC, PlanDB, callback=self.plandb_cb, queue_size=1)
+
+
+        # throttle this a little
+        self._last_answered_plan_id = None
+        self._answer_every_nth = 500
+        self._answer_attempt_count = 500
+
+    def plandb_cb(self, plandb_msg):
+        """
+        as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
+        """
+        typee = plandb_msg.type
+        op = plandb_msg.op
+
+        if typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_INFO:
+            # we need to respond to this with some info... but what?
+            rospy.loginfo_throttle_identical(5, "Got REQUEST GET_INFO planDB msg from Neptus")
+
+            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            if current_mission_plan is None:
+                return
+
+            response = PlanDB()
+            response.plan_id = current_mission_plan.original_planddb_message.plan_id
+            response.type = IMC_PLANDB_TYPE_SUCCESS
+            response.op = IMC_PLANDB_OP_GET_INFO
+            # PlanDBInformation is also expected in this message, but lets leave it
+            # empty for now and see what happens
+            # nothin. it really wants that arg....
+            self.plandb_pub.publish(response)
+            rospy.loginfo_throttle_identical(5, "Answered GET_INFO with:\n"+str(response))
+
+        elif typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_STATE:
+            rospy.loginfo_throttle_identical(5, "Got REQUEST GET_STATE planDB msg from Neptus")
+            # what state?
+
+        else:
+            rospy.loginfo_throttle_identical(1, "Received some new planDB message:\n"+str(plandb_msg))
+
+
+
+
+    def answer(self, plan_id):
+        # just update the plan_id, thats all neptus looks at after type and op
+        rospy.loginfo_throttle_identical(5, "Answered Neptus for PlanDB")
+        self.plandb_msg.plan_id = plan_id
+        self.plandb_pub.publish(self.plandb_msg)
+
+
+    def update(self):
+        current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        if current_mission_plan is None:
+            return pt.Status.FAILURE
+
+        plan_id = current_mission_plan.original_planddb_message.plan_id
+        if plan_id == self._last_answered_plan_id:
+            # its the same plan_id we answered
+            if self._answer_every_nth - self._answer_attempt_count <= 0:
+                # but we havent answered in a while
+
+                self.answer(plan_id)
+                self._answer_attempt_count = 0
+                return pt.Status.SUCCESS
+            else:
+                # we answered too recently
+                self._answer_attempt_count += 1
+                return pt.Status.SUCCESS
+        else:
+            # we changed plans apparently, answer asap
+            self.answer(plan_id)
+            self._last_answered_plan_id = plan_id
+            self._answer_attempt_count = 0
+            return pt.Status.SUCCESS
+
+
+
+
+
 
 class A_SetMissionPlan(pt.behaviour.Behaviour):
     def __init__(self):
@@ -184,7 +286,8 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             wps_types, frame = self.read_plandb(plandb)
 
             mission_plan = MissionPlan(actions=wps_types,
-                                       frame = frame)
+                                       frame = frame,
+                                       original_planddb_message=plandb)
 
             self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
             self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
@@ -194,6 +297,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             self.logger.info("The accepted mission plandb message was not a SET!")
             return pt.Status.FAILURE
 
+    # TODO move into the  MIssion Plan object instead
     @staticmethod
     def read_plandb(plandb):
         """

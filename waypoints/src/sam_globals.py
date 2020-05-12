@@ -24,6 +24,7 @@ LEAK_TOPIC = 'core/leak_fb'
 BASE_LINK = 'base_link'
 
 PLAN_TOPIC = 'imc/plan_db'
+PLAN_CONTROL_TOPIC = 'imc/plan_control'
 ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
 PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'
 VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
@@ -62,6 +63,7 @@ CURRENTLY_RUNNING_ACTION = 'currently_running_action'
 
 
 PLAN_TOPIC_BB = 'plan_topic'
+PLAN_CONTROL_MSG_BB = 'plan_control'
 ESTIMATED_STATE_TOPIC_BB = 'estimated_state'
 PLAN_CONTROL_STATE_TOPIC_BB = 'plan_ctrl_state'
 VEHICLE_STATE_TOPIC_BB = 'vehicle_state'

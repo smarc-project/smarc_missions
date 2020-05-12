@@ -10,6 +10,7 @@
 
 	<!-- topics -->
     <arg name="plan_topic" default="imc/plan_db"/>
+    <arg name="plan_control_topic" default="imc/plan_control"/>
     <arg name="estimated_state_topic" default="imc/estimated_state"/>
     <arg name="plan_control_state_topic" default="imc/plan_control_state"/>
     <arg name="vehicle_state_topic" default="imc/vehicle_state"/>
@@ -27,6 +28,7 @@
 		<param name="utm_band" value="$(arg utm_band)" />
 
 		<param name="plan_topic" value="$(arg plan_topic)" />
+		<param name="plan_control_topic" value="$(arg plan_control_topic)" />
 		<param name="estimated_state_topic" value="$(arg estimated_state_topic)" />
 		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />

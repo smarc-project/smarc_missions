@@ -70,6 +70,62 @@ class C_AltOK(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
 
+class C_StartPlanReceived(pt.behaviour.Behaviour):
+    def __init__(self):
+        """
+        return SUCCESS if we the tree received a plan_control message that
+        said 'run plan'.
+        FAILURE otherwise.
+
+        both returns will latch until the opposite is received since the listener will
+        only overwrite the previous message when a new one is received.
+
+        returns FAILURE if no message received.
+        """
+        self.bb = pt.blackboard.Blackboard()
+        super(C_StartPlanReceived, self).__init__(name="C_StartPlanReceived")
+
+    def update(self):
+        plan_control_msg = self.bb.get(PLAN_CONTROL_MSG_BB)
+        if plan_control_msg is None:
+            return pt.Status.FAILURE
+
+        # check if this message is a 'go' or 'no go' message
+        # imc/plan_control(569):
+        # int type:[0,1,2,3] req,suc,fail,in prog
+        # int op:[0,1,2,3] start, stop, load, get
+        # int request_id
+        # string plan_id
+        # int flags
+        # string info
+
+        # the start button in neptus sends:
+        # type:0 op:0 plan_id:"string" flags:1
+        # stop button sends:
+        # type:0 op:1 plan_id:'' flags:1
+        # teleop button sends:
+        # type:0 op:0 plan_id:"teleoperation-mode" flags:0
+
+        typee = plan_control_msg.type
+        op = plan_control_msg.op
+        plan_id = plan_control_msg.plan_id
+        flags = plan_control_msg.flags
+
+        # separate well-defined ifs for possible future shenanigans.
+        if typee==0 and op==0 and plan_id!='' and flags==1:
+            # start button
+            return pt.Status.SUCCESS
+
+        if typee==0 and op==1 and plan_id=='' and flags==1:
+            # stop button
+            return pt.Status.FAILURE
+
+        if typee==0 and op==1 and plan_id=='teleoperation-mode' and flag==0:
+            # teleop button
+            return pt.Status.FAILURE
+
+
+
 class C_NewMissionPlanReceived(pt.behaviour.Behaviour):
     def __init__(self):
         """
