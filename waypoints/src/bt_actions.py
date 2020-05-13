@@ -12,6 +12,7 @@
 # imports courtesy of Chris. TODO cleanup
 import py_trees as pt, py_trees_ros as ptr, std_msgs.msg, copy, json, numpy as np
 from geodesy.utm import fromLatLong, UTMPoint
+import time
 
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from imc_ros_bridge.msg import PlanControlState
@@ -21,7 +22,7 @@ from std_msgs.msg import Float64, Bool, Empty
 from sam_msgs.msg import PercentStamped
 
 
-from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB
+from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState
 
 
 import actionlib_msgs.msg as actionlib_msgs
@@ -65,6 +66,9 @@ class MissionPlan:
 
         # keep it around just in case
         self.original_planddb_message = original_planddb_message
+
+        # used to report when the mission was received
+        self.creation_time = time.time()
 
         self.completed = False
 
@@ -188,6 +192,18 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
         self._answer_every_nth = 500
         self._answer_attempt_count = 500
 
+
+    def make_plandb_info(self):
+        current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        plan_info = PlanDBInformation()
+        plan_info.plan_id = current_mission_plan.original_planddb_message.plan_id
+        plan_info.md5 = current_mission_plan.original_planddb_message.plan_spec_md5
+        rospy.loginfo_throttle_identical(5, "Sent md5:"+plan_info.md5)
+        plan_info.change_time = current_mission_plan.creation_time/1000.0
+        return plan_info
+
+
+
     def plandb_cb(self, plandb_msg):
         """
         as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
@@ -207,15 +223,39 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
             response.plan_id = current_mission_plan.original_planddb_message.plan_id
             response.type = IMC_PLANDB_TYPE_SUCCESS
             response.op = IMC_PLANDB_OP_GET_INFO
-            # PlanDBInformation is also expected in this message, but lets leave it
-            # empty for now and see what happens
-            # nothin. it really wants that arg....
+            response.plandb_information = self.make_plandb_info()
             self.plandb_pub.publish(response)
             rospy.loginfo_throttle_identical(5, "Answered GET_INFO with:\n"+str(response))
 
         elif typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_STATE:
             rospy.loginfo_throttle_identical(5, "Got REQUEST GET_STATE planDB msg from Neptus")
-            # what state?
+            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            if current_mission_plan is None:
+                return
+
+
+            # https://github.com/LSTS/imcjava/blob/d95fddeab4c439e603cf5e30a32979ad7ace5fbc/src/java/pt/lsts/imc/adapter/PlanDbManager.java#L160
+            # See above for an example
+            # TODO it seems like we need to keep a planDB ourselves on this side, collect all the plans we
+            # received and answer this get_state with data from them all.
+            # lets try telling neptus that we just got one plan, maybe that'll be okay?
+            # seems alright, but after this message is sent, the plan goes red :/
+            response = PlanDB()
+            response.plan_id = current_mission_plan.original_planddb_message.plan_id
+            response.type = IMC_PLANDB_TYPE_SUCCESS
+            response.op = IMC_PLANDB_OP_GET_STATE
+
+            response.plandb_state = PlanDBState()
+            response.plandb_state.plan_count = 1
+            response.plandb_state.plans_info.append(self.make_plandb_info())
+
+            self.plandb_pub.publish(response)
+            rospy.loginfo_throttle_identical(5, "Answered GET_STATE with:\n"+str(response))
+
+
+
+        elif typee == IMC_PLANDB_TYPE_SUCCESS:
+            rospy.loginfo_throttle_identical(1, "Received SUCCESS for op:"+str(op))
 
         else:
             rospy.loginfo_throttle_identical(1, "Received some new planDB message:\n"+str(plandb_msg))
