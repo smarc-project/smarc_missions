@@ -77,8 +77,8 @@ class WPDepthPlanner(object):
         self.nav_goal = goal.target_pose.pose
         self.nav_goal_frame = goal.target_pose.header.frame_id
         if self.nav_goal_frame is None or self.nav_goal_frame == '':
-            rospy.logwarn("Goal has no frame id! Using /world_utm by default")
-            self.nav_goal_frame = '/world_utm'
+            rospy.logwarn("Goal has no frame id! Using utm by default")
+            self.nav_goal_frame = 'utm'
 
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame

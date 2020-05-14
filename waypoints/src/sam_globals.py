@@ -23,6 +23,7 @@ LEAK_TOPIC = 'core/leak_fb'
 GPS_FIX_TOPIC = 'core/gps'
 
 BASE_LINK = 'base_link'
+UTM_LINK = 'utm'
 
 PLAN_TOPIC = 'imc/plan_db'
 PLAN_CONTROL_TOPIC = 'imc/plan_control'

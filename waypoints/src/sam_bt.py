@@ -330,6 +330,7 @@ if __name__ == '__main__':
     rospy.init_node("sam_bt")
 
     sam_globals.BASE_LINK = rospy.get_param("~base_frame", sam_globals.BASE_LINK)
+    sam_globals.UTM_LINK = rospy.get_param("~utm_frame", sam_globals.UTM_LINK)
 
     sam_globals.PLAN_TOPIC = rospy.get_param("~plan_topic", sam_globals.PLAN_TOPIC)
     sam_globals.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", sam_globals.PLAN_TOPIC)

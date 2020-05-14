@@ -401,7 +401,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         the utm zone and band and the frame in which the mission is defined
         """
         wps_types = []
-        frame = '/world_utm'
+        frame = sam_globals.UTM_LINK 
 
         request_id = plandb.request_id
         plan_id = plandb.plan_id
@@ -563,7 +563,7 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            self.listener.waitForTransform("world_utm", sam_globals.BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+            self.listener.waitForTransform(sam_globals.UTM_LINK, sam_globals.BASE_LINK, rospy.Time(), rospy.Duration(4.0))
             return True
         except:
             self.logger.error("Could not find TF!!")
@@ -573,11 +573,11 @@ class A_UpdateTF(pt.behaviour.Behaviour):
     def update(self):
         try:
             now = rospy.Time(0)
-            (world_trans, world_rot) = self.listener.lookupTransform("world_utm",
+            (world_trans, world_rot) = self.listener.lookupTransform(sam_globals.UTM_LINK, 
                                                                      sam_globals.BASE_LINK,
                                                                      now)
         except (tf.LookupException, tf.ConnectivityException):
-            self.logger.warning("Could not get transform between world_utm and "+ sam_globals.BASE_LINK)
+            self.logger.warning("Could not get transform between utm_frame and "+ sam_globals.BASE_LINK)
             return pt.Status.FAILURE
         except:
             self.logger.warning("Could not do tf lookup for some other reason")
