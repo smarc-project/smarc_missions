@@ -174,11 +174,13 @@ class WPDepthPlanner(object):
                     if abs(yaw_error) > self.turbo_angle_min:
                         #turbo turn with large deviations
                         self.yaw_pid_enable.publish(False)
+			self.depth_pid_enable.publish(False)
                         self.turbo_turn(yaw_error)
                     else:
                         print("Normal WP following")
                         #normal turning if the deviation is small
                         self.yaw_pid_enable.publish(True)
+			self.depth_pid_enable.publish(True)
                         self.yaw_pub.publish(yaw_setpoint)
 
                         # Thruster forward
