@@ -112,8 +112,17 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         self.gps_zone = None
         self.gps_band = None
 
+        self._spam_period = 1
+        self._max_spam_period = 60
+
 
     def gps_fix_cb(self, data):
+        if(data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
+            rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
+            # shitty gps
+            self._spam_period = min(self._spam_period*2, self._max_spam_period)
+            return
+
         self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
 
 
@@ -126,7 +135,8 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         prev_zone = self.bb.get(UTM_ZONE_BB)
 
         if prev_zone != self.gps_zone or prev_band != self.gps_band:
-            rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!")
+            rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!\n Prev:"+str((prev_zone, prev_band))+" gps:"+str((self.gps_zone, self.gps_band)))
+
             if sam_globals.TRUST_GPS:
                 rospy.logwarn_once("USING GPS UTM!")
                 self.bb.set(UTM_ZONE_BB, self.gps_zone)
