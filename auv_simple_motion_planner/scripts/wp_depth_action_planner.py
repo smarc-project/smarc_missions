@@ -43,7 +43,7 @@ class WPDepthPlanner(object):
         flip_rate = self.flip_rate
 
         left_turn = True
-        if angle < 0:
+        if angle > 0:
             left_turn = False
 
         rospy.loginfo('Turbo Turning!')
