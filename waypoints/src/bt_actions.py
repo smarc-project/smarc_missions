@@ -4,6 +4,7 @@
 # Ozer Ozkahraman (ozero@kth.se)
 # Mostly a re-write of Christopher's behaviours with more
 # descriptive names and atomicaztion of everything
+# and some new stuff as time goes on
 
 #TODO:
 # . A_SetManualWaypoint
@@ -92,6 +93,50 @@ class MissionPlan:
     def visit(self):
         self.visited_wps.append(self.current_wp)
         self.current_wp = None
+
+
+class A_SetUTMFromGPS(pt.behaviour.Behaviour):
+    def __init__(self):
+        """
+        Read GPS fix and set our utm band and zone from it.
+        Warn when there is a change in it.
+
+        Returns RUNNING until a GPS fix is read.
+        Returns SUCCESS afterwards.
+        """
+
+        self.bb = pt.blackboard.Blackboard()
+        self.gps_sub = rospy.Subscriber(sam_globals.GPS_FIX_TOPIC, NavSatFix, callback=self.gps_fix_cb)
+        super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
+
+        self.gps_zone = None
+        self.gps_band = None
+
+
+    def gps_fix_cb(self, data):
+        self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
+
+
+    def update(self):
+        if self.gps_zone is None or self.gps_band is None:
+            return pt.Status.RUNNING
+
+        # first read the UTMs given by ros params
+        prev_band = self.bb.get(UTM_BAND_BB)
+        prev_zone = self.bb.get(UTM_ZONE_BB)
+
+        if prev_zone != self.gps_zone or prev_band != self.gps_band:
+            rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!")
+            if sam_globals.TRUST_GPS:
+                rospy.logwarn_once("USING GPS UTM!")
+                self.bb.set(UTM_ZONE_BB, self.gps_zone)
+                self.bb.set(UTM_BAND_BB, self.gps_band)
+            else:
+                rospy.logwarn_once("USING PREVIOUS UTM!")
+                self.bb.set(UTM_ZONE_BB, prev_zone)
+                self.bb.set(UTM_BAND_BB, prev_band)
+
+        return pt.Status.SUCCESS
 
 
 

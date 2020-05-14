@@ -22,7 +22,8 @@ from bt_actions import A_SetMissionPlan, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
-                       A_AnswerNeptusPlanReceived
+                       A_AnswerNeptusPlanReceived, \
+                       A_SetUTMFromGPS
 
 
 from bt_conditions import C_PlanCompleted, \
@@ -95,6 +96,8 @@ def const_tree():
             blackboard_variables = {PLAN_CONTROL_MSG_BB:None}
         )
 
+        set_utm_from_gps = A_SetUTMFromGPS()
+
         return Sequence(name="SQ-DataIngestion",
                         children=[
                             read_abort,
@@ -103,7 +106,8 @@ def const_tree():
                             read_alt,
                             update_tf,
                             read_mission_plan,
-                            read_plan_control
+                            read_plan_control,
+                            set_utm_from_gps
                         ])
 
 

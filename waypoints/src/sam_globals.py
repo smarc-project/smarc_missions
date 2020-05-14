@@ -20,6 +20,7 @@ BT_TICKING_PERIOD = 50
 DEPTH_TOPIC = 'ctrl/depth_feedback'
 ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
 LEAK_TOPIC = 'core/leak_fb'
+GPS_FIX_TOPIC = 'core/gps'
 
 BASE_LINK = 'base_link'
 
@@ -111,3 +112,6 @@ SAM_MIN_ALTITUDE = 2
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33
 DEFAULT_UTM_BAND = 'T'
+# if set to true, utm zone and band will be set from
+# the gps fix we read instead of rosparams
+TRUST_GPS = True
