@@ -114,7 +114,16 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
         # separate well-defined ifs for possible future shenanigans.
         if typee==0 and op==0 and plan_id!='' and flags==1:
             # start button
-            return pt.Status.SUCCESS
+
+            # check if the start was given for our current plan
+            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
+                rospy.loginfo_throttle_identical(20, "Started plan:"+str(plan_id))
+                return pt.Status.SUCCESS
+            else:
+                rospy.logwarn_throttle_identical(10, "Start was given for a different plan than our plan!")
+                rospy.logwarn_throttle_identical(10, "Started plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
+                return pt.Status.FAILURE
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
