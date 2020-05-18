@@ -10,7 +10,7 @@ from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64, Empty, String
 
 from sam_msgs.msg import Leak
-from imc_ros_bridge.msg import PlanDB
+from imc_ros_bridge.msg import PlanDB, PlanControl
 
 import rospy
 
@@ -21,7 +21,9 @@ from bt_actions import A_SetMissionPlan, \
                        A_GotoManualWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
-                       A_EmergencySurface
+                       A_EmergencySurface, \
+                       A_AnswerNeptusPlanReceived, \
+                       A_SetUTMFromGPS
 
 
 from bt_conditions import C_PlanCompleted, \
@@ -31,7 +33,8 @@ from bt_conditions import C_PlanCompleted, \
                           C_NoAbortReceived, \
                           C_DepthOK, \
                           C_AltOK, \
-                          C_LeakOK
+                          C_LeakOK, \
+                          C_StartPlanReceived
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -78,7 +81,6 @@ def const_tree():
 
         update_tf = A_UpdateTF()
 
-        # TESTING PLANDB
         read_mission_plan = ReadTopic(
             name = "A_ReadMissionPlan",
             topic_name = sam_globals.PLAN_TOPIC,
@@ -87,6 +89,15 @@ def const_tree():
             blackboard_variables = {MISSION_PLAN_MSG_BB:None}
         )
 
+        read_plan_control = ReadTopic(
+            name = "A_ReadPlanControl",
+            topic_name= sam_globals.PLAN_CONTROL_TOPIC,
+            topic_type = PlanControl,
+            blackboard_variables = {PLAN_CONTROL_MSG_BB:None}
+        )
+
+        set_utm_from_gps = A_SetUTMFromGPS()
+
         return Sequence(name="SQ-DataIngestion",
                         children=[
                             read_abort,
@@ -94,7 +105,9 @@ def const_tree():
                             read_depth,
                             read_alt,
                             update_tf,
-                            read_mission_plan
+                            read_mission_plan,
+                            read_plan_control,
+                            set_utm_from_gps
                         ])
 
 
@@ -174,20 +187,29 @@ def const_tree():
                                       set_new_plan_and_action
                             ])
 
+        def const_mission_synch_gate():
+            have_mission = pt.blackboard.CheckBlackboardVariable(name="C_HaveMission",
+                                                                 variable_name=MISSION_PLAN_OBJ_BB)
+            answer_neptus = A_AnswerNeptusPlanReceived()
 
-        manual_commands = const_check_manual_commands()
+            return Sequence(name="SQ-MissionSynchronized",
+                            children=[
+                                      have_mission,
+                                      answer_neptus
+                            ])
+
+        #  manual_commands = const_check_manual_commands()
         mission_plan = const_mission_plan_update()
         # more synchronization actions can go here
 
-        # in the end, we want to succeed somehow.
-        have_mission = pt.blackboard.CheckBlackboardVariable(name="C_HaveMission",
-                                                             variable_name=MISSION_PLAN_OBJ_BB)
+        synched = const_mission_synch_gate()
+
 
         return Fallback(name="FB-SynchroniseMission",
                         children=[
                                   #  manual_commands,
                                   mission_plan,
-                                  have_mission
+                                  synched
                         ])
 
 
@@ -212,11 +234,14 @@ def const_tree():
 
         def const_execute_mission_plan():
             plan_complete = C_PlanCompleted()
+            # but still wait for operator to tell us to 'go'
+            start_received = C_StartPlanReceived()
             execute_plan_action = A_ExecutePlanAction()
             set_next_plan_action = A_SetNextPlanAction()
 
             follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                    children=[
+                                             start_received,
                                              execute_plan_action,
                                              set_next_plan_action
                                    ])
@@ -305,8 +330,10 @@ if __name__ == '__main__':
     rospy.init_node("sam_bt")
 
     sam_globals.BASE_LINK = rospy.get_param("~base_frame", sam_globals.BASE_LINK)
+    sam_globals.UTM_LINK = rospy.get_param("~utm_frame", sam_globals.UTM_LINK)
 
     sam_globals.PLAN_TOPIC = rospy.get_param("~plan_topic", sam_globals.PLAN_TOPIC)
+    sam_globals.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", sam_globals.PLAN_TOPIC)
     sam_globals.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", sam_globals.ESTIMATED_STATE_TOPIC)
     sam_globals.PLAN_CONTROL_STATE_TOPIC = rospy.get_param("~plan_control_state_topic", sam_globals.PLAN_CONTROL_STATE_TOPIC)
     sam_globals.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", sam_globals.VEHICLE_STATE_TOPIC)

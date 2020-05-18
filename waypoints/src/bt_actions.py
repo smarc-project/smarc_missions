@@ -4,6 +4,7 @@
 # Ozer Ozkahraman (ozero@kth.se)
 # Mostly a re-write of Christopher's behaviours with more
 # descriptive names and atomicaztion of everything
+# and some new stuff as time goes on
 
 #TODO:
 # . A_SetManualWaypoint
@@ -12,6 +13,7 @@
 # imports courtesy of Chris. TODO cleanup
 import py_trees as pt, py_trees_ros as ptr, std_msgs.msg, copy, json, numpy as np
 from geodesy.utm import fromLatLong, UTMPoint
+import time
 
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from imc_ros_bridge.msg import PlanControlState
@@ -21,7 +23,7 @@ from std_msgs.msg import Float64, Bool, Empty
 from sam_msgs.msg import PercentStamped
 
 
-from imc_ros_bridge.msg import EstimatedState, VehicleState
+from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState
 
 
 import actionlib_msgs.msg as actionlib_msgs
@@ -38,7 +40,8 @@ class MissionPlan:
     def __init__(self,
                  actions,
                  frame,
-                 plan_id=None):
+                 plan_id=None,
+                 original_planddb_message=None):
         """
         A container object to keep things related to the mission plan.
         actions is a list of (x,y,z,type:string) tuples
@@ -53,12 +56,20 @@ class MissionPlan:
 
         if plan_id is None:
             plan_id = "Follow "+str(len(self.waypoints))+" waypoints"
+            if original_planddb_message is not None:
+                plan_id = original_planddb_message.plan_id
         self.plan_id = plan_id
 
         self.remaining_wps = self.waypoints
         self.visited_wps = []
         self.current_wp = None
         self.current_wp_index = -1
+
+        # keep it around just in case
+        self.original_planddb_message = original_planddb_message
+
+        # used to report when the mission was received
+        self.creation_time = time.time()
 
         self.completed = False
 
@@ -82,6 +93,60 @@ class MissionPlan:
     def visit(self):
         self.visited_wps.append(self.current_wp)
         self.current_wp = None
+
+
+class A_SetUTMFromGPS(pt.behaviour.Behaviour):
+    def __init__(self):
+        """
+        Read GPS fix and set our utm band and zone from it.
+        Warn when there is a change in it.
+
+        Returns RUNNING until a GPS fix is read.
+        Returns SUCCESS afterwards.
+        """
+
+        self.bb = pt.blackboard.Blackboard()
+        self.gps_sub = rospy.Subscriber(sam_globals.GPS_FIX_TOPIC, NavSatFix, callback=self.gps_fix_cb)
+        super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
+
+        self.gps_zone = None
+        self.gps_band = None
+
+        self._spam_period = 1
+        self._max_spam_period = 60
+
+
+    def gps_fix_cb(self, data):
+        if(data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
+            rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
+            # shitty gps
+            self._spam_period = min(self._spam_period*2, self._max_spam_period)
+            return
+
+        self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
+
+
+    def update(self):
+        if self.gps_zone is None or self.gps_band is None:
+            return pt.Status.RUNNING
+
+        # first read the UTMs given by ros params
+        prev_band = self.bb.get(UTM_BAND_BB)
+        prev_zone = self.bb.get(UTM_ZONE_BB)
+
+        if prev_zone != self.gps_zone or prev_band != self.gps_band:
+            rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!\n Prev:"+str((prev_zone, prev_band))+" gps:"+str((self.gps_zone, self.gps_band)))
+
+            if sam_globals.TRUST_GPS:
+                rospy.logwarn_once("USING GPS UTM!")
+                self.bb.set(UTM_ZONE_BB, self.gps_zone)
+                self.bb.set(UTM_BAND_BB, self.gps_band)
+            else:
+                rospy.logwarn_once("USING PREVIOUS UTM!")
+                self.bb.set(UTM_ZONE_BB, prev_zone)
+                self.bb.set(UTM_BAND_BB, prev_band)
+
+        return pt.Status.SUCCESS
 
 
 
@@ -157,6 +222,138 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
+class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
+    def __init__(self):
+        """
+        Gives neptus feedback that the plan has been received by the vehicle.
+        There is a whole conversation that happens between vehicle and neptus
+        when a plan is sent over. This node handles that entire conversation.
+        Stops the pop-ups that keep telling us that the plan is not synchronized.
+        """
+        self.bb = pt.blackboard.Blackboard()
+        super(A_AnswerNeptusPlanReceived, self).__init__('A_AnswerNeptusPlanReceived')
+
+        # the message body is largely the same, so we can re-use most of it
+        self.plandb_msg = PlanDB()
+        self.plandb_msg.type = IMC_PLANDB_TYPE_SUCCESS
+        self.plandb_msg.op = IMC_PLANDB_OP_SET
+
+        self.plandb_pub = rospy.Publisher(sam_globals.PLAN_TOPIC, PlanDB, queue_size=1)
+        self.plandb_sub = rospy.Subscriber(sam_globals.PLAN_TOPIC, PlanDB, callback=self.plandb_cb, queue_size=1)
+
+
+        # throttle this a little
+        self._last_answered_plan_id = None
+        self._answer_every_nth = 500
+        self._answer_attempt_count = 500
+
+
+    def make_plandb_info(self):
+        current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        plan_info = PlanDBInformation()
+        plan_info.plan_id = current_mission_plan.original_planddb_message.plan_id
+        plan_info.md5 = current_mission_plan.original_planddb_message.plan_spec_md5
+        rospy.loginfo_throttle_identical(5, "Sent md5:"+plan_info.md5)
+        plan_info.change_time = current_mission_plan.creation_time/1000.0
+        return plan_info
+
+
+
+    def plandb_cb(self, plandb_msg):
+        """
+        as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
+        """
+        typee = plandb_msg.type
+        op = plandb_msg.op
+
+        if typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_INFO:
+            # we need to respond to this with some info... but what?
+            rospy.loginfo_throttle_identical(5, "Got REQUEST GET_INFO planDB msg from Neptus")
+
+            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            if current_mission_plan is None:
+                return
+
+            response = PlanDB()
+            response.plan_id = current_mission_plan.original_planddb_message.plan_id
+            response.type = IMC_PLANDB_TYPE_SUCCESS
+            response.op = IMC_PLANDB_OP_GET_INFO
+            response.plandb_information = self.make_plandb_info()
+            self.plandb_pub.publish(response)
+            rospy.loginfo_throttle_identical(5, "Answered GET_INFO with:\n"+str(response))
+
+        elif typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_STATE:
+            rospy.loginfo_throttle_identical(5, "Got REQUEST GET_STATE planDB msg from Neptus")
+            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            if current_mission_plan is None:
+                return
+
+
+            # https://github.com/LSTS/imcjava/blob/d95fddeab4c439e603cf5e30a32979ad7ace5fbc/src/java/pt/lsts/imc/adapter/PlanDbManager.java#L160
+            # See above for an example
+            # TODO it seems like we need to keep a planDB ourselves on this side, collect all the plans we
+            # received and answer this get_state with data from them all.
+            # lets try telling neptus that we just got one plan, maybe that'll be okay?
+            # seems alright, but after this message is sent, the plan goes red :/
+            response = PlanDB()
+            response.plan_id = current_mission_plan.original_planddb_message.plan_id
+            response.type = IMC_PLANDB_TYPE_SUCCESS
+            response.op = IMC_PLANDB_OP_GET_STATE
+
+            response.plandb_state = PlanDBState()
+            response.plandb_state.plan_count = 1
+            response.plandb_state.plans_info.append(self.make_plandb_info())
+
+            self.plandb_pub.publish(response)
+            rospy.loginfo_throttle_identical(5, "Answered GET_STATE with:\n"+str(response))
+
+
+
+        elif typee == IMC_PLANDB_TYPE_SUCCESS:
+            rospy.loginfo_throttle_identical(1, "Received SUCCESS for op:"+str(op))
+
+        else:
+            rospy.loginfo_throttle_identical(1, "Received some new planDB message:\n"+str(plandb_msg))
+
+
+
+
+    def answer(self, plan_id):
+        # just update the plan_id, thats all neptus looks at after type and op
+        rospy.loginfo_throttle_identical(5, "Answered Neptus for PlanDB")
+        self.plandb_msg.plan_id = plan_id
+        self.plandb_pub.publish(self.plandb_msg)
+
+
+    def update(self):
+        current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        if current_mission_plan is None:
+            return pt.Status.FAILURE
+
+        plan_id = current_mission_plan.original_planddb_message.plan_id
+        if plan_id == self._last_answered_plan_id:
+            # its the same plan_id we answered
+            if self._answer_every_nth - self._answer_attempt_count <= 0:
+                # but we havent answered in a while
+
+                self.answer(plan_id)
+                self._answer_attempt_count = 0
+                return pt.Status.SUCCESS
+            else:
+                # we answered too recently
+                self._answer_attempt_count += 1
+                return pt.Status.SUCCESS
+        else:
+            # we changed plans apparently, answer asap
+            self.answer(plan_id)
+            self._last_answered_plan_id = plan_id
+            self._answer_attempt_count = 0
+            return pt.Status.SUCCESS
+
+
+
+
+
 
 class A_SetMissionPlan(pt.behaviour.Behaviour):
     def __init__(self):
@@ -184,7 +381,8 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             wps_types, frame = self.read_plandb(plandb)
 
             mission_plan = MissionPlan(actions=wps_types,
-                                       frame = frame)
+                                       frame = frame,
+                                       original_planddb_message=plandb)
 
             self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
             self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
@@ -194,6 +392,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             self.logger.info("The accepted mission plandb message was not a SET!")
             return pt.Status.FAILURE
 
+    # TODO move into the  MIssion Plan object instead
     @staticmethod
     def read_plandb(plandb):
         """
@@ -202,7 +401,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
         the utm zone and band and the frame in which the mission is defined
         """
         wps_types = []
-        frame = '/world_utm'
+        frame = sam_globals.UTM_LINK 
 
         request_id = plandb.request_id
         plan_id = plandb.plan_id
@@ -364,7 +563,7 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            self.listener.waitForTransform("world_utm", sam_globals.BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+            self.listener.waitForTransform(sam_globals.UTM_LINK, sam_globals.BASE_LINK, rospy.Time(), rospy.Duration(4.0))
             return True
         except:
             self.logger.error("Could not find TF!!")
@@ -374,11 +573,11 @@ class A_UpdateTF(pt.behaviour.Behaviour):
     def update(self):
         try:
             now = rospy.Time(0)
-            (world_trans, world_rot) = self.listener.lookupTransform("world_utm",
+            (world_trans, world_rot) = self.listener.lookupTransform(sam_globals.UTM_LINK, 
                                                                      sam_globals.BASE_LINK,
                                                                      now)
         except (tf.LookupException, tf.ConnectivityException):
-            self.logger.warning("Could not get transform between world_utm and "+ sam_globals.BASE_LINK)
+            self.logger.warning("Could not get transform between utm_frame and "+ sam_globals.BASE_LINK)
             return pt.Status.FAILURE
         except:
             self.logger.warning("Could not do tf lookup for some other reason")

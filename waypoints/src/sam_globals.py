@@ -20,10 +20,13 @@ BT_TICKING_PERIOD = 50
 DEPTH_TOPIC = 'ctrl/depth_feedback'
 ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
 LEAK_TOPIC = 'core/leak_fb'
+GPS_FIX_TOPIC = 'core/gps'
 
 BASE_LINK = 'base_link'
+UTM_LINK = 'world_utm'
 
 PLAN_TOPIC = 'imc/plan_db'
+PLAN_CONTROL_TOPIC = 'imc/plan_control'
 ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
 PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'
 VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
@@ -62,6 +65,7 @@ CURRENTLY_RUNNING_ACTION = 'currently_running_action'
 
 
 PLAN_TOPIC_BB = 'plan_topic'
+PLAN_CONTROL_MSG_BB = 'plan_control'
 ESTIMATED_STATE_TOPIC_BB = 'estimated_state'
 PLAN_CONTROL_STATE_TOPIC_BB = 'plan_ctrl_state'
 VEHICLE_STATE_TOPIC_BB = 'vehicle_state'
@@ -109,3 +113,6 @@ SAM_MIN_ALTITUDE = 2
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33
 DEFAULT_UTM_BAND = 'T'
+# if set to true, utm zone and band will be set from
+# the gps fix we read instead of rosparams
+TRUST_GPS = True
