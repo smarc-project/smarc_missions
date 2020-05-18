@@ -38,7 +38,7 @@
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		
 		<!--Turbo turn parameters-->
-  		<param name="turbo_turn_flag" value="False" />
+  		<param name="turbo_turn_flag" value="True" />
 		<param name="thrust_vector_cmd_topic" value="$(arg thrust_vector_cmd_topic)" />
 		<param name="yaw_feedback_topic" value="$(arg yaw_feedback_topic)" />
 		<param name="turbo_angle_min_deg" value="90.0" />		
