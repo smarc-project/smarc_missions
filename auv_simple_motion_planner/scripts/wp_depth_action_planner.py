@@ -77,8 +77,8 @@ class WPDepthPlanner(object):
         self.nav_goal = goal.target_pose.pose
         self.nav_goal_frame = goal.target_pose.header.frame_id
         if self.nav_goal_frame is None or self.nav_goal_frame == '':
-            rospy.logwarn("Goal has no frame id! Using /world_utm by default")
-            self.nav_goal_frame = '/world_utm'
+            rospy.logwarn("Goal has no frame id! Using utm by default")
+            self.nav_goal_frame = 'utm'
 
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
@@ -158,7 +158,7 @@ class WPDepthPlanner(object):
             #self.vbs_pub.publish(depth_setpoint)
 
 	    if self.vel_ctrl_flag:
-		print("vel ctrl, no turbo turn")
+		rospy.loginfo_throttle_identical(5, "vel ctrl, no turbo turn")
                 #with Velocity control
                 self.yaw_pid_enable.publish(True)
                 self.yaw_pub.publish(yaw_setpoint)
@@ -181,7 +181,7 @@ class WPDepthPlanner(object):
 			self.vbs_pid_enable.publish(True)
 			self.vbs_pub.publish(depth_setpoint)
                     else:
-                        print("Normal WP following")
+                        rospy.loginfo_throttle_identical(5,"Normal WP following")
                         #normal turning if the deviation is small
 			self.vbs_pid_enable.publish(False)
 			self.depth_pid_enable.publish(True)
@@ -197,7 +197,7 @@ class WPDepthPlanner(object):
 
                 else:
 		    #turbo turn not included, no velocity control
-                    #print("Normal WP following, no turbo turn")
+                    rospy.loginfo_throttle_identical(5, "Normal WP following, no turbo turn")
                     self.yaw_pid_enable.publish(True)
                     self.yaw_pub.publish(yaw_setpoint)
 
@@ -281,7 +281,7 @@ class WPDepthPlanner(object):
         
 
         #related to turbo turn
-	self.turbo_turn_flag = rospy.get_param('~turbo_turn_flag', True)	
+	self.turbo_turn_flag = rospy.get_param('~turbo_turn_flag', False)	
 	thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
 	yaw_feedback_topic = rospy.get_param('~yaw_feedback_topic', '/sam/ctrl/yaw_feedback')
         self.turbo_angle_min_deg = rospy.get_param('~turbo_angle_min', 90)
