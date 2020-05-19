@@ -6,35 +6,24 @@
 # descriptive names and atomicaztion of everything
 # and some new stuff as time goes on
 
-#TODO:
-# . A_SetManualWaypoint
-# . A_GotoManualWaypoint
+import py_trees as pt
+import py_trees_ros as ptr
 
-# imports courtesy of Chris. TODO cleanup
-import py_trees as pt, py_trees_ros as ptr, std_msgs.msg, copy, json, numpy as np
-from geodesy.utm import fromLatLong, UTMPoint
 import time
-
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from imc_ros_bridge.msg import PlanControlState
-from geometry_msgs.msg import Pose, Quaternion
-from sensor_msgs.msg import NavSatFix
-from std_msgs.msg import Float64, Bool, Empty
-from sam_msgs.msg import PercentStamped
-
-
-from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState
-
-
-import actionlib_msgs.msg as actionlib_msgs
+import numpy as np
+from geodesy.utm import fromLatLong, UTMPoint
 
 import rospy
 import tf
 
-import sam_globals
-from sam_globals import *
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from sensor_msgs.msg import NavSatFix
+import actionlib_msgs.msg as actionlib_msgs
 
-from bt_common import *
+from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState
+
+import bb_enums
+import imc_enums
 
 class MissionPlan:
     def __init__(self,
@@ -96,7 +85,7 @@ class MissionPlan:
 
 
 class A_SetUTMFromGPS(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, gps_fix_topic):
         """
         Read GPS fix and set our utm band and zone from it.
         Warn when there is a change in it.
@@ -106,12 +95,14 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         """
 
         self.bb = pt.blackboard.Blackboard()
-        self.gps_sub = rospy.Subscriber(sam_globals.GPS_FIX_TOPIC, NavSatFix, callback=self.gps_fix_cb)
+        self.gps_sub = rospy.Subscriber(gps_fix_topic, NavSatFix, callback=self.gps_fix_cb)
         super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
 
         self.gps_zone = None
         self.gps_band = None
 
+        # how many seconds to wait before we complain about bad gps.
+        # exponential backoff happens to this until max is reached.
         self._spam_period = 1
         self._max_spam_period = 60
 
@@ -131,29 +122,32 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
             return pt.Status.RUNNING
 
         # first read the UTMs given by ros params
-        prev_band = self.bb.get(UTM_BAND_BB)
-        prev_zone = self.bb.get(UTM_ZONE_BB)
+        prev_band = self.bb.get(bb_enums.UTM_BAND)
+        prev_zone = self.bb.get(bb_enums.UTM_ZONE)
 
         if prev_zone != self.gps_zone or prev_band != self.gps_band:
             rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!\n Prev:"+str((prev_zone, prev_band))+" gps:"+str((self.gps_zone, self.gps_band)))
 
             if sam_globals.TRUST_GPS:
                 rospy.logwarn_once("USING GPS UTM!")
-                self.bb.set(UTM_ZONE_BB, self.gps_zone)
-                self.bb.set(UTM_BAND_BB, self.gps_band)
+                self.bb.set(bb_enums.UTM_ZONE, self.gps_zone)
+                self.bb.set(bb_enums.UTM_BAND, self.gps_band)
             else:
                 rospy.logwarn_once("USING PREVIOUS UTM!")
-                self.bb.set(UTM_ZONE_BB, prev_zone)
-                self.bb.set(UTM_BAND_BB, prev_band)
+                self.bb.set(bb_enums.UTM_ZONE, prev_zone)
+                self.bb.set(bb_enums.UTM_BAND, prev_band)
 
         return pt.Status.SUCCESS
 
 
 
 class A_EmergencySurface(ptr.actions.ActionClient):
-    def __init__(self):
+    def __init__(self, emergency_action_namespace):
         """
-        Calls Harsha's wp_depth_action_planner action
+        What to do when an emergency happens. This should be a very simple
+        action that is super unlikely to fail, ever. It should also 'just work'
+        without a goal.
+        Like surfacing.
         """
         self.bb = pt.blackboard.Blackboard()
         self.action_goal_handle = None
@@ -163,7 +157,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
             name="A_EmergencySurface",
             action_spec=MoveBaseAction,
             action_goal=None,
-            action_namespace= sam_globals.EMERGENCY_ACTION_NAMESPACE,
+            action_namespace= emergency_action_namespace,
             override_feedback_message_on_running="EMERGENCY SURFACING"
         )
 
@@ -192,7 +186,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
             self.sent_goal = True
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Emergency goal sent"
-            self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
+            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
             return pt.Status.RUNNING
 
 
@@ -201,7 +195,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
             self.feedback_message = "Aborted emergency"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
+            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.FAILURE
 
         result = self.action_client.get_result()
@@ -210,20 +204,22 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if result:
             self.feedback_message = "Completed emergency"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
+            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.SUCCESS
 
 
         # if we're still trying to accomplish the goal
-        self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
+        self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
+        self.bb.set(bb_enums.LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
+#TODO merge with "PublishToNeptus" instead, we do not take any data from the requests, 
+# so might as well send the data regularly instead of in callbacks
 class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, plandb_topic):
         """
         Gives neptus feedback that the plan has been received by the vehicle.
         There is a whole conversation that happens between vehicle and neptus
@@ -235,11 +231,11 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
 
         # the message body is largely the same, so we can re-use most of it
         self.plandb_msg = PlanDB()
-        self.plandb_msg.type = IMC_PLANDB_TYPE_SUCCESS
-        self.plandb_msg.op = IMC_PLANDB_OP_SET
+        self.plandb_msg.type = imc_enums.PLANDB_TYPE_SUCCESS
+        self.plandb_msg.op = imc_enums.PLANDB_OP_SET
 
-        self.plandb_pub = rospy.Publisher(sam_globals.PLAN_TOPIC, PlanDB, queue_size=1)
-        self.plandb_sub = rospy.Subscriber(sam_globals.PLAN_TOPIC, PlanDB, callback=self.plandb_cb, queue_size=1)
+        self.plandb_pub = rospy.Publisher(plandb_topic, PlanDB, queue_size=1)
+        self.plandb_sub = rospy.Subscriber(plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
 
 
         # throttle this a little
@@ -249,11 +245,11 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
 
 
     def make_plandb_info(self):
-        current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         plan_info = PlanDBInformation()
         plan_info.plan_id = current_mission_plan.original_planddb_message.plan_id
         plan_info.md5 = current_mission_plan.original_planddb_message.plan_spec_md5
-        rospy.loginfo_throttle_identical(5, "Sent md5:"+plan_info.md5)
+        rospy.loginfo_throttle_identical(10, "Sent md5:"+plan_info.md5)
         plan_info.change_time = current_mission_plan.creation_time/1000.0
         return plan_info
 
@@ -266,25 +262,25 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
         typee = plandb_msg.type
         op = plandb_msg.op
 
-        if typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_INFO:
+        if typee == imc_enums.PLANDB_TYPE_REQUEST and op == imc_enums.PLANDB_OP_GET_INFO:
             # we need to respond to this with some info... but what?
             rospy.loginfo_throttle_identical(5, "Got REQUEST GET_INFO planDB msg from Neptus")
 
-            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
             if current_mission_plan is None:
                 return
 
             response = PlanDB()
             response.plan_id = current_mission_plan.original_planddb_message.plan_id
-            response.type = IMC_PLANDB_TYPE_SUCCESS
-            response.op = IMC_PLANDB_OP_GET_INFO
+            response.type = imc_enums.PLANDB_TYPE_SUCCESS
+            response.op = imc_enums.PLANDB_OP_GET_INFO
             response.plandb_information = self.make_plandb_info()
             self.plandb_pub.publish(response)
-            rospy.loginfo_throttle_identical(5, "Answered GET_INFO with:\n"+str(response))
+            rospy.loginfo_throttle_identical(5, "Answered GET_INFO for plan:\n"+str(response.plan_id))
 
-        elif typee == IMC_PLANDB_TYPE_REQUEST and op == IMC_PLANDB_OP_GET_STATE:
+        elif typee == imc_enums.PLANDB_TYPE_REQUEST and op == imc_enums.PLANDB_OP_GET_STATE:
             rospy.loginfo_throttle_identical(5, "Got REQUEST GET_STATE planDB msg from Neptus")
-            current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+            current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
             if current_mission_plan is None:
                 return
 
@@ -297,23 +293,23 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
             # seems alright, but after this message is sent, the plan goes red :/
             response = PlanDB()
             response.plan_id = current_mission_plan.original_planddb_message.plan_id
-            response.type = IMC_PLANDB_TYPE_SUCCESS
-            response.op = IMC_PLANDB_OP_GET_STATE
+            response.type = imc_enums.PLANDB_TYPE_SUCCESS
+            response.op = imc_enums.PLANDB_OP_GET_STATE
 
             response.plandb_state = PlanDBState()
             response.plandb_state.plan_count = 1
             response.plandb_state.plans_info.append(self.make_plandb_info())
 
             self.plandb_pub.publish(response)
-            rospy.loginfo_throttle_identical(5, "Answered GET_STATE with:\n"+str(response))
+            rospy.loginfo_throttle_identical(5, "Answered GET_STATE for plan:\n"+str(response.plan_id))
 
 
 
-        elif typee == IMC_PLANDB_TYPE_SUCCESS:
+        elif typee == imc_enums.PLANDB_TYPE_SUCCESS:
             rospy.loginfo_throttle_identical(1, "Received SUCCESS for op:"+str(op))
 
         else:
-            rospy.loginfo_throttle_identical(1, "Received some new planDB message:\n"+str(plandb_msg))
+            rospy.loginfo_throttle_identical(1, "Received some unhandled planDB message:\n"+str(plandb_msg))
 
 
 
@@ -326,7 +322,7 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
 
 
     def update(self):
-        current_mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
             return pt.Status.FAILURE
 
@@ -356,19 +352,23 @@ class A_AnswerNeptusPlanReceived(pt.behaviour.Behaviour):
 
 
 class A_SetMissionPlan(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, frame):
         """
         Reads the mission plan string from the black board
         and creates a new Mission object.
 
         returns SUCCESS if there was a plan in MISSION_PLAN_STR and we successfully set it
         returns FAILURE otherwise
+
+        frame is a tf frame name that we will interpret the plandb message in.
+        for SAM on may 19, this is world_utm or utm, found as 'UTM_LINK'
         """
         self.bb = pt.blackboard.Blackboard()
+        self.frame = frame
         super(A_SetMissionPlan, self).__init__('A_SetMissionPlan')
 
     def update(self):
-        plandb = self.bb.get(MISSION_PLAN_MSG_BB)
+        plandb = self.bb.get(bb_enums.MISSION_PLAN_MSG)
 
         # there was no plan to be set
         if plandb is None:
@@ -376,15 +376,15 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
         # ignore other plan actions for now
-        if plandb.op == IMC_PLANDB_OP_SET:
+        if plandb.op == imc_enums.PLANDB_OP_SET:
             # there is a plan we can at least look at
-            wps_types, frame = self.read_plandb(plandb)
+            wps_types, frame = self.read_plandb(plandb, self.frame)
 
             mission_plan = MissionPlan(actions=wps_types,
                                        frame = frame,
                                        original_planddb_message=plandb)
 
-            self.bb.set(MISSION_PLAN_OBJ_BB, mission_plan)
+            self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
             self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
 
             return pt.Status.SUCCESS
@@ -394,14 +394,13 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
 
     # TODO move into the  MIssion Plan object instead
     @staticmethod
-    def read_plandb(plandb):
+    def read_plandb(plandb, frame):
         """
         planddb message is a bunch of nested objects,
         we want a list of waypoints and types for now,
         the utm zone and band and the frame in which the mission is defined
         """
         wps_types = []
-        frame = sam_globals.UTM_LINK 
 
         request_id = plandb.request_id
         plan_id = plandb.plan_id
@@ -413,13 +412,13 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
             man_imc_id = plan_man.maneuver.maneuver_imc_id
             maneuver = plan_man.maneuver
             # probably every maneuver has lat lon z in them, but just in case...
-            if man_imc_id == IMC_MANEUVER_GOTO:
+            if man_imc_id == imc_enums.MANEUVER_GOTO:
                 lat = maneuver.lat
                 lon = maneuver.lon
                 depth = maneuver.z
                 # w/e f is...
                 f = fromLatLong(np.degrees(lat), np.degrees(lon)).toPoint()
-                f = (f.x, f.y, depth, IMC_MANEUVER_GOTO)
+                f = (f.x, f.y, depth, imc_enums.MANEUVER_GOTO)
                 wps_types.append(f)
             else:
                 print("UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
@@ -438,22 +437,22 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         super(A_SetNextPlanAction, self).__init__('A_SetNextPlanAction')
 
     def update(self):
-        mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         next_action = mission_plan.pop_wp()
         if next_action is None:
             self.feedback_message = "Next action was None"
             return pt.Status.FAILURE
 
         self.logger.info("Set CURRENT_PLAN_ACTION to:"+str(next_action))
-        self.bb.set(CURRENT_PLAN_ACTION, next_action)
+        self.bb.set(bb_enums.CURRENT_PLAN_ACTION, next_action)
 
-        self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_SetNextPlanAction')
+        self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_SetNextPlanAction')
         return pt.Status.RUNNING
 
 
 
 class A_ExecutePlanAction(ptr.actions.ActionClient):
-    def __init__(self):
+    def __init__(self, action_namespace):
         """
         Executes the currently set plan action in the blackboard
 
@@ -472,13 +471,13 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
             name="A_ExecutePlanAction",
             action_spec=MoveBaseAction,
             action_goal=None,
-            action_namespace = sam_globals.ACTION_NAMESPACE,
+            action_namespace = action_namespace,
             override_feedback_message_on_running="Moving to waypoint"
         )
 
 
     def initialise(self):
-        wp, frame = self.bb.get(CURRENT_PLAN_ACTION)
+        wp, frame = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
         # if this is the first ever action, we need to get it ourselves
         if wp is None:
             rospy.logwarn("No action found to execute! Was A_SetNextPlanAction called before this?")
@@ -519,7 +518,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
             self.sent_goal = True
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Goal sent"
-            self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
+            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
             return pt.Status.RUNNING
 
 
@@ -528,7 +527,7 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
             self.feedback_message = "Aborted goal"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
+            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.FAILURE
 
         result = self.action_client.get_result()
@@ -537,25 +536,30 @@ class A_ExecutePlanAction(ptr.actions.ActionClient):
         if result:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(CURRENTLY_RUNNING_ACTION, None)
+            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.SUCCESS
 
 
         # if we're still trying to accomplish the goal
-        self.bb.set(CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
+        self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        self.bb.set(LAST_PLAN_ACTION_FEEDBACK, msg)
+        self.bb.set(bb_enums.LAST_PLAN_ACTION_FEEDBACK, msg)
 
 
 class A_UpdateTF(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, utm_link, base_link):
         """
         reads the current translation and orientation from the TF tree
         and puts that into the BB
+
+        utm_link and base_link are tf link names where utm_link is essentially the world coordinates.
+        check the neptus-related actions too for more info on utm_link
         """
         self.bb = pt.blackboard.Blackboard()
+        self.utm_link = utm_link
+        self.base_link = base_link
 
         self.listener = tf.TransformListener()
 
@@ -563,7 +567,7 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            self.listener.waitForTransform(sam_globals.UTM_LINK, sam_globals.BASE_LINK, rospy.Time(), rospy.Duration(4.0))
+            self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(4.0))
             return True
         except:
             self.logger.error("Could not find TF!!")
@@ -572,33 +576,32 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def update(self):
         try:
-            now = rospy.Time(0)
-            (world_trans, world_rot) = self.listener.lookupTransform(sam_globals.UTM_LINK, 
-                                                                     sam_globals.BASE_LINK,
-                                                                     now)
+            (world_trans, world_rot) = self.listener.lookupTransform(self.utm_link,
+                                                                     self.base_link,
+                                                                     rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException):
-            self.logger.warning("Could not get transform between utm_frame and "+ sam_globals.BASE_LINK)
+            self.logger.warning("Could not get transform between "+ self.utm_link +" and "+ self.base_link)
             return pt.Status.FAILURE
         except:
             self.logger.warning("Could not do tf lookup for some other reason")
             return pt.Status.FAILURE
 
-        self.bb.set(WORLD_TRANS_BB, world_trans)
-        self.bb.set(WORLD_ROT_BB, world_rot)
+        self.bb.set(bb_enums.WORLD_TRANS, world_trans)
+        self.bb.set(bb_enums.WORLD_ROT, world_rot)
 
         return pt.Status.SUCCESS
 
 
 class A_PublishToNeptus(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, estimated_state_topic, plan_control_state_topic, vehicle_state_topic):
         """
         Publish some feedback to Neptus.
         Always returns SUCCESS
         """
         self.bb = pt.blackboard.Blackboard()
-        self.estimated_state_pub = rospy.Publisher(sam_globals.ESTIMATED_STATE_TOPIC, EstimatedState, queue_size=1)
-        self.plan_control_state_pub = rospy.Publisher(sam_globals.PLAN_CONTROL_STATE_TOPIC, PlanControlState, queue_size=1)
-        self.vehicle_state_pub = rospy.Publisher(sam_globals.VEHICLE_STATE_TOPIC, VehicleState, queue_size=1)
+        self.estimated_state_pub = rospy.Publisher(estimated_state_topic, EstimatedState, queue_size=1)
+        self.plan_control_state_pub = rospy.Publisher(plan_control_state_topic, PlanControlState, queue_size=1)
+        self.vehicle_state_pub = rospy.Publisher(vehicle_state_topic, VehicleState, queue_size=1)
 
         super(A_PublishToNeptus, self).__init__("A_PublishToNeptus")
 
@@ -609,26 +612,27 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
         vs = VehicleState()
 
-        currently_running = self.bb.get(CURRENTLY_RUNNING_ACTION)
+        currently_running = self.bb.get(bb_enums.CURRENTLY_RUNNING_ACTION)
+        # good old hardcoded decisions. At least this message is mostly cosmetic :shrug:
         if currently_running == 'A_ExecutePlanAction':
-            vs.op_mode = IMC_OP_MODE_MANEUVER
+            vs.op_mode = imc_enums.OP_MODE_MANEUVER
         elif currently_running == 'A_EmergencySurface':
-            vs.op_mode = IMC_OP_MODE_ERROR
+            vs.op_mode = imc_enums.OP_MODE_ERROR
         else:
-            vs.op_mode = IMC_OP_MODE_SERVICE
+            vs.op_mode = imc_enums.OP_MODE_SERVICE
 
         self.vehicle_state_pub.publish(vs)
 
 
 
     def update_estimated_state(self):
-        world_rot = self.bb.get(WORLD_ROT_BB)
-        world_trans = self.bb.get(WORLD_TRANS_BB)
-        depth = self.bb.get(DEPTH_BB)
+        world_rot = self.bb.get(bb_enums.WORLD_ROT)
+        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
+        depth = self.bb.get(bb_enums.DEPTH)
 
         # get the utm zone of our current lat,lon
-        utmz = self.bb.get(UTM_ZONE_BB)
-        band = self.bb.get(UTM_BAND_BB)
+        utmz = self.bb.get(bb_enums.UTM_ZONE)
+        band = self.bb.get(bb_enums.UTM_BAND)
 
         if utmz is None or band is None:
             reason = "Utmz or band was None!!"
@@ -651,7 +655,6 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
         # XXX here be dragons
         # get positional feedback of the p2p goal
-        #  orientation = Quaternion(*world_rot)
         easting, northing = world_trans[0], world_trans[1]
         # make utm point
         pnt = UTMPoint(easting=easting, northing=northing, altitude=0, zone=utmz, band=band)
@@ -659,11 +662,6 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         pnt = pnt.toMsg()
 
         # construct message for neptus
-        #  mmsg = Pose()
-        #  mmsg.position.x = np.radians(pnt.longitude)
-        #  mmsg.position.y = np.radians(pnt.latitude)
-        #  mmsg.position.z = depth
-        #  mmsg.orientation = orientation
         e_state = EstimatedState()
         e_state.lat = np.radians(pnt.latitude)
         e_state.lon= np.radians(pnt.longitude)
@@ -678,7 +676,7 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
         # construct current progress message for neptus
         msg = PlanControlState()
 
-        mission_plan = self.bb.get(MISSION_PLAN_OBJ_BB)
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None or mission_plan.completed:
             msg.plan_id = 'No plan'
             msg.man_id = 'Idle'
@@ -692,19 +690,19 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
             msg.man_id = 'Goto'+str(current_wp_index+1)
             msg.plan_progress = plan_progress
 
-        if self.bb.get(IMC_STATE_BB):
-            msg.state = self.bb.get(IMC_STATE_BB)
+        if self.bb.get(bb_enums.IMC_STATE):
+            msg.state = self.bb.get(bb_enums.IMC_STATE)
         else:
-            currently_running = self.bb.get(CURRENTLY_RUNNING_ACTION)
+            currently_running = self.bb.get(bb_enums.CURRENTLY_RUNNING_ACTION)
             if currently_running == 'A_ExecutePlanAction':
-                msg.state = IMC_STATE_EXECUTING
+                msg.state = imc_enums.STATE_EXECUTING
             elif currently_running == 'A_EmergencySurface':
-                msg.state = IMC_STATE_BLOCKED
+                msg.state = imc_enums.STATE_BLOCKED
                 msg.plan_id = 'SAFETY FALLBACK'
                 msg.man_id = 'EMERGENCY SURFACE'
                 msg.plan_progress = 0.0
             else:
-                msg.state = IMC_STATE_READY
+                msg.state = imc_enums.STATE_READY
 
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
@@ -720,30 +718,3 @@ class A_PublishToNeptus(pt.behaviour.Behaviour):
 
         return pt.Status.SUCCESS
 
-
-
-##########################################################################################
-# NOT IMPLEMENTED YET
-##########################################################################################
-
-class A_SetManualWaypoint(pt.behaviour.Behaviour):
-    def __init__(self):
-        #TODO implement to allow for manual single waypoints to be
-        # processed by the tree, without sending a whole new plan
-
-        self.bb = pt.blackboard.Blackboard()
-        super(A_SetManualWaypoint, self).__init__("A_SetManualWaypoint")
-
-    def update(self):
-        return pt.Status.FAILURE
-
-class A_GotoManualWaypoint(pt.behaviour.Behaviour):
-    def __init__(self):
-        #TODO implement to allow for manual single waypoints to be
-        # processed by the tree, without sending a whole new plan
-
-        self.bb = pt.blackboard.Blackboard()
-        super(A_GotoManualWaypoint, self).__init__("A_GotoManualWaypoint")
-
-    def update(self):
-        return pt.Status.FAILURE

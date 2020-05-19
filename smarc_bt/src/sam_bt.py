@@ -3,11 +3,12 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-import py_trees as pt, py_trees_ros as ptr
+import py_trees as pt
+import py_trees_ros as ptr
+
 # just convenience really
 from py_trees.composites import Selector as Fallback
-from sensor_msgs.msg import NavSatFix
-from std_msgs.msg import Float64, Empty, String
+from std_msgs.msg import Float64
 
 from sam_msgs.msg import Leak
 from imc_ros_bridge.msg import PlanDB, PlanControl
@@ -17,8 +18,6 @@ import rospy
 from bt_actions import A_SetMissionPlan, \
                        A_PublishToNeptus, \
                        A_ExecutePlanAction, \
-                       A_SetManualWaypoint, \
-                       A_GotoManualWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
@@ -27,8 +26,6 @@ from bt_actions import A_SetMissionPlan, \
 
 
 from bt_conditions import C_PlanCompleted, \
-                          C_HaveManualWaypoint, \
-                          C_ManualWaypointReceived, \
                           C_NewMissionPlanReceived, \
                           C_NoAbortReceived, \
                           C_DepthOK, \
@@ -40,63 +37,68 @@ from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
                       ReadTopic
 
-import sam_globals
-from sam_globals import *
+import bb_enums
+import imc_enums
 
-def const_tree():
+import common_globals
+
+def const_tree(auv_config):
     """
     construct the entire tree.
     the structure of the code reflects the structure of the tree itself.
     sub-trees are constructed in inner functions.
+    auv_config is in scope of all these inner functions.
+
+    auv_config is a simple data object with a bunch of UPPERCASE fields in it.
     """
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
             name = "A_ReadAbort",
-            topic_name = sam_globals.ABORT_TOPIC,
-            variable_name = ABORT_BB
+            topic_name = auv_config.ABORT_TOPIC,
+            variable_name = bb_enums.ABORT
         )
 
         read_depth = ReadTopic(
             name = "A_ReadDepth",
-            topic_name = DEPTH_TOPIC,
+            topic_name = auv_config.DEPTH_TOPIC,
             topic_type = Float64,
-            blackboard_variables = {DEPTH_BB:'data'} # this takes the Float64.data field and puts into the bb
+            blackboard_variables = {bb_enums.DEPTH:'data'} # this takes the Float64.data field and puts into the bb
         )
 
         read_alt = ReadTopic(
             name = "A_ReadAlt",
-            topic_name = ALTITUDE_TOPIC,
+            topic_name = auv_config.ALTITUDE_TOPIC,
             topic_type = Float64,
-            blackboard_variables = {ALTITUDE_BB:'data'} # this takes the Float64.data field and puts into the bb
+            blackboard_variables = {bb_enums.ALTITUDE:'data'} # this takes the Float64.data field and puts into the bb
         )
 
         read_leak = ReadTopic(
             name = "A_ReadLeak",
-            topic_name = LEAK_TOPIC,
+            topic_name = auv_config.LEAK_TOPIC,
             topic_type = Leak,
-            blackboard_variables = {LEAK_BB:'value'}
+            blackboard_variables = {bb_enums.LEAK:'value'}
         )
 
 
-        update_tf = A_UpdateTF()
+        update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
 
         read_mission_plan = ReadTopic(
             name = "A_ReadMissionPlan",
-            topic_name = sam_globals.PLAN_TOPIC,
+            topic_name = auv_config.PLANDB_TOPIC,
             topic_type = PlanDB,
             # passing None reads the entire message
-            blackboard_variables = {MISSION_PLAN_MSG_BB:None}
+            blackboard_variables = {bb_enums.MISSION_PLAN_MSG:None}
         )
 
         read_plan_control = ReadTopic(
             name = "A_ReadPlanControl",
-            topic_name= sam_globals.PLAN_CONTROL_TOPIC,
+            topic_name= auv_config.PLAN_CONTROL_TOPIC,
             topic_type = PlanControl,
-            blackboard_variables = {PLAN_CONTROL_MSG_BB:None}
+            blackboard_variables = {bb_enums.PLAN_CONTROL_MSG:None}
         )
 
-        set_utm_from_gps = A_SetUTMFromGPS()
+        set_utm_from_gps = A_SetUTMFromGPS(auv_config.GPS_FIX_TOPIC)
 
         return Sequence(name="SQ-DataIngestion",
                         children=[
@@ -113,7 +115,10 @@ def const_tree():
 
 
     def const_feedback_tree():
-        neptus_feedback = A_PublishToNeptus()
+        #TODO separate these 3 into their own actions, this action is just too big
+        neptus_feedback = A_PublishToNeptus(auv_config.ESTIMATED_STATE_TOPIC,
+                                           auv_config.PLAN_CONTROL_STATE_TOPIC,
+                                           auv_config.VEHICLE_STATE_TOPIC)
         # more feedback options will go here
 
         return Sequence(name="SQ-Feedback",
@@ -125,8 +130,8 @@ def const_tree():
 
     def const_safety_tree():
         no_abort = C_NoAbortReceived()
-        altOK = C_AltOK()
-        depthOK = C_DepthOK()
+        altOK = C_AltOK(auv_config.MIN_ALTITUDE)
+        depthOK = C_DepthOK(auv_config.MAX_DEPTH)
         leakOK = C_LeakOK()
         # more safety checks will go here
 
@@ -138,7 +143,7 @@ def const_tree():
                                   leakOK
                         ])
 
-        surface = A_EmergencySurface()
+        surface = A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
 
         # if anything about safety is 'bad', we abort everything
         fallback_to_abort = Fallback(name='FB_SafetyOK',
@@ -151,29 +156,10 @@ def const_tree():
 
 
     def const_synch_tree():
-        def const_check_manual_commands():
-            def const_check_manual_waypoint():
-                check_received = C_ManualWaypointReceived()
-                set_manual_wp = A_SetManualWaypoint()
-                return Sequence(name="SQ-CheckManualWaypoint",
-                                children=[
-                                          check_received,
-                                          set_manual_wp
-                                         ])
-
-            manual_wps = const_check_manual_waypoint()
-            # More manual commands that are not waypoints
-            # will go here
-
-            return Sequence(name="SQ-CheckManualCommands",
-                            children=[
-                                      manual_wps
-                            ])
-
         def const_mission_plan_update():
             got_new_plan = C_NewMissionPlanReceived()
 
-            set_new_plan = A_SetMissionPlan()
+            set_new_plan = A_SetMissionPlan(auv_config.UTM_LINK)
             set_next_plan_action = A_SetNextPlanAction()
             set_new_plan_and_action = Sequence(name="SQ-SetNewPlanAndAction",
                                                children=[
@@ -189,8 +175,8 @@ def const_tree():
 
         def const_mission_synch_gate():
             have_mission = pt.blackboard.CheckBlackboardVariable(name="C_HaveMission",
-                                                                 variable_name=MISSION_PLAN_OBJ_BB)
-            answer_neptus = A_AnswerNeptusPlanReceived()
+                                                                 variable_name=bb_enums.MISSION_PLAN_OBJ)
+            answer_neptus = A_AnswerNeptusPlanReceived(auv_config.PLANDB_TOPIC)
 
             return Sequence(name="SQ-MissionSynchronized",
                             children=[
@@ -198,7 +184,6 @@ def const_tree():
                                       answer_neptus
                             ])
 
-        #  manual_commands = const_check_manual_commands()
         mission_plan = const_mission_plan_update()
         # more synchronization actions can go here
 
@@ -207,36 +192,17 @@ def const_tree():
 
         return Fallback(name="FB-SynchroniseMission",
                         children=[
-                                  #  manual_commands,
                                   mission_plan,
                                   synched
                         ])
 
 
     def const_execute_mission_tree():
-        def const_execute_manual_commands():
-            def const_gotomanualwp():
-                have_wp = C_HaveManualWaypoint()
-                goto_manual_wp = A_GotoManualWaypoint()
-                return Sequence(name="SQ-GotoManualWaypoint",
-                                children=[
-                                          have_wp,
-                                          goto_manual_wp
-                                ])
-            # def const_enable/disable tihngs etc commands
-            goto_manual = const_gotomanualwp()
-            # add more manual commands here
-
-            return Fallback(name="FB-ExecuteManualCommands",
-                            children=[
-                                      goto_manual
-                            ])
-
         def const_execute_mission_plan():
             plan_complete = C_PlanCompleted()
             # but still wait for operator to tell us to 'go'
             start_received = C_StartPlanReceived()
-            execute_plan_action = A_ExecutePlanAction()
+            execute_plan_action = A_ExecutePlanAction(auv_config.ACTION_NAMESPACE)
             set_next_plan_action = A_SetNextPlanAction()
 
             follow_plan = Sequence(name="SQ-FollowMissionPlan",
@@ -253,13 +219,11 @@ def const_tree():
                             ])
 
 
-        manual_commands = const_execute_manual_commands()
         mission_plan = const_execute_mission_plan()
         # add more mission actions here
 
         return Fallback(name="FB-ExecuteMission",
                         children=[
-                                  #  manual_commands,
                                   mission_plan
                         ])
 
@@ -294,54 +258,65 @@ def const_tree():
 
 
 
-def main():
+def main(config):
 
-    utm_zone = rospy.get_param("~utm_zone", DEFAULT_UTM_ZONE)
-    utm_band = rospy.get_param("~utm_band", DEFAULT_UTM_BAND)
+    utm_zone = rospy.get_param("~utm_zone", common_globals.DEFAULT_UTM_ZONE)
+    utm_band = rospy.get_param("~utm_band", common_globals.DEFAULT_UTM_BAND)
 
     bb = pt.blackboard.Blackboard()
-    bb.set(UTM_ZONE_BB, utm_zone)
-    bb.set(UTM_BAND_BB, utm_band)
+    bb.set(bb_enums.UTM_ZONE, utm_zone)
+    bb.set(bb_enums.UTM_BAND, utm_band)
 
 
 
     try:
         rospy.loginfo("Constructing tree")
-        tree = const_tree()
+        tree = const_tree(config)
         rospy.loginfo("Setting up tree")
         tree.setup(timeout=10)
         rospy.loginfo("Ticktocking....")
         while not rospy.is_shutdown():
             # rate is period in ms
             #  tree.tick_tock(1, post_tick_handler=lambda t: pt.display.print_ascii_tree(tree.root, show_status=True))
-            tree.tick_tock(BT_TICKING_PERIOD)
+            tree.tick_tock(common_globals.BT_TICKING_PERIOD)
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")
 
 
-def test():
-    tree = const_tree()
-    pt.display.ascii_tree(tree.root)
 
 
 if __name__ == '__main__':
     # init the node
-    rospy.init_node("sam_bt")
+    rospy.init_node("bt")
+    robot_name = rospy.get_param("~robot_name", "sam")
 
-    sam_globals.BASE_LINK = rospy.get_param("~base_frame", sam_globals.BASE_LINK)
-    sam_globals.UTM_LINK = rospy.get_param("~utm_frame", sam_globals.UTM_LINK)
+    if robot_name[:3] == "sam":
+        from auv_config import SAMConfig
+        config = SAMConfig()
+    elif robot_name[:4] == "lolo":
+        from auv_config import LOLOConfig
+        config = LOLOConfig()
+    else:
+        rospy.logerr("ROBOT NAME NOT UNDERSTOOD, CONFIG NOT LOADED, EXITING:"+str(robot_name))
+        import sys
+        sys.exit(1)
 
-    sam_globals.PLAN_TOPIC = rospy.get_param("~plan_topic", sam_globals.PLAN_TOPIC)
-    sam_globals.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", sam_globals.PLAN_TOPIC)
-    sam_globals.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", sam_globals.ESTIMATED_STATE_TOPIC)
-    sam_globals.PLAN_CONTROL_STATE_TOPIC = rospy.get_param("~plan_control_state_topic", sam_globals.PLAN_CONTROL_STATE_TOPIC)
-    sam_globals.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", sam_globals.VEHICLE_STATE_TOPIC)
-    sam_globals.ABORT_TOPIC = rospy.get_param("~abort_topic", sam_globals.ABORT_TOPIC)
 
-    sam_globals.ACTION_NAMESPACE = rospy.get_param("~action_namespace", sam_globals.ACTION_NAMESPACE)
-    sam_globals.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", sam_globals.EMERGENCY_ACTION_NAMESPACE)
+    config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
+    config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
 
-    main()
-    #  test()
+    config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)
+    config.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", config.PLAN_CONTROL_TOPIC)
+    config.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", config.ESTIMATED_STATE_TOPIC)
+    config.PLAN_CONTROL_STATE_TOPIC = rospy.get_param("~plan_control_state_topic", config.PLAN_CONTROL_STATE_TOPIC)
+    config.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", config.VEHICLE_STATE_TOPIC)
+    config.ABORT_TOPIC = rospy.get_param("~abort_topic", config.ABORT_TOPIC)
+
+    config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)
+    config.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", config.EMERGENCY_ACTION_NAMESPACE)
+
+    print(config)
+
+    main(config)
 
