@@ -21,7 +21,7 @@
     <arg name="emergency_action_namespace" default="ctrl/emergency_surface_action"/>
 
 
-	<node name="sam_bt" pkg="waypoints" type="sam_bt.py" output="screen" ns="$(arg robot_name)">
+	<node name="sam_bt" pkg="smarc_bt" type="sam_bt.py" output="screen" ns="$(arg robot_name)">
 		<param name="base_frame" value="$(arg base_frame)" />
 
 		<param name="utm_zone" value="$(arg utm_zone)" />
