@@ -35,7 +35,8 @@ from bt_conditions import C_PlanCompleted, \
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
-                      ReadTopic
+                      ReadTopic, \
+                      A_ClearCBFs
 
 import bb_enums
 import imc_enums
@@ -238,6 +239,12 @@ def const_tree(auv_config):
                         ])
 
 
+    #TODO consider using the safety check of CBFCondition to reset the
+    # list too. If a condition finds itself in the list, it HAS to be a new tick.
+    # So it can reset the list then and there instead of using a separate
+    # action here like this
+    cbf_clear = A_ClearCBFs()
+
     data_ingestion_tree = const_data_ingestion_tree()
     feedback_tree = const_feedback_tree()
     safety_tree = const_safety_tree()
@@ -247,6 +254,7 @@ def const_tree(auv_config):
 
     root = Sequence(name='SQ-ROOT',
                     children=[
+                              cbf_clear,
                               data_ingestion_tree,
                               feedback_tree,
                               safety_tree,

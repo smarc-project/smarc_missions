@@ -2,9 +2,6 @@
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
-# Mostly a re-write of Christopher's behaviours with more
-# descriptive names and atomicaztion of everything
-# and some new stuff as time goes on
 
 import py_trees as pt
 import py_trees_ros as ptr
@@ -372,7 +369,7 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
 
         # there was no plan to be set
         if plandb is None:
-            self.logger.info("No plan")
+            rospy.loginfo_throttle_identical(5, "No plan")
             return pt.Status.FAILURE
 
         # ignore other plan actions for now
@@ -385,11 +382,11 @@ class A_SetMissionPlan(pt.behaviour.Behaviour):
                                        original_planddb_message=plandb)
 
             self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
-            self.logger.info("Set the mission plan to:"+str(mission_plan.waypoints))
+            rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
 
             return pt.Status.SUCCESS
         else:
-            self.logger.info("The accepted mission plandb message was not a SET!")
+            rospy.logwarn_throttle_identical(5, "The accepted mission plandb message was not a SET!")
             return pt.Status.FAILURE
 
     # TODO move into the  MIssion Plan object instead
@@ -443,7 +440,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
             self.feedback_message = "Next action was None"
             return pt.Status.FAILURE
 
-        self.logger.info("Set CURRENT_PLAN_ACTION to:"+str(next_action))
+        rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION to:"+str(next_action))
         self.bb.set(bb_enums.CURRENT_PLAN_ACTION, next_action)
 
         self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_SetNextPlanAction')
@@ -570,7 +567,7 @@ class A_UpdateTF(pt.behaviour.Behaviour):
             self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(4.0))
             return True
         except:
-            self.logger.error("Could not find TF!!")
+            rospy.logerr_throttle(5, "Could not find TF!!")
             return False
 
 
@@ -580,10 +577,10 @@ class A_UpdateTF(pt.behaviour.Behaviour):
                                                                      self.base_link,
                                                                      rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException):
-            self.logger.warning("Could not get transform between "+ self.utm_link +" and "+ self.base_link)
+            rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.utm_link +" and "+ self.base_link)
             return pt.Status.FAILURE
         except:
-            self.logger.warning("Could not do tf lookup for some other reason")
+            rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
             return pt.Status.FAILURE
 
         self.bb.set(bb_enums.WORLD_TRANS, world_trans)

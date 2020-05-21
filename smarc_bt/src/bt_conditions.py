@@ -9,6 +9,8 @@ import py_trees as pt
 import bb_enums
 import imc_enums
 
+from bt_common import CBFCondition
+
 
 class C_NoAbortReceived(pt.behaviour.Behaviour):
     """
@@ -31,10 +33,15 @@ class C_DepthOK(pt.behaviour.Behaviour):
     def __init__(self, max_depth):
         self.bb = pt.blackboard.Blackboard()
         self.max_depth = max_depth
+        self.cbf_condition = CBFCondition(checked_field_topic=None,
+                                          checked_field_name='depth',
+                                          limit_type='less_than',
+                                          limit_value=self.max_depth)
         super(C_DepthOK, self).__init__(name="C_DepthOK")
 
     def update(self):
         if self.bb.get(bb_enums.DEPTH) < self.max_depth:
+            self.cbf_condition.cbf_update()
             return pt.Status.SUCCESS
         else:
             return pt.Status.FAILURE
@@ -57,6 +64,10 @@ class C_AltOK(pt.behaviour.Behaviour):
     def __init__(self, min_alt):
         self.bb = pt.blackboard.Blackboard()
         self.min_alt = min_alt
+        self.cbf_condition = CBFCondition(checked_field_topic=None,
+                                          checked_field_name='altitude',
+                                          limit_type='greater_than',
+                                          limit_value=self.min_alt)
         super(C_AltOK, self).__init__(name="C_AltOK")
 
     def update(self):
@@ -64,6 +75,7 @@ class C_AltOK(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
         if self.bb.get(bb_enums.ALTITUDE) > self.min_alt:
+            self.cbf_condition.cbf_update()
             return pt.Status.SUCCESS
         else:
             return pt.Status.FAILURE
@@ -165,7 +177,7 @@ class C_NewMissionPlanReceived(pt.behaviour.Behaviour):
 
         # all is well, let the tree read it.
         self.last_known_plan_msg = current_plan_msg
-        self.logger.info("New mission plan received:"+str(current_plan_msg))
+        rospy.loginfo_throttle_identical(5, "New mission plan received:"+str(current_plan_msg))
         return pt.Status.SUCCESS
 
 

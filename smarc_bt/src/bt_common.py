@@ -11,9 +11,85 @@ import rospy
 
 import copy # used in ReadTopic
 
+from smarc_bt.msg import CBFList, CBFItem
+import common_globals
+
 ###############################################################
 # GENERIC TREE NODES AND SUCH
 ###############################################################
+
+class A_ClearCBFs(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_ClearCBFs, self).__init__("A_ClearCBFs")
+        self.cbf_condition = CBFCondition()
+
+    def update(self):
+        self.cbf_condition.cbf_update(reset=True)
+
+class CBFCondition(object):
+    """
+    An object for creating conditions that are also control barrier
+    functions. This allows us to send a set of CBFs to actions to use.
+    Instanciate this object in your normal ros-y condition nodes.
+    Use the A_ClearCBFs action above at the beginning of your tree if you use any of these.
+    Otherwise your actions might run the SAME cbfs with conflicting limits and just explode.
+
+    And then in the update() method of C_XY, if the update() is about to return success,
+    call the cbf_update method too.
+
+    The system works like this:
+        At the beginning of the tree, a simple action calls cbf_update(reset=True).
+            This publishes an empty cbf_list message.
+        Afterwards, every condition that inherits this object, when they succeed,
+        calls cbf_update().
+            This reads reads the current cbf_bt/active_limits topics, appends
+            its own cbf_item to the list and publishes the new, longer cbf_list.
+        At any point, an action that reads the cbf_list object gets an ordered list
+        of all succeeded conditions that ran before it.
+    """
+    def __init__(self, limit_type, limit_value, checked_field_topic='', checked_field_name=''):
+
+        # the ros message can not have Nones in it.
+        if checked_field_name is None:
+            checked_field_name = ''
+        if checked_field_topic is None:
+            checked_field_topic = ''
+        # this item does not change, so we can cache it
+        self.cbf_item = CBFItem()
+        self.cbf_item.checked_field_topic = checked_field_topic
+        self.cbf_item.checked_field_name = checked_field_name
+        self.cbf_item.limit_type = limit_type
+        self.cbf_item.limit_value = limit_value
+
+        self._latest_list = None
+
+        self.cbf_pub = rospy.Publisher(common_globals.CBF_BT_TOPIC, CBFList, queue_size=1)
+        self.cbf_sub = rospy.Subscriber(common_globals.CBF_BT_TOPIC, CBFList, callback=self.cbf_list_cb)
+
+    def cbf_list_cb(self, cbf_list):
+        self._latest_list = cbf_list
+        # check if we find ourselves in this list,
+        # if we do, that means this condition was called twice but
+        # the active cbfs lists was never reset!
+        if common_globals.CHECK_CBF_LIST:
+            for cbf_item in self._latest_list.cbf_items:
+                if cbf_item.checked_field_topic == self.cbf_item.checked_field_topic and\
+                   cbf_item.checked_field_name == self.cbf_item.checked_field_name:
+                    rospy.logerr_throttle_identical(5, 'YOU ARE NOT RESETTING THE CBF LIST, YOU SHOULD. ADD A_ClearCBFs ACTION AT THE BEGINNING OF YOUR TREE!')
+
+    def cbf_update(self, reset=None):
+
+        # create a new empty list
+        if any((self._latest_list is None, reset is None, reset==True)):
+            cbf_list = CBFList()
+        else:
+            cbf_list = self._latest_list
+
+        # either a new list or a filled list, just add ourselves to it and publish it
+        cbf_list.cbf_items.append(self.cbf_item)
+        self.cbf_pub.publish(cbf_list)
+
+
 
 class ReadTopic(pt.behaviour.Behaviour):
     """
