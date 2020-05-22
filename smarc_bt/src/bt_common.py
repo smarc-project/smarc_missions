@@ -18,14 +18,6 @@ import common_globals
 # GENERIC TREE NODES AND SUCH
 ###############################################################
 
-class A_ClearCBFs(pt.behaviour.Behaviour):
-    def __init__(self):
-        super(A_ClearCBFs, self).__init__("A_ClearCBFs")
-        self.cbf_condition = CBFCondition()
-
-    def update(self):
-        self.cbf_condition.cbf_update(reset=True)
-
 class CBFCondition(object):
     """
     An object for creating conditions that are also control barrier
@@ -47,7 +39,9 @@ class CBFCondition(object):
         At any point, an action that reads the cbf_list object gets an ordered list
         of all succeeded conditions that ran before it.
     """
-    def __init__(self, limit_type, limit_value, checked_field_topic='', checked_field_name=''):
+    def __init__(self, update_func, limit_type, limit_value, checked_field_topic='', checked_field_name=''):
+
+        self.update_func = update_func
 
         # the ros message can not have Nones in it.
         if checked_field_name is None:
@@ -62,32 +56,42 @@ class CBFCondition(object):
         self.cbf_item.limit_value = limit_value
 
         self._latest_list = None
+        self._this_is_first_cond_in_tree = False
 
         self.cbf_pub = rospy.Publisher(common_globals.CBF_BT_TOPIC, CBFList, queue_size=1)
         self.cbf_sub = rospy.Subscriber(common_globals.CBF_BT_TOPIC, CBFList, callback=self.cbf_list_cb)
 
     def cbf_list_cb(self, cbf_list):
         self._latest_list = cbf_list
-        # check if we find ourselves in this list,
-        # if we do, that means this condition was called twice but
-        # the active cbfs lists was never reset!
-        if common_globals.CHECK_CBF_LIST:
-            for cbf_item in self._latest_list.cbf_items:
-                if cbf_item.checked_field_topic == self.cbf_item.checked_field_topic and\
-                   cbf_item.checked_field_name == self.cbf_item.checked_field_name:
-                    rospy.logerr_throttle_identical(5, 'YOU ARE NOT RESETTING THE CBF LIST, YOU SHOULD. ADD A_ClearCBFs ACTION AT THE BEGINNING OF YOUR TREE!')
 
-    def cbf_update(self, reset=None):
+
+    def update(self):
+        return_status = self.update_func()
+
+        if self._latest_list is None:
+            # the callback was never called, if it was, this would not be None
+            # it would have been at worst an empty message object.
+            # this means this condition is the first ever condition
+            # in the tree to be caled.
+            self._this_is_first_cond_in_tree = True
 
         # create a new empty list
-        if any((self._latest_list is None, reset is None, reset==True)):
+        # for sure if we are the first condition
+        if self._this_is_first_cond_in_tree:
             cbf_list = CBFList()
         else:
             cbf_list = self._latest_list
 
-        # either a new list or a filled list, just add ourselves to it and publish it
-        cbf_list.cbf_items.append(self.cbf_item)
+        # if the child condition udpate method is successful, add this cbf to the list
+        if return_status == pt.Status.SUCCESS:
+            cbf_list.cbf_items.append(self.cbf_item)
+        # otherwise leave it as is
+        # this happens when the first condition of the list fails
+        # either way, publish this filled or empty list
         self.cbf_pub.publish(cbf_list)
+
+        # and return the original update's return
+        return return_status
 
 
 
