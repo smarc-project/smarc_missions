@@ -41,8 +41,8 @@ class YawPlanner(object):
         self.nav_goal = goal.target_pose.pose
         self.nav_goal_frame = goal.target_pose.header.frame_id
         if self.nav_goal_frame is None or self.nav_goal_frame == '':
-            rospy.logwarn("Goal has no frame id! Using /world_utm by default")
-            self.nav_goal_frame = '/world_utm'
+            rospy.logwarn("Goal has no frame id! Using utm by default")
+            self.nav_goal_frame = '/utm'
         
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
@@ -164,6 +164,7 @@ class YawPlanner(object):
         #self.heading_offset = rospy.get_param('~heading_offsets', 5.)
         self.goal_tolerance = rospy.get_param('~goal_tolerance', 5.)
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
+        self.utm_frame = rospy.get_param('~utm_frame', "utm")
 
         rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
         heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')

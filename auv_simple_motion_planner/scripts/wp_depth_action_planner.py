@@ -297,7 +297,7 @@ class WPDepthPlanner(object):
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
 	self.yaw_feedback=0
-	rospy.Subscriber('/sam1/ctrl/yaw_feedback',Float64, self.yaw_feedback_cb)
+	rospy.Subscriber('/sam/ctrl/yaw_feedback',Float64, self.yaw_feedback_cb)
 
         self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
