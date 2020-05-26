@@ -51,6 +51,7 @@ class AUVConfig(object):
 class SAMConfig(AUVConfig):
     def __init__(self):
         super(SAMConfig, self).__init__('sam')
+        self.MAX_DEPTH = 20
 
 
 class LOLOConfig(AUVConfig):
