@@ -37,14 +37,22 @@ class WPDepthPlanner(object):
     def yaw_feedback_cb(self,yaw_feedback):
         self.yaw_feedback= yaw_feedback.data
 
-    def turbo_turn(self,angle):
+    def angle_wrap(self,angle):
+        if(abs(angle)>3.141516):
+            angle= angle - (abs(angle)/angle)*2*3.141516; #Angle wrapping between -pi and pi	   
+            rospy.loginfo("Angle Error Wrapped")
+        return angle	
+
+    def turbo_turn(self,angle_error):
         rpm = self.turbo_turn_rpm
         rudder_angle = self.rudder_angle
         flip_rate = self.flip_rate
 
         left_turn = True
-        if angle < 0:
+	#left turn increases value of yaw angle towards pi, right turn decreases it towards -pi.
+        if angle_error < 0:
             left_turn = False
+            rospy.loginfo('Right turn!')
 
         rospy.loginfo('Turbo Turning!')
         if left_turn:
@@ -146,10 +154,10 @@ class WPDepthPlanner(object):
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
                 yaw_setpoint = math.atan2(ydiff,xdiff)
 		#print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
+
 		#compute yaw_error (e.g. for turbo_turn)
         	yaw_error= -(self.yaw_feedback - yaw_setpoint)
-        	if(abs(yaw_error)>3.141516):
-                    yaw_error= yaw_error - (abs(yaw_error)/yaw_error)*2*3.141516; #Angle wrapping between -pi and pi
+		yaw_error= self.angle_wrap(yaw_error) #wrap angle error between -pi and pi
 
                 depth_setpoint = self.nav_goal.position.z
 
@@ -173,8 +181,9 @@ class WPDepthPlanner(object):
 		if self.turbo_turn_flag:
  		    #if turbo turn is included	        
 		    rospy.loginfo("Yaw error: %f", yaw_error)
-                    if abs(yaw_error) > self.turbo_angle_min:
-                        #turbo turn with large deviations
+		
+                    if abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max: 
+                        #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
                         self.yaw_pid_enable.publish(False)
                         self.turbo_turn(yaw_error)
 			self.depth_pid_enable.publish(False)
@@ -285,7 +294,8 @@ class WPDepthPlanner(object):
 	thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
 	yaw_feedback_topic = rospy.get_param('~yaw_feedback_topic', '/sam/ctrl/yaw_feedback')
         self.turbo_angle_min_deg = rospy.get_param('~turbo_angle_min', 90)
-        self.turbo_angle_min= np.radians(self.turbo_angle_min_deg)
+        self.turbo_angle_min = np.radians(self.turbo_angle_min_deg)
+	self.turbo_angle_max = 3.0
         self.flip_rate = rospy.get_param('~flip_rate', 0.5)
         self.rudder_angle = rospy.get_param('~rudder_angle', 0.08)
         self.turbo_turn_rpm = rospy.get_param('~turbo_turn_rpm', 1000)
@@ -307,7 +317,7 @@ class WPDepthPlanner(object):
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
 	self.yaw_feedback=0
-	rospy.Subscriber('ctrl/yaw_feedback',Float64, self.yaw_feedback_cb)
+	rospy.Subscriber(yaw_feedback_topic, Float64, self.yaw_feedback_cb)
 
         self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
