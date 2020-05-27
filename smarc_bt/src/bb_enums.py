@@ -10,14 +10,15 @@ LEAK = 'leak'
 DEPTH = 'depth'
 ALTITUDE = 'altitude'
 
-#TODO remove this msg/obj differentiation...
-MISSION_PLAN_MSG = 'plan_msg'
 MISSION_PLAN_OBJ = 'misison_plan'
-PLAN_CONTROL_MSG = 'plan_control_msg'
+PLAN_IS_GO = 'plan_is_go'
+MANEUVER_ACTIONS = 'maneuver_actions'
 
 UTM_BAND = 'utm_band'
 UTM_ZONE = 'utm_zone'
 
+CURRENT_LATITUDE = 'lat'
+CURRENT_LONGITUDE ='lon'
 WORLD_ROT = 'world_rot'
 WORLD_TRANS = 'world_trans'
 BASE_LINK = 'base_link'

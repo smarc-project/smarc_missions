@@ -24,8 +24,10 @@ class AUVConfig(object):
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
 
+        # tf frame names
         self.BASE_LINK = 'base_link'
-        self.UTM_LINK = 'world_utm'
+        self.UTM_LINK = 'utm'
+        self.LOCAL_LINK = 'map'
 
         # imc related stuff, most likely never changes
         self.PLANDB_TOPIC = 'imc/plandb'

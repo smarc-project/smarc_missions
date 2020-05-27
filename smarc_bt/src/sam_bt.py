@@ -3,43 +3,49 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+import rospy
 import py_trees as pt
 import py_trees_ros as ptr
 
 # just convenience really
 from py_trees.composites import Selector as Fallback
+
+# messages
 from std_msgs.msg import Float64
-
 from sam_msgs.msg import Leak
-from imc_ros_bridge.msg import PlanDB, PlanControl
 
-import rospy
 
-from bt_actions import A_SetMissionPlan, \
-                       A_PublishToNeptus, \
-                       A_ExecutePlanAction, \
+# tree leaves
+from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
-                       A_AnswerNeptusPlanReceived, \
-                       A_SetUTMFromGPS
-
+                       A_SetUTMFromGPS, \
+                       A_UpdateLatLon, \
+                       A_RefineMission, \
+                       A_UpdateNeptusEstimatedState, \
+                       A_UpdateNeptusPlanControlState, \
+                       A_UpdateNeptusVehicleState, \
+                       A_UpdateNeptusPlanDB, \
+                       A_UpdateNeptusPlanControl
 
 from bt_conditions import C_PlanCompleted, \
-                          C_NewMissionPlanReceived, \
                           C_NoAbortReceived, \
                           C_DepthOK, \
                           C_AltOK, \
                           C_LeakOK, \
-                          C_StartPlanReceived
+                          C_StartPlanReceived, \
+                          C_HaveRefinedMission, \
+                          C_HaveCoarseMission
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
                       ReadTopic
 
+
+# globally defined values
 import bb_enums
 import imc_enums
-
 import common_globals
 
 def const_tree(auv_config):
@@ -51,6 +57,11 @@ def const_tree(auv_config):
 
     auv_config is a simple data object with a bunch of UPPERCASE fields in it.
     """
+    # slightly hacky way to keep track of 'runnable' actions
+    # such actions should add their names to this list in their init
+    # just for Neptus vehicle state for now
+    bb = pt.blackboard.Blackboard()
+    bb.set(bb_enums.MANEUVER_ACTIONS, [])
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -80,25 +91,25 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.LEAK:'value'}
         )
 
+        def const_neptus_tree():
+            update_neptus = Sequence(name="SQ-UpdateNeptus",
+                                     children=[
+                A_UpdateNeptusEstimatedState(auv_config.ESTIMATED_STATE_TOPIC),
+                A_UpdateNeptusPlanControlState(auv_config.PLAN_CONTROL_STATE_TOPIC),
+                A_UpdateNeptusVehicleState(auv_config.VEHICLE_STATE_TOPIC),
+                A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
+                                     auv_config.UTM_LINK,
+                                     auv_config.LOCAL_LINK),
+                A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC)
+                                     ])
+            return update_neptus
+
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
-
-        read_mission_plan = ReadTopic(
-            name = "A_ReadMissionPlan",
-            topic_name = auv_config.PLANDB_TOPIC,
-            topic_type = PlanDB,
-            # passing None reads the entire message
-            blackboard_variables = {bb_enums.MISSION_PLAN_MSG:None}
-        )
-
-        read_plan_control = ReadTopic(
-            name = "A_ReadPlanControl",
-            topic_name= auv_config.PLAN_CONTROL_TOPIC,
-            topic_type = PlanControl,
-            blackboard_variables = {bb_enums.PLAN_CONTROL_MSG:None}
-        )
-
+        update_latlon = A_UpdateLatLon()
         set_utm_from_gps = A_SetUTMFromGPS(auv_config.GPS_FIX_TOPIC)
+        neptus_tree = const_neptus_tree()
+
 
         return Sequence(name="SQ-DataIngestion",
                         children=[
@@ -106,24 +117,10 @@ def const_tree(auv_config):
                             read_leak,
                             read_depth,
                             read_alt,
+                            set_utm_from_gps,
                             update_tf,
-                            read_mission_plan,
-                            read_plan_control,
-                            set_utm_from_gps
-                        ])
-
-
-
-    def const_feedback_tree():
-        #TODO separate these 3 into their own actions, this action is just too big
-        neptus_feedback = A_PublishToNeptus(auv_config.ESTIMATED_STATE_TOPIC,
-                                           auv_config.PLAN_CONTROL_STATE_TOPIC,
-                                           auv_config.VEHICLE_STATE_TOPIC)
-        # more feedback options will go here
-
-        return Sequence(name="SQ-Feedback",
-                        children=[
-                                  neptus_feedback
+                            update_latlon,
+                            neptus_tree
                         ])
 
 
@@ -154,46 +151,24 @@ def const_tree(auv_config):
         return fallback_to_abort
 
 
-
     def const_synch_tree():
-        def const_mission_plan_update():
-            got_new_plan = C_NewMissionPlanReceived()
+        have_refined_mission = C_HaveRefinedMission()
+        have_coarse_mission = C_HaveCoarseMission()
+        refine_mission = A_RefineMission()
+        # we need one here too, to initialize the mission in the first place
+        set_next_plan_action = A_SetNextPlanAction()
 
-            set_new_plan = A_SetMissionPlan(auv_config.UTM_LINK)
-            set_next_plan_action = A_SetNextPlanAction()
-            set_new_plan_and_action = Sequence(name="SQ-SetNewPlanAndAction",
-                                               children=[
-                                                   set_new_plan,
-                                                   set_next_plan_action
-                                               ])
+        refinement_tree = Sequence(name="SQ_Refinement",
+                                   children=[
+                                       have_coarse_mission,
+                                       refine_mission,
+                                       set_next_plan_action
+                                   ])
 
-            return Sequence(name="SQ-UpdateMissionPlan",
-                            children=[
-                                      got_new_plan,
-                                      set_new_plan_and_action
-                            ])
-
-        def const_mission_synch_gate():
-            have_mission = pt.blackboard.CheckBlackboardVariable(name="C_HaveMission",
-                                                                 variable_name=bb_enums.MISSION_PLAN_OBJ)
-            answer_neptus = A_AnswerNeptusPlanReceived(auv_config.PLANDB_TOPIC)
-
-            return Sequence(name="SQ-MissionSynchronized",
-                            children=[
-                                      have_mission,
-                                      answer_neptus
-                            ])
-
-        mission_plan = const_mission_plan_update()
-        # more synchronization actions can go here
-
-        synched = const_mission_synch_gate()
-
-
-        return Fallback(name="FB-SynchroniseMission",
+        return Fallback(name='FB_SynchMission',
                         children=[
-                                  mission_plan,
-                                  synched
+                            have_refined_mission,
+                            refinement_tree
                         ])
 
 
@@ -202,13 +177,14 @@ def const_tree(auv_config):
             plan_complete = C_PlanCompleted()
             # but still wait for operator to tell us to 'go'
             start_received = C_StartPlanReceived()
-            execute_plan_action = A_ExecutePlanAction(auv_config.ACTION_NAMESPACE)
+            gotowp = A_GotoWaypoint(auv_config.ACTION_NAMESPACE)
+            # and this will run after every success of the goto action
             set_next_plan_action = A_SetNextPlanAction()
 
             follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                    children=[
                                              start_received,
-                                             execute_plan_action,
+                                             gotowp,
                                              set_next_plan_action
                                    ])
 
@@ -239,7 +215,6 @@ def const_tree(auv_config):
 
 
     data_ingestion_tree = const_data_ingestion_tree()
-    feedback_tree = const_feedback_tree()
     safety_tree = const_safety_tree()
     synch_mission_tree = const_synch_tree()
     exec_mission_tree = const_execute_mission_tree()
@@ -248,7 +223,6 @@ def const_tree(auv_config):
     root = Sequence(name='SQ-ROOT',
                     children=[
                               data_ingestion_tree,
-                              feedback_tree,
                               safety_tree,
                               synch_mission_tree,
                               exec_mission_tree,
@@ -305,6 +279,7 @@ if __name__ == '__main__':
 
     config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
     config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
+    config.LOCAL_LINK = rospy.get_param("~local_frame", config.LOCAL_LINK)
 
     config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)
     config.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", config.PLAN_CONTROL_TOPIC)
