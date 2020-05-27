@@ -16,13 +16,16 @@ class AUVConfig(object):
     def __init__(self, robot_name):
         self.robot_name = robot_name
 
+        # topics
         self.DEPTH_TOPIC = 'ctrl/depth_feedback'
         self.ALTITUDE_TOPIC = 'ctrl/altitude_feedback'
         self.LEAK_TOPIC = 'core/leak_fb'
         self.GPS_FIX_TOPIC = 'core/gps'
 
+        # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
+        self.PATH_PLANNER_NAME = '/interp1d'
 
         # tf frame names
         self.BASE_LINK = 'base_link'
@@ -37,6 +40,7 @@ class AUVConfig(object):
         self.VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
         self.ABORT_TOPIC = 'imc/abort'
 
+        # hard values
         self.MAX_DEPTH = 5
         self.MIN_ALTITUDE = 2
 

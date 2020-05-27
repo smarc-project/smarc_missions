@@ -17,6 +17,9 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 
+# path planner service
+from trajectories.srv import trajectory
+
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl
 
 import bb_enums
@@ -160,13 +163,26 @@ class A_EmergencySurface(ptr.actions.ActionClient):
 
 
 class A_RefineMission(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, path_planner_service_name):
         """
         Takes the current mission plan object and run a path planner
         on its waypoints.
         """
         self.bb = pt.blackboard.Blackboard()
         super(A_RefineMission, self).__init__('A_RefineMission')
+        self.path_planner_service_name = path_planner_service_name
+        self.path_planner = None
+
+
+    def setup(self, timeout):
+        try:
+            rospy.wait_for_service(self.path_planner_service_name, timeout)
+            self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
+                                                   trajectory)
+            return True
+        except:
+            rospy.logwarn_throttle_identical(5, "Can not reach the path planner at:"+self.path_planner_service_name)
+            return False
 
 
     def update(self):
@@ -174,12 +190,10 @@ class A_RefineMission(pt.behaviour.Behaviour):
         if mission_plan is None or mission_plan.is_complete():
             return pt.Status.FAILURE
 
-        #TODO implement chris's service here
-        # convert list of (x,y,z)s to PoseArray
-        # call service
-        # convert Path to (x,y,z)s
-
-        mission_plan.set_refined_waypoints(mission_plan.waypoints)
+        trajectory_response = self.path_planner(mission_plan.get_pose_array())
+        refined_path = trajectory_response.fine
+        mission_plan.set_refined_waypoints(mission_plan.path_to_list(refined_path))
+        rospy.loginfo_throttle_identical(10, "Refined waypoints length:"+str(len(mission_plan.refined_waypoints)))
         return pt.Status.SUCCESS
 
 
@@ -583,7 +597,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         response.op = imc_enums.PLANDB_OP_GET_INFO
         response.plandb_information = self.make_plandb_info()
         self.plandb_pub.publish(response)
-        rospy.loginfo_throttle_identical(30, "Answered GET_INFO for plan:\n"+str(response.plan_id))
+        rospy.loginfo_throttle_identical(30, "Answered GET_INFO for plan:"+str(response.plan_id))
 
     def handle_request_get_state(self, plandb_msg):
         rospy.loginfo_throttle_identical(30, "Got REQUEST GET_STATE planDB msg from Neptus")

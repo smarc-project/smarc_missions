@@ -24,15 +24,16 @@ class Interp1d:
         self.spline_degree = rospy.get_param("~spline_degree")
         self.n_points = rospy.get_param("~n_points")
 
-    def __call__(self, pose_array):
-        
+    def __call__(self, trajectory_request):
+
         # sanity
-        assert(isinstance(pose_array, PoseArray))
+        pose_array = trajectory_request.coarse
+        assert isinstance(pose_array, PoseArray), "Argument not a pose array, it is:"+str(type(pose_array))
 
         # convert PoseArray to numpy
         y = np.array([[
-            pose.position.x, 
-            pose.position.y, 
+            pose.position.x,
+            pose.position.y,
             pose.position.z
         ] for pose in pose_array.poses])
 

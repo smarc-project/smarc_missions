@@ -155,7 +155,7 @@ def const_tree(auv_config):
     def const_synch_tree():
         have_refined_mission = C_HaveRefinedMission()
         have_coarse_mission = C_HaveCoarseMission()
-        refine_mission = A_RefineMission()
+        refine_mission = A_RefineMission(config.PATH_PLANNER_NAME)
         # we need one here too, to initialize the mission in the first place
         set_next_plan_action = A_SetNextPlanAction()
 

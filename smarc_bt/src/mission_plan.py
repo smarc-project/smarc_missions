@@ -93,11 +93,13 @@ class MissionPlan:
             p.position.z = wp[2]
             pa.poses.append(p)
 
+        return pa
+
 
     def path_to_list(self, path_msg):
-        frame = path_msg.frame_id
-        if frame != self.local_frame:
-            rospy.logerr_throttle_identical(5, "Refined waypoints are not in the local frame!")
+        frame = path_msg.header.frame_id
+        if frame != '' and frame != self.local_frame:
+            rospy.logerr_throttle_identical(5, "Refined waypoints are not in "+self.local_frame+" they are in "+frame+" !")
             return []
 
         wps = []
@@ -109,8 +111,6 @@ class MissionPlan:
             )
             wps.append(wp)
         return wps
-
-
 
 
     def __str__(self):
