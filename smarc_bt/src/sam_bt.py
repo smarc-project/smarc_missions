@@ -36,7 +36,8 @@ from bt_conditions import C_PlanCompleted, \
                           C_LeakOK, \
                           C_StartPlanReceived, \
                           C_HaveRefinedMission, \
-                          C_HaveCoarseMission
+                          C_HaveCoarseMission, \
+                          C_PlanIsNotChanged
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -173,35 +174,29 @@ def const_tree(auv_config):
 
 
     def const_execute_mission_tree():
-        def const_execute_mission_plan():
-            plan_complete = C_PlanCompleted()
-            # but still wait for operator to tell us to 'go'
-            start_received = C_StartPlanReceived()
-            gotowp = A_GotoWaypoint(auv_config.ACTION_NAMESPACE)
-            # and this will run after every success of the goto action
-            set_next_plan_action = A_SetNextPlanAction()
+        plan_complete = C_PlanCompleted()
+        # but still wait for operator to tell us to 'go'
+        start_received = C_StartPlanReceived()
+        gotowp = A_GotoWaypoint(auv_config.ACTION_NAMESPACE)
+        # and this will run after every success of the goto action
+        set_next_plan_action = A_SetNextPlanAction()
+        plan_is_same = C_PlanIsNotChanged()
 
-            follow_plan = Sequence(name="SQ-FollowMissionPlan",
-                                   children=[
-                                             start_received,
-                                             gotowp,
-                                             set_next_plan_action
-                                   ])
+        follow_plan = Sequence(name="SQ-FollowMissionPlan",
+                               children=[
+                                         start_received,
+                                         plan_is_same,
+                                         gotowp,
+                                         set_next_plan_action
+                               ])
 
-            return Fallback(name="FB-ExecuteMissionPlan",
-                            children=[
-                                      plan_complete,
-                                      follow_plan
-                            ])
-
-
-        mission_plan = const_execute_mission_plan()
-        # add more mission actions here
-
-        return Fallback(name="FB-ExecuteMission",
+        return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
-                                  mission_plan
+                                  plan_complete,
+                                  follow_plan
                         ])
+
+
 
 
     def const_finalize_mission_tree():

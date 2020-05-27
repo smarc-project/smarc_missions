@@ -564,14 +564,14 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         plan_info = PlanDBInformation()
         plan_info.plan_id = current_mission_plan.plan_id
         plan_info.md5 = current_mission_plan.plandb_msg.plan_spec_md5
-        rospy.loginfo_throttle_identical(10, "Sent md5:"+plan_info.md5)
+        rospy.loginfo_throttle_identical(60, "Sent md5:"+plan_info.md5)
         plan_info.change_time = current_mission_plan.creation_time/1000.0
         return plan_info
 
 
     def handle_request_get_info(self, plandb_msg):
         # we need to respond to this with some info... but what?
-        rospy.loginfo_throttle_identical(5, "Got REQUEST GET_INFO planDB msg from Neptus")
+        rospy.loginfo_throttle_identical(30, "Got REQUEST GET_INFO planDB msg from Neptus")
 
         current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
@@ -583,10 +583,10 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         response.op = imc_enums.PLANDB_OP_GET_INFO
         response.plandb_information = self.make_plandb_info()
         self.plandb_pub.publish(response)
-        rospy.loginfo_throttle_identical(5, "Answered GET_INFO for plan:\n"+str(response.plan_id))
+        rospy.loginfo_throttle_identical(30, "Answered GET_INFO for plan:\n"+str(response.plan_id))
 
     def handle_request_get_state(self, plandb_msg):
-        rospy.loginfo_throttle_identical(5, "Got REQUEST GET_STATE planDB msg from Neptus")
+        rospy.loginfo_throttle_identical(30, "Got REQUEST GET_STATE planDB msg from Neptus")
         current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
             return
@@ -607,7 +607,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         response.plandb_state.plans_info.append(self.make_plandb_info())
 
         self.plandb_pub.publish(response)
-        rospy.loginfo_throttle_identical(5, "Answered GET_STATE for plan:\n"+str(response.plan_id))
+        rospy.loginfo_throttle_identical(30, "Answered GET_STATE for plan:\n"+str(response.plan_id))
 
     def handle_set_plan(self, plandb_msg):
         # there is a plan we can at least look at
@@ -630,17 +630,22 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         # request get_info
         if typee == imc_enums.PLANDB_TYPE_REQUEST and op == imc_enums.PLANDB_OP_GET_INFO:
             self.handle_request_get_info(plandb_msg)
-        # request get_state
+
         elif typee == imc_enums.PLANDB_TYPE_REQUEST and op == imc_enums.PLANDB_OP_GET_STATE:
             self.handle_request_get_state(plandb_msg)
+
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_SET:
             rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb set")
+
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_GET_INFO:
             rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb get info")
+
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_GET_STATE:
             rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb get state")
+
         elif op == imc_enums.PLANDB_OP_SET:
             self.handle_set_plan(plandb_msg)
+
         else:
             rospy.loginfo_throttle_identical(5, "Received some unhandled planDB message:\n"+str(plandb_msg))
 
@@ -654,7 +659,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         plan_id = current_mission_plan.plan_id
         self.plandb_msg.plan_id = plan_id
         self.plandb_pub.publish(self.plandb_msg)
-        rospy.loginfo_throttle_identical(5, "Answered set success for plan_id:"+str(plan_id))
+        rospy.loginfo_throttle_identical(30, "Answered set success for plan_id:"+str(plan_id))
 
     def update(self):
         # we just want to tell neptus we got the plan all the time

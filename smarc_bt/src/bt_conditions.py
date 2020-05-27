@@ -139,4 +139,44 @@ class C_HaveCoarseMission(pt.behaviour.Behaviour):
 
         return pt.Status.SUCCESS
 
+class C_PlanIsNotChanged(pt.behaviour.Behaviour):
+    """
+    Use this condition to stop a running action when a plan with a different
+    plan_id or bigger time stamp is seen in the tree.
+    """
+    def __init__(self):
+        super(C_PlanIsNotChanged, self).__init__(name="C_PlanIsNotChanged")
+        self.bb = pt.blackboard.Blackboard()
+        self.last_known_id = None
+        self.last_known_time = 0
+
+    def update(self):
+        current_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if current_plan is None:
+            # there is no plan, it can not change
+            self.last_known_id = None
+            self.last_known_time = 0
+            rospy.loginfo_throttle_identical(10, "There was no plan, plan is not changed")
+            return pt.Status.SUCCESS
+
+        if self.last_known_id is None:
+            # this is the first plan we saw
+            # record it, and let the tree tick again
+            self.last_known_id = current_plan.plan_id
+            self.last_known_time = current_plan.creation_time
+            rospy.loginfo_throttle_identical(10, "First time seeing any plan, plan is changed")
+            return pt.Status.FAILURE
+
+        if self.last_known_id == current_plan.plan_id and self.last_known_time < current_plan.creation_time:
+            # this is the same plan, but it was sent again, this means a restart
+            # so the plan IS changed
+            rospy.loginfo_throttle_identical(10, "Same plan_id, but the current plan is newer, plan is changed")
+            self.last_known_id = current_plan.plan_id
+            self.last_known_time = current_plan.creation_time
+            return pt.Status.FAILURE
+
+        rospy.loginfo_throttle_identical(60, "Plan is not changed")
+        return pt.Status.SUCCESS
+
+
 

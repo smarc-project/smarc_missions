@@ -14,6 +14,8 @@ import common_globals
 import imc_enums
 import bb_enums
 
+from geometry_msgs.msg import PointStamped, Pose, PoseArray
+
 class MissionPlan:
     def __init__(self,
                  plan_frame,
@@ -63,15 +65,53 @@ class MissionPlan:
                 lon = maneuver.lon
                 depth = maneuver.z
                 utm_point = fromLatLong(np.degrees(lat), np.degrees(lon)).toPoint()
-                trans, rot = self.tf_listener.lookupTransform(plan_frame,
-                                                              local_frame,
-                                                              rospy.Time(0))
-                waypoint = (utm_point.x + trans[0], utm_point.y + trans[1], depth)
-                waypoints.append(waypoint)
+                stamped_utm_point = PointStamped()
+                stamped_utm_point.header.frame_id = plan_frame
+                stamped_utm_point.header.stamp = rospy.Time(0)
+                stamped_utm_point.point.x = utm_point.x
+                stamped_utm_point.point.y = utm_point.y
+                stamped_utm_point.point.z = depth
+                try:
+                    waypoint_local = self.tf_listener.transformPoint(local_frame, stamped_utm_point)
+                    waypoint = (waypoint_local.point.x, waypoint_local.point.y, waypoint_local.point.z)
+                    waypoints.append(waypoint)
+                except:
+                    rospy.logwarn_throttle_identical(10, "Can not transform plan point to local point!")
             else:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
 
         return waypoints
+
+
+    def get_pose_array(self):
+        pa = PoseArray()
+        pa.header.frame_id = self.local_frame
+        for wp in self.waypoints:
+            p = Pose()
+            p.position.x = wp[0]
+            p.position.y = wp[1]
+            p.position.z = wp[2]
+            pa.poses.append(p)
+
+
+    def path_to_list(self, path_msg):
+        frame = path_msg.frame_id
+        if frame != self.local_frame:
+            rospy.logerr_throttle_identical(5, "Refined waypoints are not in the local frame!")
+            return []
+
+        wps = []
+        for pose_stamped in path_msg.poses:
+            wp = (
+                pose_stamped.pose.position.x,
+                pose_stamped.pose.position.y,
+                pose_stamped.pose.position.z
+            )
+            wps.append(wp)
+        return wps
+
+
+
 
     def __str__(self):
         return 'wps:'+str(self.waypoints)+'\nremaining:'+str(self.remaining_wps)
