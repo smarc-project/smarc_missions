@@ -21,6 +21,7 @@ from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInfor
 
 import bb_enums
 import imc_enums
+import common_globals
 
 class MissionPlan:
     def __init__(self,
@@ -125,7 +126,7 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         if prev_zone != self.gps_zone or prev_band != self.gps_band:
             rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!\n Prev:"+str((prev_zone, prev_band))+" gps:"+str((self.gps_zone, self.gps_band)))
 
-            if sam_globals.TRUST_GPS:
+            if common_globals.TRUST_GPS:
                 rospy.logwarn_once("USING GPS UTM!")
                 self.bb.set(bb_enums.UTM_ZONE, self.gps_zone)
                 self.bb.set(bb_enums.UTM_BAND, self.gps_band)
