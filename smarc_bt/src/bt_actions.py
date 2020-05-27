@@ -175,6 +175,9 @@ class A_RefineMission(pt.behaviour.Behaviour):
 
 
     def setup(self, timeout):
+        if self.path_planner_service_name is None:
+            return True
+
         try:
             rospy.wait_for_service(self.path_planner_service_name, timeout)
             self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
@@ -189,6 +192,11 @@ class A_RefineMission(pt.behaviour.Behaviour):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None or mission_plan.is_complete():
             return pt.Status.FAILURE
+
+        if self.path_planner_service_name is None:
+            # there is no path planner, just copy the coarse points to the refined side
+            mission_plan.set_refined_waypoints(mission_plan.waypoints)
+            return pt.Status.SUCCESS
 
         trajectory_response = self.path_planner(mission_plan.get_pose_array())
         refined_path = trajectory_response.fine
