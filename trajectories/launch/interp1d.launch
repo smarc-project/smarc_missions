@@ -1,0 +1,12 @@
+<launch>
+
+    <!-- Configurable arguments -->
+	<arg name="spline_degree" default="cubic" />
+	<arg name="n_points" default="1000" />
+
+	<node name="interp1d" pkg="trajectories" type="interp1d.py">
+		<param name="spline_degree" value="$(arg spline_degree)" type="str" />
+		<param name="n_points" value="$(arg n_points)" type="int" />
+	</node>
+
+</launch>
