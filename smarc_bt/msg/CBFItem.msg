@@ -1,0 +1,4 @@
+string checked_field_topic
+string checked_field_name
+string limit_type
+float32 limit_value
