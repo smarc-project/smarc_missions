@@ -175,7 +175,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
 
 
     def setup(self, timeout):
-        if self.path_planner_service_name is None:
+        if self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']:
             return True
 
         try:

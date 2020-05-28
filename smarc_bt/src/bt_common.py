@@ -176,8 +176,8 @@ class Sequence(pt.composites.Selector):
     Reactive sequence overidding sequence with memory, py_trees' only available sequence.
     """
 
-    def __init__(self, name="Sequence", children=None):
-        super(Sequence, self).__init__(name=name, children=children)
+    def __init__(self, name="Sequence", children=None, blackbox_level=None):
+        super(Sequence, self).__init__(name=name, children=children, blackbox_level=blackbox_level)
 
     def tick(self):
         """

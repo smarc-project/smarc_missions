@@ -113,6 +113,8 @@ def const_tree(auv_config):
 
 
         return Sequence(name="SQ-DataIngestion",
+                        # dont show all the things inside here
+                        blackbox_level=1,
                         children=[
                             read_abort,
                             read_leak,
@@ -134,6 +136,7 @@ def const_tree(auv_config):
         # more safety checks will go here
 
         safety_checks = Sequence(name="SQ-SafetyChecks",
+                        blackbox_level=1,
                         children=[
                                   no_abort,
                                   altOK,
