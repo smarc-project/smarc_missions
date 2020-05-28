@@ -3,6 +3,10 @@
     <!-- Configurable arguments -->
     <arg name="robot_name" default="sam"/>
 
+	<!-- Options: "", "/interp1d" -->
+    <arg name="path_planner_name" default="/interp1d"/>
+
+
 	<!-- BT Related -->
 	<!-- Croatia, biograd coast, lat lon zone band, all four from there -->
     <arg name="utm_zone" default="33"/>

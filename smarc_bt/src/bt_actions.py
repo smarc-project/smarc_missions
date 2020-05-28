@@ -193,7 +193,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
         if mission_plan is None or mission_plan.is_complete():
             return pt.Status.FAILURE
 
-        if self.path_planner_service_name is None:
+        if self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null'. 'NULL']:
             # there is no path planner, just copy the coarse points to the refined side
             mission_plan.set_refined_waypoints(mission_plan.waypoints)
             return pt.Status.SUCCESS

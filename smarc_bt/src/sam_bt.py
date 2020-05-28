@@ -275,6 +275,7 @@ if __name__ == '__main__':
     config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
     config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
     config.LOCAL_LINK = rospy.get_param("~local_frame", config.LOCAL_LINK)
+    config.PATH_PLANNER_NAME = rospy.get_param("~path_planner_name", config.PATH_PLANNER_NAME)
 
     config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)
     config.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", config.PLAN_CONTROL_TOPIC)

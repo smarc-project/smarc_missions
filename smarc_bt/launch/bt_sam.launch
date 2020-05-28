@@ -5,6 +5,9 @@
 	<arg name="base_frame" default="/$(arg robot_name)/base_link" />
 	<arg name="utm_frame" default="utm" />
 
+	<!-- leave empty string to disable path planner -->
+	<arg name="path_planner_name" default="/interp1d" />
+
 	<!-- Croatia, biograd coast, lat lon zone band, all four from there -->
     <arg name="utm_zone" default="33"/>
     <arg name="utm_band" default="T"/>
@@ -25,6 +28,7 @@
 	<node name="sam_bt" pkg="smarc_bt" type="sam_bt.py" output="screen" ns="$(arg robot_name)">
 		<param name="base_frame" value="$(arg base_frame)" />
 		<param name="utm_frame" value="$(arg utm_frame)" />
+		<param name="path_planner_name" value="$(arg path_planner_name)" />
 
 		<param name="utm_zone" value="$(arg utm_zone)" />
 		<param name="utm_band" value="$(arg utm_band)" />
