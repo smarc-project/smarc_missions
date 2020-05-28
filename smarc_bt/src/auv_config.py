@@ -22,6 +22,7 @@ class AUVConfig(object):
         self.ALTITUDE_TOPIC = 'core/dvl'
         self.LEAK_TOPIC = 'core/leak_fb'
         self.GPS_FIX_TOPIC = 'core/gps'
+        self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
@@ -34,6 +35,7 @@ class AUVConfig(object):
         self.BASE_LINK = 'base_link'
         self.UTM_LINK = 'utm'
         self.LOCAL_LINK = 'map'
+        self.POI_DETECTOR_LINK = 'sam/camera_down_link'
 
         # imc related stuff, most likely never changes
         self.PLANDB_TOPIC = 'imc/plandb'

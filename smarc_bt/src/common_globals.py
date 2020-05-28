@@ -24,3 +24,8 @@ CHECK_CBF_LIST = True
 # how close do we expect the path planned waypoints to be to the coarse
 # plans a user creates
 COARSE_PLAN_REFINED_PLAN_THRESHOLD = 1
+
+# if a poi is 5m away from the latest, its a new one
+POI_DIST = 5
+
+

@@ -18,6 +18,21 @@ import common_globals
 # GENERIC TREE NODES AND SUCH
 ###############################################################
 
+class A_RunOnce(pt.behaviour.Behaviour):
+    """
+    Just returns RUNNING once.
+    """
+    def __init__(self):
+        super(A_RunOnce, self).__init__("A_RunOnce")
+        self.ran = False
+
+    def update(self):
+        if self.ran:
+            return pt.Status.SUCCESS
+        else:
+            self.ran = True
+            return pt.Status.RUNNING
+
 class CBFCondition(object):
     """
     An object for creating conditions that are also control barrier

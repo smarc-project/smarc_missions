@@ -4,6 +4,7 @@
 # Ozer Ozkahraman (ozero@kth.se)
 
 
+import math
 import rospy
 import py_trees as pt
 import bb_enums
@@ -91,7 +92,6 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
         super(C_StartPlanReceived, self).__init__(name="C_StartPlanReceived")
 
     def update(self):
-        #TODO probably can be done with a built-in class?
         plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
         if plan_is_go is None or plan_is_go == False:
             return pt.Status.FAILURE
@@ -180,4 +180,56 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
+class C_NoNewPOIDetected(pt.behaviour.Behaviour):
+    """
+    returns SUCCESS until there is a POI detected that is sufficiently further
+    away than the last known one. or if its the first one.
+    This distance is governed by new_pos_distance
+    """
+    def __init__(self, new_poi_distance):
+        super(C_NoNewPOIDetected, self).__init__(name="C_NoNewPOIDetected")
+        self.bb = pt.blackboard.Blackboard()
+        self.new_poi_distance = new_poi_distance
+        self._last_known_poi = None
 
+    def update(self):
+        poi = self.bb.get(bb_enums.POI_POINT_STAMPED)
+        if poi is None:
+            rospy.loginfo_throttle_identical(10,"No POI :(")
+            return pt.Status.SUCCESS
+
+        if self._last_known_poi is None:
+            # a poi exists but we didnt know any beforehand, new poi!
+            self._last_known_poi = poi
+            rospy.logwarn_throttle_identical(10,"Our first POI!")
+            return pt.Status.FAILURE
+
+        # we knew a poi, there is a poi we see, far enough?
+        xdiff = poi.point.x-self._last_known_poi.point.x
+        ydiff = poi.point.y-self._last_known_poi.point.y
+        zdiff = poi.point.z-self._last_known_poi.point.z
+        dist = math.sqrt( xdiff**2 + ydiff**2 + zdiff**2 )
+
+        # its far enough!
+        if dist > self.new_poi_distance:
+            self._last_known_poi = poi
+            rospy.logwarn_throttle_identical(10,"A new POI that is far enough!"+str(dist))
+            return pt.Status.FAILURE
+
+        # aww, not far enough
+        self._last_known_poi = poi
+        rospy.loginfo_throttle_identical(10,"Probably the same POI as before...")
+        return pt.Status.SUCCESS
+
+
+class C_AutonomyDisabled(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(C_AutonomyDisabled, self).__init__(name="C_AutonomyDisabled")
+        self.bb = pt.blackboard.Blackboard()
+
+    def update(self):
+        enabled = self.bb.get(bb_enums.ENABLE_AUTONOMY)
+        if enabled:
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS

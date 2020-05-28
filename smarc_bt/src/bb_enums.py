@@ -23,6 +23,7 @@ WORLD_ROT = 'world_rot'
 WORLD_TRANS = 'world_trans'
 LOCATION_POINT_STAMPED = 'loc_ps'
 BASE_LINK = 'base_link'
+POI_POINT_STAMPED = 'poi_ps'
 
 IMC_STATE = 'imc_state'
 
@@ -31,5 +32,6 @@ LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
 # set this from any action that might return RUNNING.
 # useful for feedback purposes
 CURRENTLY_RUNNING_ACTION = 'currently_running_action'
+ENABLE_AUTONOMY = 'enable_autonomy'
 
 

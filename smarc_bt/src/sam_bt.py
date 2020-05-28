@@ -14,6 +14,7 @@ from py_trees.composites import Selector as Fallback
 from std_msgs.msg import Float64
 from sam_msgs.msg import Leak
 from cola2_msgs.msg import DVL
+from geometry_msgs.msg import PointStamped
 
 from auv_config import AUVConfig
 
@@ -29,7 +30,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanControlState, \
                        A_UpdateNeptusVehicleState, \
                        A_UpdateNeptusPlanDB, \
-                       A_UpdateNeptusPlanControl
+                       A_UpdateNeptusPlanControl, \
+                       A_UpdateMissonForPOI
 
 from bt_conditions import C_PlanCompleted, \
                           C_NoAbortReceived, \
@@ -39,11 +41,14 @@ from bt_conditions import C_PlanCompleted, \
                           C_StartPlanReceived, \
                           C_HaveRefinedMission, \
                           C_HaveCoarseMission, \
-                          C_PlanIsNotChanged
+                          C_PlanIsNotChanged, \
+                          C_NoNewPOIDetected, \
+                          C_AutonomyDisabled
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
-                      ReadTopic
+                      ReadTopic, \
+                      A_RunOnce
 
 
 # globally defined values
@@ -94,6 +99,13 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.LEAK:'value'}
         )
 
+        read_detection = ReadTopic(
+            name = "A_ReadCameraDetection",
+            topic_name = auv_config.CAMERA_DETECTION_TOPIC,
+            topic_type = PointStamped,
+            blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
+        )
+
         def const_neptus_tree():
             update_neptus = Sequence(name="SQ-UpdateNeptus",
                                      children=[
@@ -122,6 +134,7 @@ def const_tree(auv_config):
                             read_leak,
                             read_depth,
                             read_alt,
+                            read_detection,
                             set_utm_from_gps,
                             update_tf,
                             update_latlon,
@@ -156,6 +169,21 @@ def const_tree(auv_config):
                                      ])
         return fallback_to_abort
 
+    def const_autonomous_updates():
+        poi_tree = Fallback(name="FB_Poi",
+                            children=[
+                                C_NoNewPOIDetected(common_globals.POI_DIST),
+                                A_UpdateMissonForPOI(auv_config.UTM_LINK,
+                                                     auv_config.LOCAL_LINK,
+                                                     auv_config.POI_DETECTOR_LINK)
+                            ])
+
+        return Fallback(name="FB_AutonomousUpdates",
+                        children=[
+                          C_AutonomyDisabled(),
+                          poi_tree
+                        ])
+
 
     def const_synch_tree():
         have_refined_mission = C_HaveRefinedMission()
@@ -163,6 +191,7 @@ def const_tree(auv_config):
         refine_mission = A_RefineMission(config.PATH_PLANNER_NAME)
         # we need one here too, to initialize the mission in the first place
         set_next_plan_action = A_SetNextPlanAction()
+
 
         refinement_tree = Sequence(name="SQ_Refinement",
                                    children=[
@@ -186,6 +215,7 @@ def const_tree(auv_config):
         # and this will run after every success of the goto action
         set_next_plan_action = A_SetNextPlanAction()
         plan_is_same = C_PlanIsNotChanged()
+        idle = pt.behaviours.Running(name="Idle")
 
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
@@ -198,35 +228,31 @@ def const_tree(auv_config):
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   plan_complete,
-                                  follow_plan
-                        ])
-
-
-
-
-    def const_finalize_mission_tree():
-
-        idle = pt.behaviours.Running(name="Idle")
-
-        return Sequence(name="SQ-FinalizeMission",
-                        children=[
+                                  follow_plan,
                                   idle
                         ])
 
 
+
+
+    # use this to stop any leftover actions from previously ran BTs
+    run_once = A_RunOnce()
+
     data_ingestion_tree = const_data_ingestion_tree()
     safety_tree = const_safety_tree()
+    auto_tree = const_autonomous_updates()
     synch_mission_tree = const_synch_tree()
     exec_mission_tree = const_execute_mission_tree()
-    finalize_mission_tree = const_finalize_mission_tree()
 
     root = Sequence(name='SQ-ROOT',
                     children=[
+                              run_once,
                               data_ingestion_tree,
                               safety_tree,
+                              auto_tree,
                               synch_mission_tree,
-                              exec_mission_tree,
-                              finalize_mission_tree])
+                              exec_mission_tree
+                    ])
 
     return ptr.trees.BehaviourTree(root)
 
@@ -272,6 +298,7 @@ if __name__ == '__main__':
     config.ALTITUDE_TOPIC= rospy.get_param("~altitude_topic", config.ALTITUDE_TOPIC)
     config.LEAK_TOPIC= rospy.get_param("~leak_topic", config.LEAK_TOPIC)
     config.GPS_FIX_TOPIC= rospy.get_param("~gps_fix_topic", config.GPS_FIX_TOPIC)
+    config.CAMERA_DETECTION_TOPIC = rospy.get_param("~camera_detection_topic", config.CAMERA_DETECTION_TOPIC)
 
     # actions and services
     config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)

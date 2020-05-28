@@ -20,7 +20,8 @@ class MissionPlan:
     def __init__(self,
                  plan_frame,
                  local_frame,
-                 plandb_msg):
+                 plandb_msg,
+                 waypoints=None):
         """
         A container object to keep things related to the mission plan.
         """
@@ -33,7 +34,12 @@ class MissionPlan:
         except:
             rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
 
-        self.waypoints = self.read_plandb(plandb_msg, plan_frame, local_frame)
+        # if waypoints are given directly, then skip reading the plandb message
+        if waypoints is None:
+            self.waypoints = self.read_plandb(plandb_msg, plan_frame, local_frame, self.tf_listener)
+        else:
+            self.waypoints = waypoints
+
         self.refined_waypoints = None
 
         # keep track of which waypoint we are going to
@@ -44,7 +50,8 @@ class MissionPlan:
         self.creation_time = time.time()
 
 
-    def read_plandb(self, plandb, plan_frame, local_frame):
+    @staticmethod
+    def read_plandb(plandb, plan_frame, local_frame, tf_listener):
         """
         planddb message is a bunch of nested objects,
         we want a list of waypoints in the local frame,
@@ -72,7 +79,7 @@ class MissionPlan:
                 stamped_utm_point.point.y = utm_point.y
                 stamped_utm_point.point.z = depth
                 try:
-                    waypoint_local = self.tf_listener.transformPoint(local_frame, stamped_utm_point)
+                    waypoint_local = tf_listener.transformPoint(local_frame, stamped_utm_point)
                     waypoint = (waypoint_local.point.x, waypoint_local.point.y, waypoint_local.point.z)
                     waypoints.append(waypoint)
                 except:
@@ -81,6 +88,7 @@ class MissionPlan:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
 
         return waypoints
+
 
 
     def get_pose_array(self, vehicle_point_stamped=None):
@@ -125,7 +133,12 @@ class MissionPlan:
 
 
     def __str__(self):
-        return 'wps:'+str(self.waypoints)+'\nremaining:'+str(self.remaining_wps)
+        s = ''
+        for wp in self.waypoints:
+            s += str(wp)+'\n'
+        if self.refined_waypoints is not None:
+            s += "with "+str(len(self.refined_waypoints))+" refined waypoints"
+        return s
 
 
     def set_refined_waypoints(self, refined_waypoints):

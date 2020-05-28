@@ -21,7 +21,7 @@ from geometry_msgs.msg import PointStamped
 # path planner service
 from trajectories.srv import trajectory
 
-from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl
+from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 
 import bb_enums
 import imc_enums
@@ -461,27 +461,32 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
         plan_id = plan_control_msg.plan_id
         flags = plan_control_msg.flags
 
+        # somehow this happens...
+        if plan_id is None:
+            plan_id=''
+
         # separate well-defined ifs for possible future shenanigans.
         if typee==0 and op==0 and plan_id!='' and flags==1:
             # start button
             # check if the start was given for our current plan
             current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            self.bb.set(bb_enums.PLAN_IS_GO, True)
+            self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
                 rospy.loginfo_throttle_identical(20, "Started plan:"+str(plan_id))
-                self.bb.set(bb_enums.PLAN_IS_GO, True)
             else:
-                rospy.logwarn_throttle_identical(10, "Start was given for a different plan than our plan, so we wont start it!")
                 rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
-                self.bb.set(bb_enums.PLAN_IS_GO, False)
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
             self.bb.set(bb_enums.PLAN_IS_GO, False)
+            self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
 
         # this string is hardcoded in Neptus, so we hardcode it here too!
-        if typee==0 and op==1 and plan_id=='teleoperation-mode' and flag==0:
+        if typee==0 and op==0 and plan_id=='teleoperation-mode' and flags==0:
             # teleop button
-            self.bb.set(bb_enums.PLAN_IS_GO, False)
+            self.bb.set(bb_enums.ENABLE_AUTONOMY, True)
+            rospy.logwarn_throttle_identical(10, "AUTONOMOUS MODE")
 
         return pt.Status.SUCCESS
 
@@ -711,4 +716,71 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         # this keeps the thingy green
         self.respond_set_success()
         return pt.Status.SUCCESS
+
+
+class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
+    """
+    creates a new diamond-shaped mission over a detected POI
+    and sets that as the current mission plan.
+    always returns SUCCESS
+    """
+    def __init__(self, utm_link, local_link, poi_link):
+        super(A_UpdateMissonForPOI, self).__init__(name="A_UpdateMissonForPOI")
+        self.bb = pt.blackboard.Blackboard()
+        self.utm_link = utm_link
+        self.local_link = local_link
+        self.poi_link = poi_link
+        self.tf_listener = tf.TransformListener()
+
+
+    def setup(self, timeout):
+        try:
+            self.tf_listener.waitForTransform(self.poi_link, self.local_link, rospy.Time(), rospy.Duration(timeout))
+            return True
+        except:
+            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.local_link)
+            return False
+
+
+    def update(self):
+        poi = self.bb.get(bb_enums.POI_POINT_STAMPED)
+        if poi is None:
+            return pt.Status.SUCCESS
+        poi_local = self.tf_listener.transformPoint(self.local_link, poi)
+
+        x = poi_local.point.x
+        y = poi_local.point.y
+        depth = poi.point.z
+
+        # construct the waypoints that we want to go to
+        z_extra = 5
+        radius = 10
+        # go east,west,north,south,center
+        # so we do bunch of fly-overs
+        waypoints = [
+            (x+radius, y, depth-z_extra),
+            (x-radius, y, depth-z_extra),
+            (x, y+radius, depth-z_extra),
+            (x, y-radius, depth-z_extra),
+            (x, y, 0)
+        ]
+        # construct a planDB message to be given to the mission_plan
+        # we will not fill the plan_spec of this plandb message,
+        # and instead call a different constructor of MissionPlan
+        # to bypass the lat/lon stuff
+        pdb = PlanDB()
+        pdb.request_id = 42
+        pdb.plan_id = "POI"
+
+        # set it in the tree
+        mission_plan = MissionPlan(plan_frame = self.utm_link,
+                                   local_frame = self.local_link,
+                                   plandb_msg = pdb,
+                                   waypoints = waypoints)
+
+        self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
+
+        rospy.loginfo_throttle_identical(5, "Due to POI, set the mission plan to:"+str(mission_plan))
+        return pt.Status.SUCCESS
+
 
