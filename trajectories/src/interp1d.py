@@ -22,7 +22,7 @@ class Interp1d:
 
         # ROS parameters from launch file
         self.spline_degree = rospy.get_param("~spline_degree")
-        self.n_points = rospy.get_param("~n_points")
+        self.waypoint_spacing = rospy.get_param("~waypoint_spacing")
 
     def __call__(self, trajectory_request):
 
@@ -54,12 +54,15 @@ class Interp1d:
 
     def compute(self, numpy_array):
 
-        # assume uniform spacing (e.g. temporally)
-        x = np.linspace(0, 1, num=numpy_array.shape[0])
+        # independent variable: distance between points
+        x = np.array([numpy_array[i+1,:] - numpy_array[i,:] for i in range(numpy_array.shape[0] - 1)])
+        x = np.linalg.norm(x, axis=1)
+        x = np.hstack(([0], np.cumsum(x)))
 
         # interpolate the data
+        print(self.spline_degree, self.waypoint_spacing)
         f = interp1d(x, numpy_array, kind=self.spline_degree, axis=0)
-        x = np.linspace(0, 1, num=self.n_points)
+        x = np.arange(start=x[0], stop=x[-1], step=self.waypoint_spacing)
         y = f(x)
         return y
 
@@ -70,7 +73,7 @@ def test():
     fig, ax = plt.subplots(1)
 
     # make random 3D waypoints (but, only plot 3D)
-    n = 20
+    n = 15
     y = np.random.uniform(low=-1, high=1, size=(n,3))
     ax.plot(y[:,0], y[:,1], 'k.-')
 
@@ -79,7 +82,7 @@ def test():
     ax.plot(y[:,0], y[:,1], 'k--')
 
     # save the figure
-    fig.savefig('example_interp1d.png', bbox_inches='tight')
+    fig.savefig('../img/example_interp1d.png', bbox_inches='tight')
 
 
 
