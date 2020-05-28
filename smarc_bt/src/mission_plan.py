@@ -21,24 +21,38 @@ class MissionPlan:
                  plan_frame,
                  local_frame,
                  plandb_msg,
-                 waypoints=None):
+                 waypoints=None,
+                 waypoint_man_ids=None):
         """
         A container object to keep things related to the mission plan.
         """
         self.plandb_msg = plandb_msg
         self.local_frame = local_frame
         self.plan_id = plandb_msg.plan_id
+
+        self.aborted = False
+
         self.tf_listener = tf.TransformListener()
         try:
             self.tf_listener.waitForTransform(plan_frame, local_frame, rospy.Time(), rospy.Duration(4.0))
         except:
             rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
 
+        # a list of names for each maneuver
+        # good for feedback
+        self.waypoint_man_ids = []
+
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints = self.read_plandb(plandb_msg, plan_frame, local_frame, self.tf_listener)
+            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg, plan_frame, local_frame, self.tf_listener)
         else:
             self.waypoints = waypoints
+            self.waypoint_man_ids = waypoint_man_ids
+            if self.waypoint_man_ids is None:
+                self.waypoint_man_ids = []
+                for i,wp in enumerate(self.waypoints):
+                    self.waypoint_man_ids.append("Goto"+str(i+1))
+
 
         self.refined_waypoints = None
 
@@ -57,6 +71,7 @@ class MissionPlan:
         we want a list of waypoints in the local frame,
         """
         waypoints = []
+        waypoint_man_ids = []
         request_id = plandb.request_id
         plan_id = plandb.plan_id
         plan_spec = plandb.plan_spec
@@ -82,12 +97,13 @@ class MissionPlan:
                     waypoint_local = tf_listener.transformPoint(local_frame, stamped_utm_point)
                     waypoint = (waypoint_local.point.x, waypoint_local.point.y, waypoint_local.point.z)
                     waypoints.append(waypoint)
+                    waypoint_man_ids.append(man_id)
                 except:
                     rospy.logwarn_throttle_identical(10, "Can not transform plan point to local point!")
             else:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
 
-        return waypoints
+        return waypoints, waypoint_man_ids
 
 
 

@@ -275,10 +275,12 @@ def main(config):
         rospy.loginfo("Setting up tree")
         tree.setup(timeout=10)
         rospy.loginfo("Ticktocking....")
+        rate = rospy.Rate(common_globals.BT_TICK_RATE)
+
         while not rospy.is_shutdown():
-            # rate is period in ms
-            #  tree.tick_tock(1, post_tick_handler=lambda t: pt.display.print_ascii_tree(tree.root, show_status=True))
-            tree.tick_tock(common_globals.BT_TICKING_PERIOD)
+            tree.tick()
+            bb.set(bb_enums.TREE_TIP, tree.tip())
+            rate.sleep()
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")

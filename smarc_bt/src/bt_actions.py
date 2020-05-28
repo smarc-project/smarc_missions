@@ -133,7 +133,6 @@ class A_EmergencySurface(ptr.actions.ActionClient):
             self.sent_goal = True
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Emergency goal sent"
-            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
             return pt.Status.RUNNING
 
 
@@ -142,7 +141,6 @@ class A_EmergencySurface(ptr.actions.ActionClient):
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
             self.feedback_message = "Aborted emergency"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.FAILURE
 
         result = self.action_client.get_result()
@@ -151,12 +149,10 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if result:
             self.feedback_message = "Completed emergency"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.SUCCESS
 
 
         # if we're still trying to accomplish the goal
-        self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_EmergencySurface')
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
@@ -306,7 +302,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             self.sent_goal = True
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Goal sent"
-            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
             return pt.Status.RUNNING
 
 
@@ -315,7 +310,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
             self.feedback_message = "Aborted goal"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             return pt.Status.FAILURE
 
         result = self.action_client.get_result()
@@ -324,13 +318,10 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         if result:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
-            self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, None)
             self.bb.get(bb_enums.MISSION_PLAN_OBJ).visit_wp()
             return pt.Status.SUCCESS
 
 
-        # if we're still trying to accomplish the goal
-        self.bb.set(bb_enums.CURRENTLY_RUNNING_ACTION, 'A_ExecutePlanAction')
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
@@ -534,33 +525,46 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
     def update(self):
         # construct current progress message for neptus
         msg = PlanControlState()
+        tip = self.bb.get(bb_enums.TREE_TIP)
+        if tip is None:
+            tip_name = ''
+            tip_status=''
+        else:
+            tip_name = tip.name
+            tip_status = str(tip.status)
+
+        # this tip_status looks like: "Status.FAILURE"
+        # I just wanna get the first letter after dot.
+        msg.man_id = tip_name+'('+tip_status[7]+')'
 
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None or mission_plan.is_complete():
             msg.plan_id = 'No plan'
-            msg.man_id = 'Idle'
             msg.plan_progress = 100.0
         else:
             current_wp_index = mission_plan.current_wp_index
+            current_man_id = mission_plan.waypoint_man_ids[current_wp_index]
             total = len(mission_plan.waypoints)
-            plan_progress = (current_wp_index * 100.0) / total # percent float
             msg.plan_id = str(mission_plan.plan_id)
-            msg.man_id = 'Goto'+str(current_wp_index+1)
+            if self.bb.get(bb_enums.PLAN_IS_GO):
+                msg.man_id = current_man_id
+
+            plan_progress = (current_wp_index * 100.0) / total # percent float
             msg.plan_progress = plan_progress
 
-        if self.bb.get(bb_enums.IMC_STATE):
-            msg.state = self.bb.get(bb_enums.IMC_STATE)
+
+        if tip_name in imc_enums.EXECUTING_ACTION_NAMES:
+            msg.state = imc_enums.STATE_EXECUTING
+        elif tip_name in imc_enums.BLOCKED_ACTION_NAMES:
+            msg.state = imc_enums.STATE_BLOCKED
+            msg.plan_id = 'SAFETY FALLBACK'
+            msg.man_id = 'EMERGENCY'
+            msg.plan_progress = 0.0
         else:
-            currently_running = self.bb.get(bb_enums.CURRENTLY_RUNNING_ACTION)
-            if currently_running == 'A_ExecutePlanAction':
-                msg.state = imc_enums.STATE_EXECUTING
-            elif currently_running == 'A_EmergencySurface':
-                msg.state = imc_enums.STATE_BLOCKED
-                msg.plan_id = 'SAFETY FALLBACK'
-                msg.man_id = 'EMERGENCY SURFACE'
-                msg.plan_progress = 0.0
-            else:
-                msg.state = imc_enums.STATE_READY
+            msg.state = imc_enums.STATE_READY
+
+        if self.bb.get(bb_enums.ENABLE_AUTONOMY):
+            msg.plan_id += '(AUTONOMOUS)'
 
         # send message to neptus
         self.plan_control_state_pub.publish(msg)
@@ -579,11 +583,15 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
         """
         vs = VehicleState()
 
-        currently_running = self.bb.get(bb_enums.CURRENTLY_RUNNING_ACTION)
-        maneuver_actions = self.bb.get(bb_enums.MANEUVER_ACTIONS)
-        if maneuver_actions is not None and currently_running in maneuver_actions:
+        tip = self.bb.get(bb_enums.TREE_TIP)
+        if tip is None:
+            tip_name = ''
+        else:
+            tip_name = tip.name
+
+        if tip_name in imc_enums.EXECUTING_ACTION_NAMES:
             vs.op_mode = imc_enums.OP_MODE_MANEUVER
-        elif currently_running == 'A_EmergencySurface':
+        elif tip_name == 'A_EmergencySurface':
             vs.op_mode = imc_enums.OP_MODE_ERROR
         else:
             vs.op_mode = imc_enums.OP_MODE_SERVICE
@@ -766,6 +774,7 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
             (x, y-radius, depth-z_extra),
             (x, y, 0)
         ]
+        waypoint_man_ids = ['east', 'west', 'north', 'south', 'surface_center']
         # construct a planDB message to be given to the mission_plan
         # we will not fill the plan_spec of this plandb message,
         # and instead call a different constructor of MissionPlan
@@ -778,7 +787,8 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         mission_plan = MissionPlan(plan_frame = self.utm_link,
                                    local_frame = self.local_link,
                                    plandb_msg = pdb,
-                                   waypoints = waypoints)
+                                   waypoints = waypoints,
+                                   waypoint_man_ids=waypoint_man_ids)
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
 

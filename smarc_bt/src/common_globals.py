@@ -7,8 +7,8 @@
 ########################
 # DEFAULT VALUES
 ########################
-# in ms.
-BT_TICKING_PERIOD = 50
+# Hz.
+BT_TICK_RATE = 3
 
 # these are from croatia, biograd coast
 DEFAULT_UTM_ZONE = 33
