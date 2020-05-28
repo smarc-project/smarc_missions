@@ -60,7 +60,6 @@ class Interp1d:
         x = np.hstack(([0], np.cumsum(x)))
 
         # interpolate the data
-        print(self.spline_degree, self.waypoint_spacing)
         f = interp1d(x, numpy_array, kind=self.spline_degree, axis=0)
         x = np.arange(start=x[0], stop=x[-1], step=self.waypoint_spacing)
         y = f(x)
