@@ -13,7 +13,9 @@ from py_trees.composites import Selector as Fallback
 # messages
 from std_msgs.msg import Float64
 from sam_msgs.msg import Leak
+from cola2_msgs.msg import DVL
 
+from auv_config import AUVConfig
 
 # tree leaves
 from bt_actions import A_GotoWaypoint, \
@@ -81,8 +83,8 @@ def const_tree(auv_config):
         read_alt = ReadTopic(
             name = "A_ReadAlt",
             topic_name = auv_config.ALTITUDE_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.ALTITUDE:'data'} # this takes the Float64.data field and puts into the bb
+            topic_type = DVL,
+            blackboard_variables = {bb_enums.ALTITUDE:'altitude'}
         )
 
         read_leak = ReadTopic(
@@ -261,25 +263,27 @@ def main(config):
 if __name__ == '__main__':
     # init the node
     rospy.init_node("bt")
-    robot_name = rospy.get_param("~robot_name", "sam")
 
-    if robot_name[:3] == "sam":
-        from auv_config import SAMConfig
-        config = SAMConfig()
-    elif robot_name[:4] == "lolo":
-        from auv_config import LOLOConfig
-        config = LOLOConfig()
-    else:
-        rospy.logerr("ROBOT NAME NOT UNDERSTOOD, CONFIG NOT LOADED, EXITING:"+str(robot_name))
-        import sys
-        sys.exit(1)
+    config = AUVConfig()
+    config.robot_name = rospy.get_param("~robot_name", config.robot_name)
 
+    #topics
+    config.DEPTH_TOPIC= rospy.get_param("~depth_topic", config.DEPTH_TOPIC)
+    config.ALTITUDE_TOPIC= rospy.get_param("~altitude_topic", config.ALTITUDE_TOPIC)
+    config.LEAK_TOPIC= rospy.get_param("~leak_topic", config.LEAK_TOPIC)
+    config.GPS_FIX_TOPIC= rospy.get_param("~gps_fix_topic", config.GPS_FIX_TOPIC)
 
+    # actions and services
+    config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)
+    config.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", config.EMERGENCY_ACTION_NAMESPACE)
+    config.PATH_PLANNER_NAME = rospy.get_param("~path_planner_name", config.PATH_PLANNER_NAME)
+
+    # tf frame names
     config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
     config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
     config.LOCAL_LINK = rospy.get_param("~local_frame", config.LOCAL_LINK)
-    config.PATH_PLANNER_NAME = rospy.get_param("~path_planner_name", config.PATH_PLANNER_NAME)
 
+    # imc related stuff
     config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)
     config.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", config.PLAN_CONTROL_TOPIC)
     config.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", config.ESTIMATED_STATE_TOPIC)
@@ -287,10 +291,10 @@ if __name__ == '__main__':
     config.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", config.VEHICLE_STATE_TOPIC)
     config.ABORT_TOPIC = rospy.get_param("~abort_topic", config.ABORT_TOPIC)
 
-    config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)
-    config.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", config.EMERGENCY_ACTION_NAMESPACE)
+    # hard limits
+    config.MAX_DEPTH = rospy.get_param("~max_depth", config.MAX_DEPTH)
+    config.MIN_ALTITUDE = rospy.get_param("~min_altitude", config.MIN_ALTITUDE)
 
     print(config)
-
     main(config)
 

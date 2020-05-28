@@ -43,9 +43,11 @@ class C_DepthOK(pt.behaviour.Behaviour):
         self.update = self.cbf_condition.update
 
     def update(self):
-        if self.bb.get(bb_enums.DEPTH) < self.max_depth:
+        depth = self.bb.get(bb_enums.DEPTH)
+        if depth < self.max_depth:
             return pt.Status.SUCCESS
         else:
+            rospy.logwarn_throttle(5, "Too deep!"+str(depth))
             return pt.Status.FAILURE
 
 
@@ -69,12 +71,11 @@ class C_AltOK(pt.behaviour.Behaviour):
         super(C_AltOK, self).__init__(name="C_AltOK")
 
     def update(self):
-        # remove this when there is altitude available
-        return pt.Status.SUCCESS
-
-        if self.bb.get(bb_enums.ALTITUDE) > self.min_alt:
+        alt = self.bb.get(bb_enums.ALTITUDE)
+        if alt > self.min_alt:
             return pt.Status.SUCCESS
         else:
+            rospy.logwarn_throttle(5, "Too close to the bottom!"+str(alt))
             return pt.Status.FAILURE
 
 

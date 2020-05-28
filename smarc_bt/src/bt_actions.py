@@ -198,6 +198,11 @@ class A_RefineMission(pt.behaviour.Behaviour):
             mission_plan.set_refined_waypoints(mission_plan.waypoints)
             return pt.Status.SUCCESS
 
+        if len(mission_plan.waypoints) <= 1:
+            # there is literally just one point, cant plan for that apparently
+            mission_plan.set_refined_waypoints(mission_plan.waypoints)
+            return pt.Status.SUCCESS
+
         trajectory_response = self.path_planner(mission_plan.get_pose_array())
         refined_path = trajectory_response.fine
         mission_plan.set_refined_waypoints(mission_plan.path_to_list(refined_path))

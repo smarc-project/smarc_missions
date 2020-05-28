@@ -33,15 +33,15 @@ class WPDepthPlanner(object):
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
 
-    
+
     def yaw_feedback_cb(self,yaw_feedback):
         self.yaw_feedback= yaw_feedback.data
 
     def angle_wrap(self,angle):
         if(abs(angle)>3.141516):
-            angle= angle - (abs(angle)/angle)*2*3.141516; #Angle wrapping between -pi and pi	   
-            rospy.loginfo("Angle Error Wrapped")
-        return angle	
+            angle= angle - (abs(angle)/angle)*2*3.141516; #Angle wrapping between -pi and pi
+            rospy.loginfo_throttle_identical(20, "Angle Error Wrapped")
+        return angle
 
     def turbo_turn(self,angle_error):
         rpm = self.turbo_turn_rpm
@@ -179,10 +179,10 @@ class WPDepthPlanner(object):
 
 	    else:
 		if self.turbo_turn_flag:
- 		    #if turbo turn is included	        
+ 		    #if turbo turn is included
 		    rospy.loginfo("Yaw error: %f", yaw_error)
-		
-                    if abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max: 
+
+                    if abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max:
                         #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
                         self.yaw_pid_enable.publish(False)
                         self.turbo_turn(yaw_error)
@@ -221,7 +221,7 @@ class WPDepthPlanner(object):
             r.sleep()
 
         # Stop thruster
-	self.vel_pid_enable.publish(False)        
+	self.vel_pid_enable.publish(False)
 	rpm = ThrusterRPMs()
         rpm.thruster_1_rpm = 0.0
         rpm.thruster_2_rpm = 0.0
@@ -287,10 +287,10 @@ class WPDepthPlanner(object):
         depth_pid_enable_topic = rospy.get_param('~depth_pid_enable_topic', '/sam/ctrl/dynamic_depth/pid_enable')
 
         self.forward_rpm = int(rospy.get_param('~forward_rpm', 1000))
-        
+
 
         #related to turbo turn
-	self.turbo_turn_flag = rospy.get_param('~turbo_turn_flag', False)	
+	self.turbo_turn_flag = rospy.get_param('~turbo_turn_flag', False)
 	thrust_vector_cmd_topic = rospy.get_param('~thrust_vector_cmd_topic', '/sam/core/thrust_vector_cmd')
 	yaw_feedback_topic = rospy.get_param('~yaw_feedback_topic', '/sam/ctrl/yaw_feedback')
         self.turbo_angle_min_deg = rospy.get_param('~turbo_angle_min', 90)
@@ -301,12 +301,12 @@ class WPDepthPlanner(object):
         self.turbo_turn_rpm = rospy.get_param('~turbo_turn_rpm', 1000)
 	vbs_pid_enable_topic = rospy.get_param('~vbs_pid_enable_topic', '/sam/ctrl/vbs/pid_enable')
 	vbs_setpoint_topic = rospy.get_param('~vbs_setpoint_topic', '/sam/ctrl/vbs/setpoint')
-        
+
 
 	#related to velocity regulation instead of rpm
 	self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
 	self.vel_setpoint = rospy.get_param('~vel_setpoint', 2) #velocity setpoint in m/s
-	self.roll_setpoint = rospy.get_param('~roll_setpoint', 0) 
+	self.roll_setpoint = rospy.get_param('~roll_setpoint', 0)
 	vel_setpoint_topic = rospy.get_param('~vel_setpoint_topic', '/sam/ctrl/dynamic_velocity/u_setpoint')
 	roll_setpoint_topic = rospy.get_param('~roll_setpoint_topic', '/sam/ctrl/dynamic_velocity/roll_setpoint')
 	vel_pid_enable_topic = rospy.get_param('~vel_pid_enable_topic', '/sam/ctrl/dynamic_velocity/pid_enable')
