@@ -665,7 +665,9 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
                                    local_frame = self.local_link,
                                    plandb_msg = plandb_msg)
 
+
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
+        self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
 
 
