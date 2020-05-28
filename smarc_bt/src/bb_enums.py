@@ -21,6 +21,7 @@ CURRENT_LATITUDE = 'lat'
 CURRENT_LONGITUDE ='lon'
 WORLD_ROT = 'world_rot'
 WORLD_TRANS = 'world_trans'
+LOCATION_POINT_STAMPED = 'loc_ps'
 BASE_LINK = 'base_link'
 
 IMC_STATE = 'imc_state'

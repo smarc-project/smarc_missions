@@ -83,9 +83,20 @@ class MissionPlan:
         return waypoints
 
 
-    def get_pose_array(self):
+    def get_pose_array(self, vehicle_point_stamped=None):
         pa = PoseArray()
         pa.header.frame_id = self.local_frame
+
+        # add the vehicles location as the first waypoint
+        if vehicle_point_stamped is not None:
+            local_vehicle = self.tf_listener.transformPoint(self.local_frame, vehicle_point_stamped)
+            vp = Pose()
+            vp.position.x = local_vehicle.point.x
+            vp.position.y = local_vehicle.point.y
+            vp.position.z = local_vehicle.point.z
+            pa.poses.append(vp)
+
+        # add the rest of the waypoints
         for wp in self.waypoints:
             p = Pose()
             p.position.x = wp[0]

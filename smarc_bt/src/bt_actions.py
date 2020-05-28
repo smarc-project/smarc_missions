@@ -16,6 +16,7 @@ import tf
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
+from geometry_msgs.msg import PointStamped
 
 # path planner service
 from trajectories.srv import trajectory
@@ -174,8 +175,11 @@ class A_RefineMission(pt.behaviour.Behaviour):
         self.path_planner = None
 
 
+    def no_service(self):
+        return self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']
+
     def setup(self, timeout):
-        if self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']:
+        if self.no_service():
             return True
 
         try:
@@ -193,7 +197,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
         if mission_plan is None or mission_plan.is_complete():
             return pt.Status.FAILURE
 
-        if self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']:
+        if self.no_service():
             # there is no path planner, just copy the coarse points to the refined side
             mission_plan.set_refined_waypoints(mission_plan.waypoints)
             return pt.Status.SUCCESS
@@ -203,7 +207,11 @@ class A_RefineMission(pt.behaviour.Behaviour):
             mission_plan.set_refined_waypoints(mission_plan.waypoints)
             return pt.Status.SUCCESS
 
-        trajectory_response = self.path_planner(mission_plan.get_pose_array())
+
+        # give the location of the auv as the first point in the plan
+        # to prevent overshooting the first real waypoint
+        ps = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
+        trajectory_response = self.path_planner(mission_plan.get_pose_array(ps))
         refined_path = trajectory_response.fine
         mission_plan.set_refined_waypoints(mission_plan.path_to_list(refined_path))
         rospy.loginfo_throttle_identical(10, "Refined waypoints length:"+str(len(mission_plan.refined_waypoints)))
@@ -368,6 +376,16 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
         self.bb.set(bb_enums.WORLD_TRANS, world_trans)
         self.bb.set(bb_enums.WORLD_ROT, world_rot)
+        # also create this pointstamped object so that we can transform this
+        # easily to w/e other frame is needed later
+        ps = PointStamped()
+        ps.header.frame_id = self.utm_link
+        ps.header.stamp = rospy.Time(0)
+        ps.point.x = world_trans[0]
+        ps.point.y = world_trans[1]
+        ps.point.z = world_trans[2]
+        self.bb.set(bb_enums.LOCATION_POINT_STAMPED, ps)
+
         return pt.Status.SUCCESS
 
 
