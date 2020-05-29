@@ -466,7 +466,10 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
                 rospy.loginfo_throttle_identical(20, "Started plan:"+str(plan_id))
             else:
-                rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
+                if current_mission_plan is None:
+                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" but we don't have a plan!:")
+                else:
+                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
@@ -763,15 +766,15 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         depth = poi.point.z
 
         # construct the waypoints that we want to go to
-        z_extra = 5
+        inspection_depth = max(1, depth - 5)
         radius = 10
         # go east,west,north,south,center
         # so we do bunch of fly-overs
         waypoints = [
-            (x+radius, y, depth-z_extra),
-            (x-radius, y, depth-z_extra),
-            (x, y+radius, depth-z_extra),
-            (x, y-radius, depth-z_extra),
+            (x+radius, y, inspection_depth),
+            (x-radius, y, inspection_depth),
+            (x, y+radius, inspection_depth),
+            (x, y-radius, inspection_depth),
             (x, y, 0)
         ]
         waypoint_man_ids = ['east', 'west', 'north', 'south', 'surface_center']

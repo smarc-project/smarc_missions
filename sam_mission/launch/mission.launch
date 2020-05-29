@@ -38,7 +38,9 @@
     <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
 
 	<!-- Start the path planner service -->
-	<include file="$(find trajectories)/launch/interp1d.launch" pass_all_args="true"/>
+	<include file="$(find trajectories)/launch/interp1d.launch" pass_all_args="true">
+		<param name="waypoint_spacing" value="$(arg wp_tolerance)" />
+	</include>
 
 	<include file="$(find smarc_bt)/launch/bt_sam.launch" pass_all_args="true"/>
 	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
