@@ -334,7 +334,7 @@ if __name__ == '__main__':
     # hard limits
     config.MAX_DEPTH = rospy.get_param("~max_depth", config.MAX_DEPTH)
     config.MIN_ALTITUDE = rospy.get_param("~min_altitude", config.MIN_ALTITUDE)
-    config.EMERGENCY_TRIALS_BEFORE_GIVING_UP= rospy.get_param("~emergency_trials_before_giving_up", config.EMERGENCY_TRIALS_BEFORE_GIVING_UP)
+    config.EMERGENCY_TRIALS_BEFORE_GIVING_UP = rospy.get_param("~emergency_trials_before_giving_up", config.EMERGENCY_TRIALS_BEFORE_GIVING_UP)
 
     print(config)
     main(config)
