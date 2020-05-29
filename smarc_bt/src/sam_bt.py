@@ -198,7 +198,8 @@ def const_tree(auv_config):
     def const_synch_tree():
         have_refined_mission = C_HaveRefinedMission()
         have_coarse_mission = C_HaveCoarseMission()
-        refine_mission = A_RefineMission(config.PATH_PLANNER_NAME)
+        refine_mission = A_RefineMission(config.PATH_PLANNER_NAME,
+                                         config.PATH_TOPIC)
         # we need one here too, to initialize the mission in the first place
         # set dont_visit to True so we dont skip the first wp of the plan
         set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)

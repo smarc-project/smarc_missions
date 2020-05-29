@@ -17,6 +17,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped
+from nav_msgs.msg import Path
 
 # path planner service
 from trajectories.srv import trajectory
@@ -160,7 +161,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
 
 
 class A_RefineMission(pt.behaviour.Behaviour):
-    def __init__(self, path_planner_service_name):
+    def __init__(self, path_planner_service_name, path_topic):
         """
         Takes the current mission plan object and run a path planner
         on its waypoints.
@@ -169,6 +170,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
         super(A_RefineMission, self).__init__('A_RefineMission')
         self.path_planner_service_name = path_planner_service_name
         self.path_planner = None
+        self.path_pub = rospy.Publisher(path_topic, Path, queue_size=1)
 
 
     def no_service(self):
@@ -209,6 +211,8 @@ class A_RefineMission(pt.behaviour.Behaviour):
         ps = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
         trajectory_response = self.path_planner(mission_plan.get_pose_array(ps))
         refined_path = trajectory_response.fine
+        refined_path.header.frame_id = 'map'
+        self.path_pub.publish(refined_path)
         mission_plan.set_refined_waypoints(mission_plan.path_to_list(refined_path))
         rospy.loginfo_throttle_identical(10, "Refined waypoints length:"+str(len(mission_plan.refined_waypoints)))
         return pt.Status.SUCCESS

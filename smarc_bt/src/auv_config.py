@@ -23,6 +23,7 @@ class AUVConfig(object):
         self.LEAK_TOPIC = 'core/leak_fb'
         self.GPS_FIX_TOPIC = 'core/gps'
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
+        self.PATH_TOPIC = 'ctrl/planned_path'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
