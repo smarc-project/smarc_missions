@@ -182,6 +182,9 @@ class MissionPlan:
 
     def visit_wp(self):
         """ call this when you finish going to the wp"""
+        if self.is_complete() or self.refined_waypoints is None:
+            return
+
         ref_wp = self.refined_waypoints[self.current_refined_wp_index]
         coarse_wp = self.waypoints[self.current_wp_index]
         self.current_refined_wp_index += 1
