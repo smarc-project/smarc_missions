@@ -24,6 +24,7 @@ class AUVConfig(object):
         self.GPS_FIX_TOPIC = 'core/gps'
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
+        self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'

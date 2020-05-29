@@ -31,7 +31,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusVehicleState, \
                        A_UpdateNeptusPlanDB, \
                        A_UpdateNeptusPlanControl, \
-                       A_UpdateMissonForPOI
+                       A_UpdateMissonForPOI, \
+                       A_VizPublishPlan
 
 from bt_conditions import C_PlanCompleted, \
                           C_NoAbortReceived, \
@@ -116,7 +117,8 @@ def const_tree(auv_config):
                 A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
                                      auv_config.UTM_LINK,
                                      auv_config.LOCAL_LINK),
-                A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC)
+                A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
+                A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
                                      ])
             return update_neptus
 

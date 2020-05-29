@@ -16,7 +16,7 @@ import tf
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
 
 # path planner service
@@ -809,11 +809,19 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         rospy.loginfo_throttle_identical(5, "Due to POI, set the mission plan to:"+str(mission_plan))
         return pt.Status.SUCCESS
 
-class A_CountUpdates(pt.behaviour.Behaviour):
+class A_VizPublishPlan(pt.behaviour.Behaviour):
     """
-    Counts how many times this action was ticked, when the limit is reached
-    returns SUCCESS and resets the count
+    Publishes the current plans waypoints as a PoseArray
     """
-    def __init__(self, utm_link, local_link, poi_link):
-        super(A_CountUpdates, self).__init__(name="A_UpdateMissonForPOI")
+    def __init__(self, plan_viz_topic):
+        super(A_VizPublishPlan, self).__init__(name="A_VizPublishPlan")
         self.bb = pt.blackboard.Blackboard()
+        self.pa_pub = rospy.Publisher(plan_viz_topic, PoseArray, queue_size=1)
+
+    def update(self):
+        mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission is not None:
+            pa = mission.get_pose_array()
+            self.pa_pub.publish(pa)
+
+        return pt.Status.SUCCESS
