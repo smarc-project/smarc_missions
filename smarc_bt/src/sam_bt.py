@@ -48,7 +48,8 @@ from bt_conditions import C_PlanCompleted, \
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
                       ReadTopic, \
-                      A_RunOnce
+                      A_RunOnce, \
+                      Counter
 
 
 # globally defined values
@@ -161,10 +162,19 @@ def const_tree(auv_config):
 
         surface = A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
 
+        skip_wp = Sequence(name='SQ-CountEmergenciesAndSkip',
+                           children = [
+                               Counter(n=auv_config.EMERGENCY_TRIALS_BEFORE_GIVING_UP,
+                                       name="A_EmergencyCounter",
+                                       reset=True),
+                               A_SetNextPlanAction()
+                           ])
+
         # if anything about safety is 'bad', we abort everything
         fallback_to_abort = Fallback(name='FB_SafetyOK',
                                      children = [
                                          safety_checks,
+                                         skip_wp,
                                          surface
                                      ])
         return fallback_to_abort
@@ -190,7 +200,8 @@ def const_tree(auv_config):
         have_coarse_mission = C_HaveCoarseMission()
         refine_mission = A_RefineMission(config.PATH_PLANNER_NAME)
         # we need one here too, to initialize the mission in the first place
-        set_next_plan_action = A_SetNextPlanAction()
+        # set dont_visit to True so we dont skip the first wp of the plan
+        set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
 
 
         refinement_tree = Sequence(name="SQ_Refinement",
@@ -323,6 +334,7 @@ if __name__ == '__main__':
     # hard limits
     config.MAX_DEPTH = rospy.get_param("~max_depth", config.MAX_DEPTH)
     config.MIN_ALTITUDE = rospy.get_param("~min_altitude", config.MIN_ALTITUDE)
+    config.EMERGENCY_TRIALS_BEFORE_GIVING_UP= rospy.get_param("~emergency_trials_before_giving_up", config.EMERGENCY_TRIALS_BEFORE_GIVING_UP)
 
     print(config)
     main(config)

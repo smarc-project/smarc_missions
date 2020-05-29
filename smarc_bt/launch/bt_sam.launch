@@ -6,6 +6,7 @@
 	<arg name="utm_frame" default="utm" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="5" />
+	<arg name="emergency_trials_before_giving_up" default=10 />
 
 	<!-- leave empty string to disable path planner -->
 	<arg name="path_planner_name" default="/interp1d" />
@@ -37,6 +38,7 @@
 
 		<param name="max_depth" value="$(arg max_depth)" />
 		<param name="min_altitude" value="$(arg min_altitude)" />
+		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
 
 		<param name="utm_zone" value="$(arg utm_zone)" />
 		<param name="utm_band" value="$(arg utm_band)" />

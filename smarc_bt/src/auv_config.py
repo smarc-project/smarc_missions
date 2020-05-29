@@ -48,6 +48,9 @@ class AUVConfig(object):
         # hard values
         self.MAX_DEPTH = 20
         self.MIN_ALTITUDE = 5
+        # how many ticks to run emergency action before we give up
+        # on the current wp and skip it
+        EMERGENCY_TRIALS_BEFORE_GIVING_UP = 10
 
     def __str__(self):
         s = 'AUV_CONFIG:\n'

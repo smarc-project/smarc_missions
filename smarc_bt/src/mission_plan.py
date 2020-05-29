@@ -181,7 +181,7 @@ class MissionPlan:
 
 
     def visit_wp(self):
-        """ call this when you finish going to the wp you received by pop """
+        """ call this when you finish going to the wp"""
         ref_wp = self.refined_waypoints[self.current_refined_wp_index]
         coarse_wp = self.waypoints[self.current_wp_index]
         self.current_refined_wp_index += 1
@@ -192,7 +192,7 @@ class MissionPlan:
             self.current_wp_index += 1
 
 
-    def pop_wp(self):
+    def get_current_wp(self):
         """
         pop a wp from the remaining wps and return it
         """

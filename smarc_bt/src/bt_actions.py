@@ -217,18 +217,26 @@ class A_RefineMission(pt.behaviour.Behaviour):
 
 
 class A_SetNextPlanAction(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self, do_not_visit=False):
         """
         Sets the current plan action to the next one
         RUNNING if it can set it to something that is not None
         FAILURE otherwise
+
+        if do_not_visit=True, then this action will only get the current wp
+        and set it and wont actually advance the plan forward.
+        This is useful for when you want to set the current wp right after
+        you created a plan.
         """
         self.bb = pt.blackboard.Blackboard()
         super(A_SetNextPlanAction, self).__init__('A_SetNextPlanAction')
+        self.do_not_visit = do_not_visit
 
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        next_action = mission_plan.pop_wp()
+        if not self.do_not_visit:
+            mission_plan.visit_wp()
+        next_action = mission_plan.get_current_wp()
         if next_action is None:
             self.feedback_message = "Next action was None"
             return pt.Status.FAILURE
@@ -318,7 +326,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         if result:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
-            self.bb.get(bb_enums.MISSION_PLAN_OBJ).visit_wp()
             return pt.Status.SUCCESS
 
 
@@ -798,4 +805,11 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         rospy.loginfo_throttle_identical(5, "Due to POI, set the mission plan to:"+str(mission_plan))
         return pt.Status.SUCCESS
 
-
+class A_CountUpdates(pt.behaviour.Behaviour):
+    """
+    Counts how many times this action was ticked, when the limit is reached
+    returns SUCCESS and resets the count
+    """
+    def __init__(self, utm_link, local_link, poi_link):
+        super(A_CountUpdates, self).__init__(name="A_UpdateMissonForPOI")
+        self.bb = pt.blackboard.Blackboard()
