@@ -107,7 +107,7 @@ class MissionPlan:
 
 
 
-    def get_pose_array(self, vehicle_point_stamped=None):
+    def get_pose_array(self, vehicle_point_stamped=None, flip_z=False):
         pa = PoseArray()
         pa.header.frame_id = self.local_frame
 
@@ -117,7 +117,10 @@ class MissionPlan:
             vp = Pose()
             vp.position.x = local_vehicle.point.x
             vp.position.y = local_vehicle.point.y
-            vp.position.z = local_vehicle.point.z
+            if flip_z:
+                vp.position.z = -local_vehicle.point.z
+            else:
+                vp.position.z = local_vehicle.point.z
             pa.poses.append(vp)
 
         # add the rest of the waypoints
@@ -125,7 +128,10 @@ class MissionPlan:
             p = Pose()
             p.position.x = wp[0]
             p.position.y = wp[1]
-            p.position.z = wp[2]
+            if flip_z:
+                p.position.z = -wp[2]
+            else:
+                p.position.z = wp[2]
             pa.poses.append(p)
 
         return pa

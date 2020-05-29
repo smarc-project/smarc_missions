@@ -821,7 +821,11 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
     def update(self):
         mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission is not None:
-            pa = mission.get_pose_array()
-            self.pa_pub.publish(pa)
+            pa = mission.get_pose_array(flip_z=True)
+        else:
+            pa = PoseArray()
+
+        self.pa_pub.publish(pa)
+
 
         return pt.Status.SUCCESS
