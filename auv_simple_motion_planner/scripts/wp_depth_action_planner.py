@@ -305,7 +305,7 @@ class WPDepthPlanner(object):
 
 	#related to velocity regulation instead of rpm
 	self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
-	self.vel_setpoint = rospy.get_param('~vel_setpoint', 2) #velocity setpoint in m/s
+	self.vel_setpoint = rospy.get_param('~vel_setpoint', 0.5) #velocity setpoint in m/s
 	self.roll_setpoint = rospy.get_param('~roll_setpoint', 0)
 	vel_setpoint_topic = rospy.get_param('~vel_setpoint_topic', '/sam/ctrl/dynamic_velocity/u_setpoint')
 	roll_setpoint_topic = rospy.get_param('~roll_setpoint_topic', '/sam/ctrl/dynamic_velocity/roll_setpoint')
