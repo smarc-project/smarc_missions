@@ -636,7 +636,6 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         plan_info = PlanDBInformation()
         plan_info.plan_id = current_mission_plan.plan_id
         plan_info.md5 = current_mission_plan.plandb_msg.plan_spec_md5
-        rospy.loginfo_throttle_identical(60, "Sent md5:"+plan_info.md5)
         plan_info.change_time = current_mission_plan.creation_time/1000.0
         return plan_info
 
