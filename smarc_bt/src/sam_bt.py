@@ -287,14 +287,18 @@ def main(config):
         rospy.loginfo("Constructing tree")
         tree = const_tree(config)
         rospy.loginfo("Setting up tree")
-        tree.setup(timeout=10)
-        rospy.loginfo("Ticktocking....")
-        rate = rospy.Rate(common_globals.BT_TICK_RATE)
+        setup_ok = tree.setup(timeout=10)
+        if setup_ok:
+            rospy.loginfo("Ticktocking....")
+            rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
-        while not rospy.is_shutdown():
-            tree.tick()
-            bb.set(bb_enums.TREE_TIP, tree.tip())
-            rate.sleep()
+            while not rospy.is_shutdown():
+                tree.tick()
+                bb.set(bb_enums.TREE_TIP, tree.tip())
+                rate.sleep()
+
+        else:
+            rospy.logerr("Tree could not be setup! Exiting!")
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")
@@ -325,6 +329,7 @@ if __name__ == '__main__':
     config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
     config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
     config.LOCAL_LINK = rospy.get_param("~local_frame", config.LOCAL_LINK)
+    config.POI_DETECTOR_LINK = rospy.get_param("~poi_detector_link", config.POI_DETECTOR_LINK)
 
     # imc related stuff
     config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)

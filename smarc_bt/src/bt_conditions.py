@@ -71,6 +71,13 @@ class C_AltOK(pt.behaviour.Behaviour):
         self.min_alt = min_alt
         super(C_AltOK, self).__init__(name="C_AltOK")
 
+        self.cbf_condition = CBFCondition(checked_field_topic=None,
+                                          checked_field_name='altitude',
+                                          limit_type='>',
+                                          limit_value=self.min_alt,
+                                          update_func=self.update)
+        self.update = self.cbf_condition.update
+
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
         if alt > self.min_alt:
