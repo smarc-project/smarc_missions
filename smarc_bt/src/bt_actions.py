@@ -298,8 +298,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         """
         # if your action client is not valid
         if not self.action_client:
-            self.feedback_message = "ActionClient is invalid!"
-            rospy.logwarn(self.feedback_message)
+            self.feedback_message = "ActionClient is invalid! Client:"+str(self.action_client)
+            rospy.logerr(self.feedback_message)
             return pt.Status.FAILURE
 
         # if the action_goal is invalid
