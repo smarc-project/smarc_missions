@@ -362,8 +362,9 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}".format(self.utm_link, self.base_link))
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.utm_link, self.base_link))
             self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(5.0))
+            rospy.loginfo_throttle(3, "...Got it")
             return True
         except:
             rospy.logerr_throttle(5, "Could not find from "+self.utm_link+" to "+self.base_link)
@@ -764,7 +765,9 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.poi_link, self.local_link))
             self.tf_listener.waitForTransform(self.poi_link, self.local_link, rospy.Time(), rospy.Duration(timeout))
+            rospy.loginfo_throttle(3, "...Got it")
             return True
         except:
             rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.local_link)

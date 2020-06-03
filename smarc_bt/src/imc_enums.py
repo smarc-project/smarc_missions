@@ -38,6 +38,7 @@ MANEUVER_GOTO = 450
 # as the imc 'executing' state
 EXECUTING_ACTION_NAMES =[
     'A_GotoWaypoint',
+    'A_FollowLeader',
     'A_SetNextPlanAction' #so we dont spam service/maneuver when going tru a lot of waypoints quickly
 ]
 # same thing for the 'blocked' state

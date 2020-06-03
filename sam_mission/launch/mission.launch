@@ -50,17 +50,21 @@
 	<!-- Action Servers -->
     <arg name="action_namespace" default="ctrl/wp_depth_action_planner"/>
     <arg name="emergency_action_namespace" default="ctrl/emergency_surface_action"/>
-    <arg name="follow_action_namespace" default="ctrl/leader_follower"/>
+    <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
 
 
 	<!-- WP-Depth planner related -->
     <arg name="wp_tolerance" default="5."/>
     <arg name="depth_tolerance" default="0.5"/>
 
+	<!-- Leader follower related -->
+    <arg name="min_dist" default="5."/>
+
 
 	<!-- Start all actions before the BT -->
     <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/>
     <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
+    <include file="$(find auv_simple_motion_planner)/launch/leader_follower_action.launch" pass_all_args="true"/>
 
 	<!-- Start the path planner service -->
 	<include file="$(find trajectories)/launch/interp1d.launch" pass_all_args="true">

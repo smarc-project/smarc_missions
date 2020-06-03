@@ -25,7 +25,7 @@
 	<arg name="path_planner_name" default="/interp1d" />
 	<arg name="enable_leader_follower" default="True" />
 	<arg name="gps_fix_topic" default="core/gps" />
-	<arg name="follow_action_namespace" default="ctrl/leader_follower" />
+	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
 	<arg name="camera_detection_topic" default="detection/poi_down" />
 	<arg name="estimated_state_topic" default="imc/estimated_state" />
 
