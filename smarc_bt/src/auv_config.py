@@ -99,9 +99,6 @@ class AUVConfig(object):
             param_name = '~'+k.lower()
             rosparam_v = rospy.get_param(param_name, None)
             if rosparam_v is not None:
-                print("Read {} from rosparams for {}".format(rosparam_v, k))
                 self.__dict__[k] = rosparam_v
-            else:
-                print("Using the default {} for {}".format(v,k))
 
 
