@@ -32,7 +32,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanDB, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
-                       A_VizPublishPlan
+                       A_VizPublishPlan, \
+                       A_FollowLeader
 
 from bt_conditions import C_PlanCompleted, \
                           C_NoAbortReceived, \
@@ -44,7 +45,8 @@ from bt_conditions import C_PlanCompleted, \
                           C_HaveCoarseMission, \
                           C_PlanIsNotChanged, \
                           C_NoNewPOIDetected, \
-                          C_AutonomyDisabled
+                          C_AutonomyDisabled, \
+                          C_LeaderFollowerDisabled
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -182,7 +184,13 @@ def const_tree(auv_config):
         return fallback_to_abort
 
 
-    #  def const_leader_follower():
+    def const_leader_follower():
+        return Fallback(name="FB_LeaderFollower",
+                        children=[
+                            C_LeaderFollowerDisabled(config.ENABLE_LEADER_FOLLOWER),
+                            A_FollowLeader(config.FOLLOW_ACTION_NAMESPACE,
+                                           config.LEADER_LINK)
+                        ])
 
 
 
@@ -254,20 +262,18 @@ def const_tree(auv_config):
 
 
 
-    # use this to stop any leftover actions from previously ran BTs
-    run_once = A_RunOnce()
-
     data_ingestion_tree = const_data_ingestion_tree()
     safety_tree = const_safety_tree()
+    leader_follower_tree = const_leader_follower()
     auto_tree = const_autonomous_updates()
     synch_mission_tree = const_synch_tree()
     exec_mission_tree = const_execute_mission_tree()
 
     root = Sequence(name='SQ-ROOT',
                     children=[
-                              run_once,
                               data_ingestion_tree,
                               safety_tree,
+                              leader_follower_tree,
                               auto_tree,
                               synch_mission_tree,
                               exec_mission_tree

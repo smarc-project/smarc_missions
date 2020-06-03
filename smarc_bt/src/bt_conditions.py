@@ -7,7 +7,7 @@
 import math
 import rospy
 import py_trees as pt
-import bb_enums
+
 import imc_enums
 
 from bt_common import CBFCondition
@@ -240,3 +240,19 @@ class C_AutonomyDisabled(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
+
+
+class C_LeaderFollowerDisabled(pt.behaviour.Behaviour):
+    def __init__(self, enable_leader_follower):
+        super(C_LeaderFollowerDisabled, self).__init__(name="C_LeaderFollowerDisabled")
+        self.bb = pt.blackboard.Blackboard()
+        self.enable_leader_follower = enable_leader_follower
+
+    def update(self):
+        if self.enable_leader_follower:
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+

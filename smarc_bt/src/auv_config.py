@@ -29,7 +29,7 @@ class AUVConfig(object):
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
-        self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower'
+        self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
         # this can be set to None to disable the use of a path planner
         # the robot will be given the user generated waypoints to follow in that case
         self.PATH_PLANNER_NAME = '/interp1d'

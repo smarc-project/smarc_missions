@@ -258,7 +258,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         """
 
         self.bb = pt.blackboard.Blackboard()
-        self.bb.set(bb_enums.MANEUVER_ACTIONS, self.bb.get(bb_enums.MANEUVER_ACTIONS).append("A_GotoWaypoint"))
+        list_of_maneuvers = self.bb.get(bb_enums.MANEUVER_ACTIONS)
+        if list_of_maneuvers is None:
+            list_of_maneuvers = ["A_GotoWaypoint"]
+        else:
+            list_of_maneuvers.append("A_GotoWaypoint")
+        self.bb.set(bb_enums.MANEUVER_ACTIONS, list_of_maneuvers)
         self.action_goal_handle = None
 
         # become action client
@@ -840,7 +845,13 @@ class A_FollowLeader(ptr.actions.ActionClient):
         """
 
         self.bb = pt.blackboard.Blackboard()
-        self.bb.set(bb_enums.MANEUVER_ACTIONS, self.bb.get(bb_enums.MANEUVER_ACTIONS).append("A_FollowLeader"))
+        list_of_maneuvers = self.bb.get(bb_enums.MANEUVER_ACTIONS)
+        if list_of_maneuvers is None:
+            list_of_maneuvers = ["A_FollowLeader"]
+        else:
+            list_of_maneuvers.append("A_FollowLeader")
+        self.bb.set(bb_enums.MANEUVER_ACTIONS, list_of_maneuvers)
+
         self.action_goal_handle = None
         self.leader_link = leader_link
 
