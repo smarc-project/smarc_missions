@@ -38,7 +38,7 @@ class LeaderFollower(object):
         rospy.loginfo_throttle(5, "Goal received")
 
         success = True
-        r = rospy.Rate(11.) # 10hz
+        rate = rospy.Rate(11.) # 10hz
         counter = 0
         while not rospy.is_shutdown():
 
@@ -46,14 +46,16 @@ class LeaderFollower(object):
             self.leader_frame = goal.target_pose.header.frame_id
             try:
                 (rel_trans, rel_rot) = self.listener.lookupTransform(self.leader_frame,
-                                                                        self.follower_frame,
-                                                                        rospy.Time(0))
+                                                                     self.follower_frame,
+                                                                     rospy.Time(0))
             except (tf.LookupException, tf.ConnectivityException):
                 rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.leader_frame +" and "+ self.follower_frame)
-                return pt.Status.FAILURE
+                success = False
+                break
             except:
                 rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
-                return pt.Status.FAILURE
+                success = False
+                break
 
             self.yaw_pid_enable.publish(True)
             self.depth_pid_enable.publish(True)
@@ -63,10 +65,9 @@ class LeaderFollower(object):
                 success = False
 
                 # Stop thrusters
-                rpm = ThrusterRPMs()
-                rpm.thruster_1_rpm = 0.
-                rpm.thruster_2_rpm = 0.
-                self.rpm_pub.publish(rpm)
+                self.rpm.thruster_1_rpm = 0.
+                self.rpm.thruster_2_rpm = 0.
+                self.rpm_pub.publish(self.rpm)
                 self.yaw_pid_enable.publish(False)
                 self.depth_pid_enable.publish(False)
                 self.vel_pid_enable.publish(False)
@@ -77,8 +78,10 @@ class LeaderFollower(object):
 
             # Compute and Publish setpoints
             if counter % 10 == 0:
-                if sqrt(rel_trans[0]**2 + rel_trans[1]**2 + rel_trans[2]**2) < self.min_dist:
-                    break
+                # distance check is done in the BT, we will add CBFs here later, which will include
+                # that distance as a constraint anyways
+                #  if sqrt(rel_trans[0]**2 + rel_trans[1]**2 + rel_trans[2]**2) < self.min_dist:
+                    #  break
 
                 r,p,y = tf.transformations.euler_from_quaternion(rel_rot)
                 yaw_setpoint = y
@@ -103,34 +106,40 @@ class LeaderFollower(object):
                     self.yaw_pid_enable.publish(True)
                     self.yaw_pub.publish(yaw_setpoint)
                     # Thruster forward
-                    rpm = ThrusterRPMs()
-                    rpm.thruster_1_rpm = self.forward_rpm
-                    rpm.thruster_2_rpm = self.forward_rpm
-                    self.rpm_pub.publish(rpm)
+                    self.rpm.thruster_1_rpm = self.forward_rpm
+                    self.rpm.thruster_2_rpm = self.forward_rpm
+                    self.rpm_pub.publish(self.rpm)
                     #rospy.loginfo("Thrusters forward")
 
             counter += 1
-            r.sleep()
+            rate.sleep()
 
         # Stop thruster
         self.vel_pid_enable.publish(False)
-        self.rpm_pub.publish(rpm)
+        self.rpm.thruster_1_rpm = self.forward_rpm
+        self.rpm.thruster_2_rpm = self.forward_rpm
+        self.rpm_pub.publish(self.rpm)
 
         #Stop controllers
         self.yaw_pid_enable.publish(False)
         self.depth_pid_enable.publish(False)
         self.vel_pid_enable.publish(False)
-        rospy.loginfo('%s: Succeeded' % self._action_name)
+        if self._result:
+            rospy.loginfo('%s: Succeeded' % self._action_name)
+        else:
+            rospy.logwarn_throttle_identical(3, '%s: Failed' % self._action_name)
         self._as.set_succeeded(self._result)
 
 
     def __init__(self, name):
 
+        self.rpm = ThrusterRPMs()
+
         """Publish yaw and depth setpoints based on waypoints"""
         self._action_name = name
 
         self.follower_frame = rospy.get_param('~follower_frame', '/sam_2/base_link')
-        self.min_dist = rospy.get_param('~min_dist', 5.)
+        #  self.min_dist = rospy.get_param('~min_dist', 5.)
 
         rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
         heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')

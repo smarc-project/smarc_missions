@@ -46,7 +46,9 @@ from bt_conditions import C_PlanCompleted, \
                           C_PlanIsNotChanged, \
                           C_NoNewPOIDetected, \
                           C_AutonomyDisabled, \
-                          C_LeaderFollowerDisabled
+                          C_LeaderFollowerEnabled, \
+                          C_LeaderExists, \
+                          C_LeaderIsFarEnough
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -185,9 +187,14 @@ def const_tree(auv_config):
 
 
     def const_leader_follower():
-        return Fallback(name="FB_LeaderFollower",
+        return Sequence(name="SQ_LeaderFollower",
                         children=[
-                            C_LeaderFollowerDisabled(config.ENABLE_LEADER_FOLLOWER),
+                            C_LeaderFollowerEnabled(config.ENABLE_LEADER_FOLLOWER),
+                            C_LeaderExists(config.BASE_LINK,
+                                           config.LEADER_LINK),
+                            C_LeaderIsFarEnough(config.BASE_LINK,
+                                                config.LEADER_LINK,
+                                                config.MIN_DISTANCE_TO_LEADER),
                             A_FollowLeader(config.FOLLOW_ACTION_NAMESPACE,
                                            config.LEADER_LINK)
                         ])
@@ -261,22 +268,28 @@ def const_tree(auv_config):
 
 
 
+    # The root of the tree is here
 
-    data_ingestion_tree = const_data_ingestion_tree()
-    safety_tree = const_safety_tree()
-    leader_follower_tree = const_leader_follower()
-    auto_tree = const_autonomous_updates()
-    synch_mission_tree = const_synch_tree()
-    exec_mission_tree = const_execute_mission_tree()
+    planned_mission = Sequence(name="SQ_PlannedMission",
+                               children=[
+                                  const_synch_tree(),
+                                  const_autonomous_updates(),
+                                  const_execute_mission_tree()
+                               ])
+
+
+    run_tree = Fallback(name="FB-Run",
+                        children=[
+                            planned_mission,
+                            const_leader_follower()
+                        ])
+
 
     root = Sequence(name='SQ-ROOT',
                     children=[
-                              data_ingestion_tree,
-                              safety_tree,
-                              leader_follower_tree,
-                              auto_tree,
-                              synch_mission_tree,
-                              exec_mission_tree
+                              const_data_ingestion_tree(),
+                              const_safety_tree(),
+                              run_tree
                     ])
 
     return ptr.trees.BehaviourTree(root)
@@ -326,7 +339,7 @@ if __name__ == '__main__':
     # uncomment this to generate bt_sam.launch file from auv_config.py
     # do this after you add a new field into auv_config.py
     # point path to where your catkin_ws is
-    #  config.generate_launch_file('/home/ozer/smarc/')
+    config.generate_launch_file('/home/ozer/smarc/')
 
     # read all the fields from rosparams, lowercased and with ~ prepended
     print('@@@@@@@@@@@@@')

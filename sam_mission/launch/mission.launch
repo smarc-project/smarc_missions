@@ -8,7 +8,7 @@
     <arg name="emergency_trials_before_giving_up" default=10/>
 
 	<!-- Frames in tf -->
-	<arg name="base_frame" default="/$(arg robot_name)/base_link" />
+	<arg name="base_link" default="/$(arg robot_name)/base_link" />
 	<arg name="poi_detector_link" default="/$(arg robot_name)/camera_down_link" />
 	<arg name="utm_frame" default="utm" />
 
@@ -16,7 +16,7 @@
 	<!-- by default, use sam_1 as leader -->
 	<arg name="leader_link" default="sam_1/base_link" />
 	<arg name="enable_leader_follower" default="True" />
-    <arg name="follow_action_namespace" default="ctrl/leader_follower"/>
+    <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
 
 	<!-- Options: "", "/interp1d" -->
     <arg name="path_planner_name" default=""/>

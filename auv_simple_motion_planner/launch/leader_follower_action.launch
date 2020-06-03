@@ -3,7 +3,7 @@
     <!-- Configurable arguments -->
     <arg name="robot_name" default="sam"/>
 
-    <arg name="min_dist" default="5."/>
+    <!-- <arg name="min_dist" default="5."/> -->
     <arg name="follower_frame" default="$(arg robot_name)/base_link"/>
     <arg name="forward_rpm" default="1000"/>
 	
@@ -19,7 +19,7 @@
     <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
 
     <node name="leader_follower_action" pkg="auv_simple_motion_planner" type="leader_follower_action.py" output="screen" ns="$(arg robot_name)/ctrl">
-		<param name="min_dist" value="$(arg min_dist)"/>
+		<!-- <param name="min_dist" value="$(arg min_dist)"/> -->
 		<param name="follower_frame" value="$(arg follower_frame)"/>
 		<param name="forward_rpm" value="$(arg forward_rpm)"/>
 		
@@ -30,7 +30,7 @@
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		
 		<!--Vel ctrl parameters-->
-  		<param name="vel_ctrl_flag" value="True" />
+  		<param name="vel_ctrl_flag" value="False" />
 		<param name="vel_setpoint" value="0.5" />
 		<param name="roll_setpoint" value="0.0" />
 		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />

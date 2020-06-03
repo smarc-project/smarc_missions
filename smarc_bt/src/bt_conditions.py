@@ -7,8 +7,11 @@
 import math
 import rospy
 import py_trees as pt
+import tf
+import numpy as np
 
 import imc_enums
+import bb_enums
 
 from bt_common import CBFCondition
 
@@ -242,17 +245,100 @@ class C_AutonomyDisabled(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
-class C_LeaderFollowerDisabled(pt.behaviour.Behaviour):
+class C_LeaderFollowerEnabled(pt.behaviour.Behaviour):
     def __init__(self, enable_leader_follower):
-        super(C_LeaderFollowerDisabled, self).__init__(name="C_LeaderFollowerDisabled")
+        super(C_LeaderFollowerEnabled, self).__init__(name="C_LeaderFollowerEnabled")
         self.bb = pt.blackboard.Blackboard()
         self.enable_leader_follower = enable_leader_follower
 
     def update(self):
         if self.enable_leader_follower:
+            return pt.Status.SUCCESS
+
+        return pt.Status.FAILURE
+
+
+class C_LeaderExists(pt.behaviour.Behaviour):
+    def __init__(self, base_link, leader_link):
+        self.leader_link = leader_link
+        self.base_link = base_link
+        # strings might be ever so slightly different...
+        if leader_link in base_link or base_link in leader_link:
+            self.leader_is_self = True
+        else:
+            self.leader_is_self = False
+
+        # assume not by default
+        self.leader_exists = False
+
+        self.bb = pt.blackboard.Blackboard()
+        self.listener = tf.TransformListener()
+
+        super(C_LeaderExists, self).__init__(name="C_LeaderExists")
+
+    def setup(self, timeout):
+        if self.leader_is_self:
+            rospy.logwarn_throttle(3, "I am the leader!")
+            return True
+
+        try:
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.base_link, self.leader_link))
+            self.listener.waitForTransform(self.base_link, self.leader_link, rospy.Time(), rospy.Duration(5.0))
+            self.leader_exists = True
+            rospy.loginfo_throttle(3, "...Got it, we got a leader to follow!")
+        except:
+            rospy.logwarn_throttle(5, "Could not find xform from {} to {}, assuming there is no leader!".format(self.base_link,self.leader_link))
+
+        return True
+
+    def update(self):
+        if self.leader_is_self:
+            rospy.logwarn_throttle(30, "I am the leader!")
+            return pt.Status.FAILURE
+
+        if not self.leader_exists:
+            rospy.logwarn_throttle(60, "No leader!")
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
+
+
+class C_LeaderIsFarEnough(pt.behaviour.Behaviour):
+    def __init__(self, base_link, leader_link, min_distance_to_leader):
+        self.leader_link = leader_link
+        self.base_link = base_link
+        self.min_distance_to_leader = min_distance_to_leader
+        self.bb = pt.blackboard.Blackboard()
+        self.listener = tf.TransformListener()
+        self.leader_exists = False
+        super(C_LeaderIsFarEnough, self).__init__(name="C_LeaderIsFarEnough")
+
+
+    def setup(self, timeout):
+        try:
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.base_link, self.leader_link))
+            self.listener.waitForTransform(self.base_link, self.leader_link, rospy.Time(), rospy.Duration(5.0))
+            self.leader_exists = True
+            rospy.loginfo_throttle(3, "...Got it, we got a leader to follow!")
+        except:
+            rospy.logwarn_throttle(5, "Could not find xform from {} to {}, assuming there is no leader!".format(self.base_link,self.leader_link))
+
+        return True
+
+
+    def update(self):
+        if not self.leader_exists:
+            return pt.Status.FAILURE
+
+        trans, rot = self.listener.lookupTransform(self.base_link,
+                                                   self.leader_link,
+                                                   rospy.Time(0))
+        dist = np.linalg.norm(trans)
+        if dist > self.min_distance_to_leader:
+            return pt.Status.SUCCESS
+
+        rospy.loginfo_throttle(5, "Leader {} is too close to me {} !".format(self.leader_link, self.base_link))
+        return pt.Status.FAILURE
 
 
 

@@ -59,6 +59,8 @@ class AUVConfig(object):
         # on the current wp and skip it
         self.EMERGENCY_TRIALS_BEFORE_GIVING_UP = 10
 
+        self.MIN_DISTANCE_TO_LEADER = 5
+
     def __str__(self):
         s = 'AUV_CONFIG:\n'
         for k,v in vars(self).iteritems():

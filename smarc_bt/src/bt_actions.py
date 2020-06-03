@@ -549,7 +549,7 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
         tip = self.bb.get(bb_enums.TREE_TIP)
         if tip is None:
             tip_name = ''
-            tip_status=''
+            tip_status='Status.NO_TIP'
         else:
             tip_name = tip.name
             tip_status = str(tip.status)
@@ -874,7 +874,6 @@ class A_FollowLeader(ptr.actions.ActionClient):
         self.action_goal = MoveBaseGoal()
         # leave 0,0,0 because we want to go to the frame's center
         self.action_goal.target_pose.header.frame_id = self.leader_link
-        self.action_goal.header.frame_id = self.leader_link
         rospy.loginfo("Follow action goal initialized")
 
         # ensure that we still need to send the goal
