@@ -2,6 +2,14 @@
 
     <!-- Configurable arguments -->
     <arg name="robot_name" default="sam"/>
+    <arg name="max_depth" default=20/>
+    <arg name="min_altitude" default=5/>
+    <arg name="emergency_trials_before_giving_up" default=10/>
+
+
+	<!-- Options: "", "/interp1d" -->
+    <arg name="path_planner_name" default=""/>
+
 
 	<!-- BT Related -->
 	<!-- Croatia, biograd coast, lat lon zone band, all four from there -->
@@ -29,6 +37,11 @@
 	<!-- Start all actions before the BT -->
     <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/>
     <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
+
+	<!-- Start the path planner service -->
+	<include file="$(find trajectories)/launch/interp1d.launch" pass_all_args="true">
+		<param name="waypoint_spacing" value="$(arg wp_tolerance)" />
+	</include>
 
 	<include file="$(find smarc_bt)/launch/bt_sam.launch" pass_all_args="true"/>
 	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>

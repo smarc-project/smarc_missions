@@ -18,6 +18,21 @@ import common_globals
 # GENERIC TREE NODES AND SUCH
 ###############################################################
 
+class A_RunOnce(pt.behaviour.Behaviour):
+    """
+    Just returns RUNNING once.
+    """
+    def __init__(self):
+        super(A_RunOnce, self).__init__("A_RunOnce")
+        self.ran = False
+
+    def update(self):
+        if self.ran:
+            return pt.Status.SUCCESS
+        else:
+            self.ran = True
+            return pt.Status.RUNNING
+
 class CBFCondition(object):
     """
     An object for creating conditions that are also control barrier
@@ -176,8 +191,8 @@ class Sequence(pt.composites.Selector):
     Reactive sequence overidding sequence with memory, py_trees' only available sequence.
     """
 
-    def __init__(self, name="Sequence", children=None):
-        super(Sequence, self).__init__(name=name, children=children)
+    def __init__(self, name="Sequence", children=None, blackbox_level=None):
+        super(Sequence, self).__init__(name=name, children=children, blackbox_level=blackbox_level)
 
     def tick(self):
         """

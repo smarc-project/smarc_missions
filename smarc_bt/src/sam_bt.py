@@ -3,43 +3,59 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+import rospy
 import py_trees as pt
 import py_trees_ros as ptr
 
 # just convenience really
 from py_trees.composites import Selector as Fallback
+
+# messages
 from std_msgs.msg import Float64
-
 from sam_msgs.msg import Leak
-from imc_ros_bridge.msg import PlanDB, PlanControl
+from cola2_msgs.msg import DVL
+from geometry_msgs.msg import PointStamped
 
-import rospy
+from auv_config import AUVConfig
 
-from bt_actions import A_SetMissionPlan, \
-                       A_PublishToNeptus, \
-                       A_ExecutePlanAction, \
+# tree leaves
+from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
-                       A_AnswerNeptusPlanReceived, \
-                       A_SetUTMFromGPS
-
+                       A_SetUTMFromGPS, \
+                       A_UpdateLatLon, \
+                       A_RefineMission, \
+                       A_UpdateNeptusEstimatedState, \
+                       A_UpdateNeptusPlanControlState, \
+                       A_UpdateNeptusVehicleState, \
+                       A_UpdateNeptusPlanDB, \
+                       A_UpdateNeptusPlanControl, \
+                       A_UpdateMissonForPOI, \
+                       A_VizPublishPlan
 
 from bt_conditions import C_PlanCompleted, \
-                          C_NewMissionPlanReceived, \
                           C_NoAbortReceived, \
                           C_DepthOK, \
                           C_AltOK, \
                           C_LeakOK, \
-                          C_StartPlanReceived
+                          C_StartPlanReceived, \
+                          C_HaveRefinedMission, \
+                          C_HaveCoarseMission, \
+                          C_PlanIsNotChanged, \
+                          C_NoNewPOIDetected, \
+                          C_AutonomyDisabled
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
-                      ReadTopic
+                      ReadTopic, \
+                      A_RunOnce, \
+                      Counter
 
+
+# globally defined values
 import bb_enums
 import imc_enums
-
 import common_globals
 
 def const_tree(auv_config):
@@ -51,6 +67,11 @@ def const_tree(auv_config):
 
     auv_config is a simple data object with a bunch of UPPERCASE fields in it.
     """
+    # slightly hacky way to keep track of 'runnable' actions
+    # such actions should add their names to this list in their init
+    # just for Neptus vehicle state for now
+    bb = pt.blackboard.Blackboard()
+    bb.set(bb_enums.MANEUVER_ACTIONS, [])
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -69,8 +90,8 @@ def const_tree(auv_config):
         read_alt = ReadTopic(
             name = "A_ReadAlt",
             topic_name = auv_config.ALTITUDE_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.ALTITUDE:'data'} # this takes the Float64.data field and puts into the bb
+            topic_type = DVL,
+            blackboard_variables = {bb_enums.ALTITUDE:'altitude'}
         )
 
         read_leak = ReadTopic(
@@ -80,50 +101,47 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.LEAK:'value'}
         )
 
+        read_detection = ReadTopic(
+            name = "A_ReadCameraDetection",
+            topic_name = auv_config.CAMERA_DETECTION_TOPIC,
+            topic_type = PointStamped,
+            blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
+        )
+
+        def const_neptus_tree():
+            update_neptus = Sequence(name="SQ-UpdateNeptus",
+                                     children=[
+                A_UpdateNeptusEstimatedState(auv_config.ESTIMATED_STATE_TOPIC),
+                A_UpdateNeptusPlanControlState(auv_config.PLAN_CONTROL_STATE_TOPIC),
+                A_UpdateNeptusVehicleState(auv_config.VEHICLE_STATE_TOPIC),
+                A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
+                                     auv_config.UTM_LINK,
+                                     auv_config.LOCAL_LINK),
+                A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
+                A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
+                                     ])
+            return update_neptus
+
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
-
-        read_mission_plan = ReadTopic(
-            name = "A_ReadMissionPlan",
-            topic_name = auv_config.PLANDB_TOPIC,
-            topic_type = PlanDB,
-            # passing None reads the entire message
-            blackboard_variables = {bb_enums.MISSION_PLAN_MSG:None}
-        )
-
-        read_plan_control = ReadTopic(
-            name = "A_ReadPlanControl",
-            topic_name= auv_config.PLAN_CONTROL_TOPIC,
-            topic_type = PlanControl,
-            blackboard_variables = {bb_enums.PLAN_CONTROL_MSG:None}
-        )
-
+        update_latlon = A_UpdateLatLon()
         set_utm_from_gps = A_SetUTMFromGPS(auv_config.GPS_FIX_TOPIC)
+        neptus_tree = const_neptus_tree()
+
 
         return Sequence(name="SQ-DataIngestion",
+                        # dont show all the things inside here
+                        blackbox_level=1,
                         children=[
                             read_abort,
                             read_leak,
                             read_depth,
                             read_alt,
+                            read_detection,
+                            set_utm_from_gps,
                             update_tf,
-                            read_mission_plan,
-                            read_plan_control,
-                            set_utm_from_gps
-                        ])
-
-
-
-    def const_feedback_tree():
-        #TODO separate these 3 into their own actions, this action is just too big
-        neptus_feedback = A_PublishToNeptus(auv_config.ESTIMATED_STATE_TOPIC,
-                                           auv_config.PLAN_CONTROL_STATE_TOPIC,
-                                           auv_config.VEHICLE_STATE_TOPIC)
-        # more feedback options will go here
-
-        return Sequence(name="SQ-Feedback",
-                        children=[
-                                  neptus_feedback
+                            update_latlon,
+                            neptus_tree
                         ])
 
 
@@ -136,6 +154,7 @@ def const_tree(auv_config):
         # more safety checks will go here
 
         safety_checks = Sequence(name="SQ-SafetyChecks",
+                        blackbox_level=1,
                         children=[
                                   no_abort,
                                   altOK,
@@ -145,114 +164,109 @@ def const_tree(auv_config):
 
         surface = A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
 
+        skip_wp = Sequence(name='SQ-CountEmergenciesAndSkip',
+                           children = [
+                               Counter(n=auv_config.EMERGENCY_TRIALS_BEFORE_GIVING_UP,
+                                       name="A_EmergencyCounter",
+                                       reset=True),
+                               A_SetNextPlanAction()
+                           ])
+
         # if anything about safety is 'bad', we abort everything
         fallback_to_abort = Fallback(name='FB_SafetyOK',
                                      children = [
                                          safety_checks,
+                                         skip_wp,
                                          surface
                                      ])
         return fallback_to_abort
 
+    def const_autonomous_updates():
+        poi_tree = Fallback(name="FB_Poi",
+                            children=[
+                                C_NoNewPOIDetected(common_globals.POI_DIST),
+                                A_UpdateMissonForPOI(auv_config.UTM_LINK,
+                                                     auv_config.LOCAL_LINK,
+                                                     auv_config.POI_DETECTOR_LINK)
+                            ])
+
+        return Fallback(name="FB_AutonomousUpdates",
+                        children=[
+                          C_AutonomyDisabled(),
+                          poi_tree
+                        ])
 
 
     def const_synch_tree():
-        def const_mission_plan_update():
-            got_new_plan = C_NewMissionPlanReceived()
-
-            set_new_plan = A_SetMissionPlan(auv_config.UTM_LINK)
-            set_next_plan_action = A_SetNextPlanAction()
-            set_new_plan_and_action = Sequence(name="SQ-SetNewPlanAndAction",
-                                               children=[
-                                                   set_new_plan,
-                                                   set_next_plan_action
-                                               ])
-
-            return Sequence(name="SQ-UpdateMissionPlan",
-                            children=[
-                                      got_new_plan,
-                                      set_new_plan_and_action
-                            ])
-
-        def const_mission_synch_gate():
-            have_mission = pt.blackboard.CheckBlackboardVariable(name="C_HaveMission",
-                                                                 variable_name=bb_enums.MISSION_PLAN_OBJ)
-            answer_neptus = A_AnswerNeptusPlanReceived(auv_config.PLANDB_TOPIC)
-
-            return Sequence(name="SQ-MissionSynchronized",
-                            children=[
-                                      have_mission,
-                                      answer_neptus
-                            ])
-
-        mission_plan = const_mission_plan_update()
-        # more synchronization actions can go here
-
-        synched = const_mission_synch_gate()
+        have_refined_mission = C_HaveRefinedMission()
+        have_coarse_mission = C_HaveCoarseMission()
+        refine_mission = A_RefineMission(config.PATH_PLANNER_NAME,
+                                         config.PATH_TOPIC)
+        # we need one here too, to initialize the mission in the first place
+        # set dont_visit to True so we dont skip the first wp of the plan
+        set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
 
 
-        return Fallback(name="FB-SynchroniseMission",
+        refinement_tree = Sequence(name="SQ_Refinement",
+                                   children=[
+                                       have_coarse_mission,
+                                       refine_mission,
+                                       set_next_plan_action
+                                   ])
+
+        return Fallback(name='FB_SynchMission',
                         children=[
-                                  mission_plan,
-                                  synched
+                            have_refined_mission,
+                            refinement_tree
                         ])
 
 
     def const_execute_mission_tree():
-        def const_execute_mission_plan():
-            plan_complete = C_PlanCompleted()
-            # but still wait for operator to tell us to 'go'
-            start_received = C_StartPlanReceived()
-            execute_plan_action = A_ExecutePlanAction(auv_config.ACTION_NAMESPACE)
-            set_next_plan_action = A_SetNextPlanAction()
-
-            follow_plan = Sequence(name="SQ-FollowMissionPlan",
-                                   children=[
-                                             start_received,
-                                             execute_plan_action,
-                                             set_next_plan_action
-                                   ])
-
-            return Fallback(name="FB-ExecuteMissionPlan",
-                            children=[
-                                      plan_complete,
-                                      follow_plan
-                            ])
-
-
-        mission_plan = const_execute_mission_plan()
-        # add more mission actions here
-
-        return Fallback(name="FB-ExecuteMission",
-                        children=[
-                                  mission_plan
-                        ])
-
-
-    def const_finalize_mission_tree():
-
+        plan_complete = C_PlanCompleted()
+        # but still wait for operator to tell us to 'go'
+        start_received = C_StartPlanReceived()
+        gotowp = A_GotoWaypoint(auv_config.ACTION_NAMESPACE)
+        # and this will run after every success of the goto action
+        set_next_plan_action = A_SetNextPlanAction()
+        plan_is_same = C_PlanIsNotChanged()
         idle = pt.behaviours.Running(name="Idle")
 
-        return Sequence(name="SQ-FinalizeMission",
+        follow_plan = Sequence(name="SQ-FollowMissionPlan",
+                               children=[
+                                         start_received,
+                                         plan_is_same,
+                                         gotowp,
+                                         set_next_plan_action
+                               ])
+
+        return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
+                                  plan_complete,
+                                  follow_plan,
                                   idle
                         ])
 
 
+
+
+    # use this to stop any leftover actions from previously ran BTs
+    run_once = A_RunOnce()
+
     data_ingestion_tree = const_data_ingestion_tree()
-    feedback_tree = const_feedback_tree()
     safety_tree = const_safety_tree()
+    auto_tree = const_autonomous_updates()
     synch_mission_tree = const_synch_tree()
     exec_mission_tree = const_execute_mission_tree()
-    finalize_mission_tree = const_finalize_mission_tree()
 
     root = Sequence(name='SQ-ROOT',
                     children=[
+                              run_once,
                               data_ingestion_tree,
-                              feedback_tree,
                               safety_tree,
+                              auto_tree,
                               synch_mission_tree,
-                              exec_mission_tree,
-                              finalize_mission_tree])
+                              exec_mission_tree
+                    ])
 
     return ptr.trees.BehaviourTree(root)
 
@@ -273,12 +287,18 @@ def main(config):
         rospy.loginfo("Constructing tree")
         tree = const_tree(config)
         rospy.loginfo("Setting up tree")
-        tree.setup(timeout=10)
-        rospy.loginfo("Ticktocking....")
-        while not rospy.is_shutdown():
-            # rate is period in ms
-            #  tree.tick_tock(1, post_tick_handler=lambda t: pt.display.print_ascii_tree(tree.root, show_status=True))
-            tree.tick_tock(common_globals.BT_TICKING_PERIOD)
+        setup_ok = tree.setup(timeout=10)
+        if setup_ok:
+            rospy.loginfo("Ticktocking....")
+            rate = rospy.Rate(common_globals.BT_TICK_RATE)
+
+            while not rospy.is_shutdown():
+                tree.tick()
+                bb.set(bb_enums.TREE_TIP, tree.tip())
+                rate.sleep()
+
+        else:
+            rospy.logerr("Tree could not be setup! Exiting!")
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")
@@ -289,23 +309,29 @@ def main(config):
 if __name__ == '__main__':
     # init the node
     rospy.init_node("bt")
-    robot_name = rospy.get_param("~robot_name", "sam")
 
-    if robot_name[:3] == "sam":
-        from auv_config import SAMConfig
-        config = SAMConfig()
-    elif robot_name[:4] == "lolo":
-        from auv_config import LOLOConfig
-        config = LOLOConfig()
-    else:
-        rospy.logerr("ROBOT NAME NOT UNDERSTOOD, CONFIG NOT LOADED, EXITING:"+str(robot_name))
-        import sys
-        sys.exit(1)
+    config = AUVConfig()
+    config.robot_name = rospy.get_param("~robot_name", config.robot_name)
 
+    #topics
+    config.DEPTH_TOPIC= rospy.get_param("~depth_topic", config.DEPTH_TOPIC)
+    config.ALTITUDE_TOPIC= rospy.get_param("~altitude_topic", config.ALTITUDE_TOPIC)
+    config.LEAK_TOPIC= rospy.get_param("~leak_topic", config.LEAK_TOPIC)
+    config.GPS_FIX_TOPIC= rospy.get_param("~gps_fix_topic", config.GPS_FIX_TOPIC)
+    config.CAMERA_DETECTION_TOPIC = rospy.get_param("~camera_detection_topic", config.CAMERA_DETECTION_TOPIC)
 
+    # actions and services
+    config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)
+    config.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", config.EMERGENCY_ACTION_NAMESPACE)
+    config.PATH_PLANNER_NAME = rospy.get_param("~path_planner_name", config.PATH_PLANNER_NAME)
+
+    # tf frame names
     config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
     config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
+    config.LOCAL_LINK = rospy.get_param("~local_frame", config.LOCAL_LINK)
+    config.POI_DETECTOR_LINK = rospy.get_param("~poi_detector_link", config.POI_DETECTOR_LINK)
 
+    # imc related stuff
     config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)
     config.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", config.PLAN_CONTROL_TOPIC)
     config.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", config.ESTIMATED_STATE_TOPIC)
@@ -313,10 +339,11 @@ if __name__ == '__main__':
     config.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", config.VEHICLE_STATE_TOPIC)
     config.ABORT_TOPIC = rospy.get_param("~abort_topic", config.ABORT_TOPIC)
 
-    config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)
-    config.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", config.EMERGENCY_ACTION_NAMESPACE)
+    # hard limits
+    config.MAX_DEPTH = rospy.get_param("~max_depth", config.MAX_DEPTH)
+    config.MIN_ALTITUDE = rospy.get_param("~min_altitude", config.MIN_ALTITUDE)
+    config.EMERGENCY_TRIALS_BEFORE_GIVING_UP = rospy.get_param("~emergency_trials_before_giving_up", config.EMERGENCY_TRIALS_BEFORE_GIVING_UP)
 
     print(config)
-
     main(config)
 

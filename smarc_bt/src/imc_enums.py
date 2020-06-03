@@ -33,3 +33,14 @@ PLANDB_OP_BOOT = 7
 
 # TODO eventually implement other types of maneuvers
 MANEUVER_GOTO = 450
+
+# a list of actions that we will consider
+# as the imc 'executing' state
+EXECUTING_ACTION_NAMES =[
+    'A_GotoWaypoint',
+    'A_SetNextPlanAction' #so we dont spam service/maneuver when going tru a lot of waypoints quickly
+]
+# same thing for the 'blocked' state
+BLOCKED_ACTION_NAMES =[
+    'A_EmergencySurface'
+]
