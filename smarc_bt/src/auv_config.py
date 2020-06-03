@@ -94,6 +94,7 @@ class AUVConfig(object):
 
 
         print("Generated default launch file at {}".format(catkin_ws_path+bt_launch_path))
+        print("You might need to restart the ros mon instance to read the new launch file")
 
 
     def read_rosparams(self):
