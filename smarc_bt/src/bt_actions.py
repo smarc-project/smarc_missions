@@ -276,7 +276,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         wp, frame = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
         # if this is the first ever action, we need to get it ourselves
         if wp is None:
-            rospy.logwarn("No action found to execute! Was A_SetNextPlanAction called before this?")
+            rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
             return
 
         # construct the message
@@ -285,7 +285,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         self.action_goal.target_pose.pose.position.y = wp[1]
         self.action_goal.target_pose.pose.position.z = wp[2]
         self.action_goal.target_pose.header.frame_id = frame
-        rospy.loginfo("Action goal initialized")
+        rospy.loginfo("Goto waypoint action goal initialized")
 
         # ensure that we still need to send the goal
         self.sent_goal = False
@@ -357,10 +357,11 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(4.0))
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}".format(self.utm_link, self.base_link))
+            self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(5.0))
             return True
         except:
-            rospy.logerr_throttle(5, "Could not find from"+self.utm_link+" to "+self.base_link)
+            rospy.logerr_throttle(5, "Could not find from "+self.utm_link+" to "+self.base_link)
             return False
 
 
@@ -828,3 +829,87 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
 
 
         return pt.Status.SUCCESS
+
+
+class A_FollowLeader(ptr.actions.ActionClient):
+    def __init__(self,
+                 action_namespace,
+                 leader_link):
+        """
+        Runs an action server that will move the robot towards another tf link
+        """
+
+        self.bb = pt.blackboard.Blackboard()
+        self.bb.set(bb_enums.MANEUVER_ACTIONS, self.bb.get(bb_enums.MANEUVER_ACTIONS).append("A_FollowLeader"))
+        self.action_goal_handle = None
+        self.leader_link = leader_link
+
+        # become action client
+        ptr.actions.ActionClient.__init__(
+            self,
+            name="A_FollowLeader",
+            action_spec=MoveBaseAction,
+            action_goal=None,
+            action_namespace = action_namespace,
+            override_feedback_message_on_running="Moving towards"+str(leader_link)
+        )
+
+
+    def initialise(self):
+        # construct the message
+        self.action_goal = MoveBaseGoal()
+        # leave 0,0,0 because we want to go to the frame's center
+        self.action_goal.target_pose.header.frame_id = self.leader_link
+        self.action_goal.header.frame_id = self.leader_link
+        rospy.loginfo("Follow action goal initialized")
+
+        # ensure that we still need to send the goal
+        self.sent_goal = False
+
+    def update(self):
+        """
+        Check only to see whether the underlying action server has
+        succeeded, is running, or has cancelled/aborted for some reason and
+        map these to the usual behaviour return states.
+        """
+        # if your action client is not valid
+        if not self.action_client:
+            self.feedback_message = "ActionClient is invalid! Client:"+str(self.action_client)
+            rospy.logerr(self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if the action_goal is invalid
+        if not self.action_goal:
+            self.feedback_message = "No action_goal!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if goal hasn't been sent yet
+        if not self.sent_goal:
+            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+            self.sent_goal = True
+            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
+            self.feedback_message = "Goal sent"
+            return pt.Status.RUNNING
+
+
+        # if the goal was aborted or preempted
+        if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
+                                              actionlib_msgs.GoalStatus.PREEMPTED]:
+            self.feedback_message = "Aborted goal"
+            rospy.loginfo(self.feedback_message)
+            return pt.Status.FAILURE
+
+        result = self.action_client.get_result()
+
+        # if the goal was accomplished
+        if result:
+            self.feedback_message = "Completed goal"
+            rospy.loginfo(self.feedback_message)
+            return pt.Status.SUCCESS
+
+
+        return pt.Status.RUNNING
+
+    def feedback_cb(self, msg):
+        self.bb.set(bb_enums.LAST_PLAN_ACTION_FEEDBACK, msg)

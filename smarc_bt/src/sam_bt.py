@@ -181,6 +181,11 @@ def const_tree(auv_config):
                                      ])
         return fallback_to_abort
 
+
+    #  def const_leader_follower():
+
+
+
     def const_autonomous_updates():
         poi_tree = Fallback(name="FB_Poi",
                             children=[
@@ -311,39 +316,16 @@ if __name__ == '__main__':
     rospy.init_node("bt")
 
     config = AUVConfig()
-    config.robot_name = rospy.get_param("~robot_name", config.robot_name)
 
-    #topics
-    config.DEPTH_TOPIC= rospy.get_param("~depth_topic", config.DEPTH_TOPIC)
-    config.ALTITUDE_TOPIC= rospy.get_param("~altitude_topic", config.ALTITUDE_TOPIC)
-    config.LEAK_TOPIC= rospy.get_param("~leak_topic", config.LEAK_TOPIC)
-    config.GPS_FIX_TOPIC= rospy.get_param("~gps_fix_topic", config.GPS_FIX_TOPIC)
-    config.CAMERA_DETECTION_TOPIC = rospy.get_param("~camera_detection_topic", config.CAMERA_DETECTION_TOPIC)
+    # uncomment this to generate bt_sam.launch file from auv_config.py
+    # do this after you add a new field into auv_config.py
+    # point path to where your catkin_ws is
+    #  config.generate_launch_file('/home/ozer/smarc/')
 
-    # actions and services
-    config.ACTION_NAMESPACE = rospy.get_param("~action_namespace", config.ACTION_NAMESPACE)
-    config.EMERGENCY_ACTION_NAMESPACE = rospy.get_param("~emergency_action_namespace", config.EMERGENCY_ACTION_NAMESPACE)
-    config.PATH_PLANNER_NAME = rospy.get_param("~path_planner_name", config.PATH_PLANNER_NAME)
-
-    # tf frame names
-    config.BASE_LINK = rospy.get_param("~base_frame", config.BASE_LINK)
-    config.UTM_LINK = rospy.get_param("~utm_frame", config.UTM_LINK)
-    config.LOCAL_LINK = rospy.get_param("~local_frame", config.LOCAL_LINK)
-    config.POI_DETECTOR_LINK = rospy.get_param("~poi_detector_link", config.POI_DETECTOR_LINK)
-
-    # imc related stuff
-    config.PLANDB_TOPIC = rospy.get_param("~plandb_topic", config.PLANDB_TOPIC)
-    config.PLAN_CONTROL_TOPIC = rospy.get_param("~plan_control_topic", config.PLAN_CONTROL_TOPIC)
-    config.ESTIMATED_STATE_TOPIC = rospy.get_param("~estimated_state_topic", config.ESTIMATED_STATE_TOPIC)
-    config.PLAN_CONTROL_STATE_TOPIC = rospy.get_param("~plan_control_state_topic", config.PLAN_CONTROL_STATE_TOPIC)
-    config.VEHICLE_STATE_TOPIC = rospy.get_param("~vehicle_state_topic", config.VEHICLE_STATE_TOPIC)
-    config.ABORT_TOPIC = rospy.get_param("~abort_topic", config.ABORT_TOPIC)
-
-    # hard limits
-    config.MAX_DEPTH = rospy.get_param("~max_depth", config.MAX_DEPTH)
-    config.MIN_ALTITUDE = rospy.get_param("~min_altitude", config.MIN_ALTITUDE)
-    config.EMERGENCY_TRIALS_BEFORE_GIVING_UP = rospy.get_param("~emergency_trials_before_giving_up", config.EMERGENCY_TRIALS_BEFORE_GIVING_UP)
-
+    # read all the fields from rosparams, lowercased and with ~ prepended
+    print('@@@@@@@@@@@@@')
+    config.read_rosparams()
     print(config)
+    print('@@@@@@@@@@@@@')
     main(config)
 

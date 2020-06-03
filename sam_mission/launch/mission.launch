@@ -1,21 +1,29 @@
 <launch>
 
-    <!-- Configurable arguments -->
     <arg name="robot_name" default="sam"/>
+
+	<!-- Hard limits -->
     <arg name="max_depth" default=20/>
     <arg name="min_altitude" default=5/>
     <arg name="emergency_trials_before_giving_up" default=10/>
 
+	<!-- Frames in tf -->
+	<arg name="base_frame" default="/$(arg robot_name)/base_link" />
+	<arg name="poi_detector_link" default="/$(arg robot_name)/camera_down_link" />
+	<arg name="utm_frame" default="utm" />
+
+	<!-- Leader follower stuff -->
+	<!-- by default, use sam_1 as leader -->
+	<arg name="leader_link" default="sam_1/base_link" />
+	<arg name="enable_leader_follower" default="True" />
+    <arg name="follow_action_namespace" default="ctrl/leader_follower"/>
 
 	<!-- Options: "", "/interp1d" -->
     <arg name="path_planner_name" default=""/>
 
-
-	<!-- BT Related -->
-	<!-- Croatia, biograd coast, lat lon zone band, all four from there -->
+	<!-- Croatia, biograd coast, should really be set from bringup -->
     <arg name="utm_zone" default="33"/>
     <arg name="utm_band" default="T"/>
-
 
 	<!-- Bridge related -->
     <arg name="neptus_addr" default="127.0.0.1"/>
@@ -27,6 +35,22 @@
     <arg name="imc_src" default="$(arg imc_id)"/>
     <arg name="imc_system_name" default="sam"/>
 
+	<!-- Topics -->
+    <arg name="plandb_topic" default="imc/plan_db"/>
+    <arg name="plan_control_topic" default="imc/plan_control"/>
+    <arg name="estimated_state_topic" default="imc/estimated_state"/>
+    <arg name="plan_control_state_topic" default="imc/plan_control_state"/>
+    <arg name="vehicle_state_topic" default="imc/vehicle_state"/>
+    <arg name="abort_topic" default="imc/abort"/>
+    <arg name="gps_fix_topic" default="core/gps"/>
+    <arg name="altitude_topic" default="core/dvl"/>
+    <arg name="depth_topic" default="ctrl/depth_feedback"/>
+
+
+	<!-- Action Servers -->
+    <arg name="action_namespace" default="ctrl/wp_depth_action_planner"/>
+    <arg name="emergency_action_namespace" default="ctrl/emergency_surface_action"/>
+    <arg name="follow_action_namespace" default="ctrl/leader_follower"/>
 
 
 	<!-- WP-Depth planner related -->
