@@ -339,7 +339,15 @@ if __name__ == '__main__':
     # uncomment this to generate bt_sam.launch file from auv_config.py
     # do this after you add a new field into auv_config.py
     # point path to where your catkin_ws is
-    # config.generate_launch_file('/home/ozer/smarc/')
+    try:
+        import os
+        totally_safe_path = os.environ['ROSLISP_PACKAGE_DIRECTORIES']
+        catkin_ws_index = totally_safe_path.find('catkin_ws')
+        # this is '/home/ozer/smarc/' for me
+        catkin_ws_path = totally_safe_path[:catkin_ws_index]
+        config.generate_launch_file(catkin_ws_path)
+    except:
+        print("Did not generate the launch file")
 
     # read all the fields from rosparams, lowercased and with ~ prepended
     print('@@@@@@@@@@@@@')
