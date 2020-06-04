@@ -339,7 +339,7 @@ if __name__ == '__main__':
     # uncomment this to generate bt_sam.launch file from auv_config.py
     # do this after you add a new field into auv_config.py
     # point path to where your catkin_ws is
-    config.generate_launch_file('/home/ozer/smarc/')
+    # config.generate_launch_file('/home/ozer/smarc/')
 
     # read all the fields from rosparams, lowercased and with ~ prepended
     print('@@@@@@@@@@@@@')

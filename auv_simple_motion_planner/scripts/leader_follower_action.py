@@ -42,21 +42,6 @@ class LeaderFollower(object):
         counter = 0
         while not rospy.is_shutdown():
 
-            #Check transform between SAM1 (leader- goal) and SAM2 (follower -self), define a goal point and call the go_to_point() function
-            self.leader_frame = goal.target_pose.header.frame_id
-            try:
-                (rel_trans, rel_rot) = self.listener.lookupTransform(self.leader_frame,
-                                                                     self.follower_frame,
-                                                                     rospy.Time(0))
-            except (tf.LookupException, tf.ConnectivityException):
-                rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.leader_frame +" and "+ self.follower_frame)
-                success = False
-                break
-            except:
-                rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
-                success = False
-                break
-
             self.yaw_pid_enable.publish(True)
             self.depth_pid_enable.publish(True)
             # Preempted
@@ -77,16 +62,62 @@ class LeaderFollower(object):
                 return
 
             # Compute and Publish setpoints
-            if counter % 10 == 0:
+            if counter % 1 == 0:
                 # distance check is done in the BT, we will add CBFs here later, which will include
                 # that distance as a constraint anyways
                 #  if sqrt(rel_trans[0]**2 + rel_trans[1]**2 + rel_trans[2]**2) < self.min_dist:
                     #  break
+                #Check transform between SAM1 (leader- goal) and SAM2 (follower -self), define a goal point and call the go_to_point() function
+                self.leader_frame = goal.target_pose.header.frame_id
+                try:
+                    (rel_trans, rel_rot) = self.listener.lookupTransform(self.leader_frame,
+                                                                         self.follower_frame,
+                                                                         rospy.Time(0))
+                except (tf.LookupException, tf.ConnectivityException):
+                    rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.leader_frame +" and "+ self.follower_frame)
+                    success = False
+                    break
+                except:
+                    rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
+                    success = False
+                    break
 
-                r,p,y = tf.transformations.euler_from_quaternion(rel_rot)
-                yaw_setpoint = y
-                #print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
-                depth_setpoint = rel_trans[2]
+                try:
+                    (follower_trans, follower_rot) = self.listener.lookupTransform(self.follower_odom,
+                                                                                   self.follower_frame,
+                                                                                   rospy.Time(0))
+                except (tf.LookupException, tf.ConnectivityException):
+                    rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.leader_frame +" and "+ self.follower_frame)
+                    success = False
+                    break
+                except:
+                    rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
+                    success = False
+                    break
+
+                try:
+                    (leader_trans, leader_rot) = self.listener.lookupTransform(self.follower_odom,
+                                                                               self.leader_frame,
+                                                                               rospy.Time(0))
+                except (tf.LookupException, tf.ConnectivityException):
+                    rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.leader_frame +" and "+ self.follower_frame)
+                    success = False
+                    break
+                except:
+                    rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
+                    success = False
+                    break
+
+                #yaw,pitch,roll = tf.transformations.euler_from_quaternion(leader_rot)
+                #yaw_setpoint = yaw
+                #yaw_setpoint = -(yaw + math.atan2(rel_trans[1],rel_trans[0]))
+                
+                xdiff = leader_trans[0]-follower_trans[0]
+                ydiff = leader_trans[1]-follower_trans[1]
+                zdiff = leader_trans[2]-follower_trans[2]
+                yaw_setpoint = math.atan2(ydiff,xdiff)
+                depth_setpoint = -zdiff #-rel_trans[2]
+                print('yaw_setpoint:',yaw_setpoint, 'depth_setpoint:',depth_setpoint)
 
                 self.depth_pub.publish(depth_setpoint)
 
@@ -116,8 +147,8 @@ class LeaderFollower(object):
 
         # Stop thruster
         self.vel_pid_enable.publish(False)
-        self.rpm.thruster_1_rpm = self.forward_rpm
-        self.rpm.thruster_2_rpm = self.forward_rpm
+        self.rpm.thruster_1_rpm = 0.0
+        self.rpm.thruster_2_rpm = 0.0
         self.rpm_pub.publish(self.rpm)
 
         #Stop controllers
@@ -139,6 +170,7 @@ class LeaderFollower(object):
         self._action_name = name
 
         self.follower_frame = rospy.get_param('~follower_frame', '/sam_2/base_link')
+        self.follower_odom = rospy.get_param('~follower_odom', '/sam_2/odom')
         #  self.min_dist = rospy.get_param('~min_dist', 5.)
 
         rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
@@ -159,7 +191,7 @@ class LeaderFollower(object):
 
         self.listener = tf.TransformListener()
 
-        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.rpm_pub= rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.depth_pub = rospy.Publisher(depth_setpoint_topic, Float64, queue_size=10)
         self.vel_pub = rospy.Publisher(vel_setpoint_topic, Float64, queue_size=10)

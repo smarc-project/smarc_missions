@@ -5,7 +5,7 @@
 # a PoseArray of 'coarse waypoints' and returns a Path.
 # Usage: 'imc(utm) -> bt -> poseArray(map) -> path_planner -> path(map) -> bt'
 
-import rospy, numpy as np, matplotlib.pyplot as plt
+import rospy, numpy as np
 from scipy.interpolate import interp1d
 
 from geometry_msgs.msg import PoseArray, Pose, PoseStamped, Point
@@ -54,7 +54,7 @@ class Trajectory:
         raise NotImplementedError
 
     def test(self):
-
+        import matplotlib.pyplot as plt
         # initialise plot
         fig, ax = plt.subplots(1)
 
