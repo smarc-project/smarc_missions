@@ -5,6 +5,7 @@
 
     <!-- <arg name="min_dist" default="5."/> -->
     <arg name="follower_frame" default="$(arg robot_name)/base_link"/>
+	<arg name="follower_odom" default="$(arg robot_name)/odom"/>
     <arg name="forward_rpm" default="1000"/>
 	
 
@@ -21,6 +22,7 @@
     <node name="leader_follower_action" pkg="auv_simple_motion_planner" type="leader_follower_action.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<!-- <param name="min_dist" value="$(arg min_dist)"/> -->
 		<param name="follower_frame" value="$(arg follower_frame)"/>
+        <param name="follower_odom" value="$(arg follower_odom)"/>
 		<param name="forward_rpm" value="$(arg forward_rpm)"/>
 		
 		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />

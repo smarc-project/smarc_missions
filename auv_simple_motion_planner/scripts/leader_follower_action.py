@@ -69,18 +69,6 @@ class LeaderFollower(object):
                     #  break
                 #Check transform between SAM1 (leader- goal) and SAM2 (follower -self), define a goal point and call the go_to_point() function
                 self.leader_frame = goal.target_pose.header.frame_id
-                try:
-                    (rel_trans, rel_rot) = self.listener.lookupTransform(self.leader_frame,
-                                                                         self.follower_frame,
-                                                                         rospy.Time(0))
-                except (tf.LookupException, tf.ConnectivityException):
-                    rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.leader_frame +" and "+ self.follower_frame)
-                    success = False
-                    break
-                except:
-                    rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
-                    success = False
-                    break
 
                 try:
                     (follower_trans, follower_rot) = self.listener.lookupTransform(self.follower_odom,
@@ -107,17 +95,13 @@ class LeaderFollower(object):
                     rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
                     success = False
                     break
-
-                #yaw,pitch,roll = tf.transformations.euler_from_quaternion(leader_rot)
-                #yaw_setpoint = yaw
-                #yaw_setpoint = -(yaw + math.atan2(rel_trans[1],rel_trans[0]))
                 
                 xdiff = leader_trans[0]-follower_trans[0]
                 ydiff = leader_trans[1]-follower_trans[1]
                 zdiff = leader_trans[2]-follower_trans[2]
                 yaw_setpoint = math.atan2(ydiff,xdiff)
-                depth_setpoint = -zdiff #-rel_trans[2]
-                print('yaw_setpoint:',yaw_setpoint, 'depth_setpoint:',depth_setpoint)
+                depth_setpoint = -zdiff 
+                rospy.loginfo_throttle(10,'yaw_setpoint:',yaw_setpoint, 'depth_setpoint:',depth_setpoint)
 
                 self.depth_pub.publish(depth_setpoint)
 
@@ -188,7 +172,6 @@ class LeaderFollower(object):
         vel_setpoint_topic = rospy.get_param('~vel_setpoint_topic', '/sam/ctrl/dynamic_velocity/u_setpoint')
         roll_setpoint_topic = rospy.get_param('~roll_setpoint_topic', '/sam/ctrl/dynamic_velocity/roll_setpoint')
         vel_pid_enable_topic = rospy.get_param('~vel_pid_enable_topic', '/sam/ctrl/dynamic_velocity/pid_enable')
-
         self.listener = tf.TransformListener()
 
         self.rpm_pub= rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
