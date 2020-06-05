@@ -317,7 +317,10 @@ def main(config):
             rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
             while not rospy.is_shutdown():
-                tree.tick()
+                try:
+                    tree.tick()
+                except TypeError:
+                    rospy.logerr("TREE COULD NOT BE TICKED DUE TO TYPE ERROR!")
                 bb.set(bb_enums.TREE_TIP, tree.tip())
                 rate.sleep()
 
