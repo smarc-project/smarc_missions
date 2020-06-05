@@ -239,7 +239,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None:
-            rospy.logwarn_throttle("Mission plan was None!")
+            rospy.logwarn_throttle(5, "Mission plan was None!")
             return pt.Status.FAILURE
 
         if not self.do_not_visit:
