@@ -157,7 +157,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        self.bb.set(bb_enums.LAST_PLAN_ACTION_FEEDBACK, msg)
+        pass
 
 
 class A_RefineMission(pt.behaviour.Behaviour):
@@ -341,7 +341,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        self.bb.set(bb_enums.LAST_PLAN_ACTION_FEEDBACK, msg)
+        pass
 
 
 class A_UpdateTF(pt.behaviour.Behaviour):
@@ -925,4 +925,4 @@ class A_FollowLeader(ptr.actions.ActionClient):
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        self.bb.set(bb_enums.LAST_PLAN_ACTION_FEEDBACK, msg)
+        pass
