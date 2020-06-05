@@ -550,13 +550,8 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
     def update(self):
         # construct current progress message for neptus
         msg = PlanControlState()
-        tip = self.bb.get(bb_enums.TREE_TIP)
-        if tip is None:
-            tip_name = ''
-            tip_status='Status.NO_TIP'
-        else:
-            tip_name = tip.name
-            tip_status = str(tip.status)
+        tip_name = self.bb.get(bb_enums.TREE_TIP_NAME)
+        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
 
         # this tip_status looks like: "Status.FAILURE"
         # I just wanna get the first letter after dot.
@@ -608,11 +603,7 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
         """
         vs = VehicleState()
 
-        tip = self.bb.get(bb_enums.TREE_TIP)
-        if tip is None:
-            tip_name = ''
-        else:
-            tip_name = tip.name
+        tip_name = self.bb.get(bb_enums.TREE_TIP_NAME)
 
         if tip_name in imc_enums.EXECUTING_ACTION_NAMES:
             vs.op_mode = imc_enums.OP_MODE_MANEUVER
