@@ -34,5 +34,6 @@ LAST_PLAN_ACTION_FEEDBACK = 'last_plan_action_feedback'
 CURRENTLY_RUNNING_ACTION = 'currently_running_action'
 ENABLE_AUTONOMY = 'enable_autonomy'
 
-TREE_TIP = 'tree_tip'
+TREE_TIP_NAME = 'tree_tip_name'
+TREE_TIP_STATUS = 'tree_tip_status'
 
