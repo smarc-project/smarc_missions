@@ -12,12 +12,15 @@ from geodesy.utm import fromLatLong, UTMPoint
 
 import rospy
 import tf
+import actionlib
 
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
+from sam_msgs.msg import ThrusterRPMs, PercentStamped
+from std_msgs.msg import Float64, Header, Bool, Empty
 
 # path planner service
 from trajectories.srv import trajectory
@@ -88,6 +91,57 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
+class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
+    def __init__(self,
+                 emergency_topic,
+                 vbs_cmd_topic,
+                 rpm_cmd_topic,
+                 lcg_pid_enable_topic,
+                 vbs_pid_enable_topic,
+                 tcg_pid_enable_topic,
+                 yaw_pid_enable_topic,
+                 depth_pid_enable_topic,
+                 vel_pid_enable_topic):
+        """
+        Instead of using an action server, this action
+        publishes to the relevant topics directly as a last-resort
+        way to do emergency surfacing
+        """
+        super(A_EmergencySurfaceByForce, self).__init__("A_EmergencySurfaceByForce")
+
+        self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
+        self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
+        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.lcg_pid_enable = rospy.Publisher(lcg_pid_enable_topic, Bool, queue_size=10)
+        self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
+        self.tcg_pid_enable = rospy.Publisher(tcg_pid_enable_topic, Bool, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
+        self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
+        self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
+
+    def update(self):
+        rospy.logerr_throttle(5, "FORCING EMERGENCY SURFACING")
+        #Disable controllers
+        self.lcg_pid_enable.publish(False)
+        self.vbs_pid_enable.publish(False)
+        self.tcg_pid_enable.publish(False)
+        self.yaw_pid_enable.publish(False)
+        self.depth_pid_enable.publish(False)
+        self.vel_pid_enable.publish(False)
+
+        #set VBS to 0
+        vbs_level = PercentStamped()
+        vbs_level.value = 0.0;
+        self.vbs_pub.publish(vbs_level)
+
+        # Stop thrusters
+        rpm = ThrusterRPMs()
+        rpm.thruster_1_rpm = 0.0
+        rpm.thruster_2_rpm = 0.0
+        self.rpm_pub.publish(rpm)
+        return pt.Status.RUNNING
+
+
 
 class A_EmergencySurface(ptr.actions.ActionClient):
     def __init__(self, emergency_action_namespace):
@@ -109,17 +163,44 @@ class A_EmergencySurface(ptr.actions.ActionClient):
             override_feedback_message_on_running="EMERGENCY SURFACING"
         )
 
+        self.action_server_ok = False
+
+    def setup(self, timeout):
+        """
+        Overwriting the normal ptr action setup to stop it from failiing the setup step
+        and instead handling this failure in the tree.
+        """
+        self.logger.debug("%s.setup()" % self.__class__.__name__)
+        self.action_client = actionlib.SimpleActionClient(
+            self.action_namespace,
+            self.action_spec
+        )
+        if not self.action_client.wait_for_server(rospy.Duration(timeout)):
+            self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
+            self.action_client = None
+        else:
+            self.action_server_ok = True
+
+        return True
+
     def initialise(self):
+        if not self.action_server_ok:
+            return
         rospy.logwarn("EMERGENCY SURFACING")
         # construct the message
         self.action_goal = MoveBaseGoal()
         self.sent_goal = False
 
     def update(self):
+        if not self.action_server_ok:
+            self.feedback_message = "Action Server for emergency action can not be used!"
+            rospy.logerr_throttle_identical(5,self.feedback_message)
+            return pt.Status.FAILURE
+
         # if your action client is not valid
         if not self.action_client:
             self.feedback_message = "ActionClient for emergency action is invalid!"
-            rospy.logwarn(self.feedback_message)
+            rospy.logwarn_throttle_identical(5,self.feedback_message)
             return pt.Status.FAILURE
 
         # if the action_goal is invalid
@@ -280,8 +361,31 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             override_feedback_message_on_running="Moving to waypoint"
         )
 
+        self.action_server_ok = False
+
+    def setup(self, timeout):
+        """
+        Overwriting the normal ptr action setup to stop it from failiing the setup step
+        and instead handling this failure in the tree.
+        """
+        self.logger.debug("%s.setup()" % self.__class__.__name__)
+        self.action_client = actionlib.SimpleActionClient(
+            self.action_namespace,
+            self.action_spec
+        )
+        if not self.action_client.wait_for_server(rospy.Duration(timeout)):
+            self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
+            self.action_client = None
+        else:
+            self.action_server_ok = True
+
+        return True
+
 
     def initialise(self):
+        if not self.action_server_ok:
+            return
+
         wp, frame = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
         # if this is the first ever action, we need to get it ourselves
         if wp is None:
@@ -305,6 +409,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         succeeded, is running, or has cancelled/aborted for some reason and
         map these to the usual behaviour return states.
         """
+
+        if not self.action_server_ok:
+            self.feedback_message = "Action Server for gotowp action can not be used!"
+            rospy.logerr_throttle_identical(5,self.feedback_message)
+            return pt.Status.FAILURE
+
         # if your action client is not valid
         if not self.action_client:
             self.feedback_message = "ActionClient is invalid! Client:"+str(self.action_client)
@@ -362,18 +472,19 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         self.utm_link = utm_link
         self.base_link = base_link
         self.listener = tf.TransformListener()
+        self.tf_ok = False
 
 
     def setup(self, timeout):
         try:
             rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.utm_link, self.base_link))
-            self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(5.0))
+            self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(timeout))
             rospy.loginfo_throttle(3, "...Got it")
-            return True
+            self.tf_ok = True
         except:
-            rospy.logerr_throttle(5, "Could not find from "+self.utm_link+" to "+self.base_link)
-            return False
+            rospy.logerr_throttle(5, "Could not find from "+self.utm_link+" to "+self.base_link + "... Nothing except safety will be run")
 
+        return True
 
     def update(self):
         try:
@@ -757,19 +868,24 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         self.poi_link = poi_link
         self.tf_listener = tf.TransformListener()
 
+        self.poi_link_available = False
+
 
     def setup(self, timeout):
         try:
             rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.poi_link, self.local_link))
             self.tf_listener.waitForTransform(self.poi_link, self.local_link, rospy.Time(), rospy.Duration(timeout))
             rospy.loginfo_throttle(3, "...Got it")
-            return True
+            self.poi_link_available = True
         except:
-            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.local_link)
-            return False
+            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.local_link+" disabling updates")
 
+        return True
 
     def update(self):
+        if not self.poi_link_available:
+            return pt.Status.FAILURE
+
         poi = self.bb.get(bb_enums.POI_POINT_STAMPED)
         if poi is None:
             return pt.Status.SUCCESS
@@ -863,8 +979,30 @@ class A_FollowLeader(ptr.actions.ActionClient):
             override_feedback_message_on_running="Moving towards"+str(leader_link)
         )
 
+        self.action_server_ok = False
+
+    def setup(self, timeout):
+        """
+        Overwriting the normal ptr action setup to stop it from failiing the setup step
+        and instead handling this failure in the tree.
+        """
+        self.logger.debug("%s.setup()" % self.__class__.__name__)
+        self.action_client = actionlib.SimpleActionClient(
+            self.action_namespace,
+            self.action_spec
+        )
+        if not self.action_client.wait_for_server(rospy.Duration(timeout)):
+            self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
+            self.action_client = None
+        else:
+            self.action_server_ok = True
+
+        return True
+
 
     def initialise(self):
+        if not self.action_server_ok:
+            return
         # construct the message
         self.action_goal = MoveBaseGoal()
         # leave 0,0,0 because we want to go to the frame's center
@@ -880,6 +1018,11 @@ class A_FollowLeader(ptr.actions.ActionClient):
         succeeded, is running, or has cancelled/aborted for some reason and
         map these to the usual behaviour return states.
         """
+        if not self.action_server_ok:
+            self.feedback_message = "Action Server for follow leader action can not be used!"
+            rospy.logerr_throttle_identical(5,self.feedback_message)
+            return pt.Status.FAILURE
+
         # if your action client is not valid
         if not self.action_client:
             self.feedback_message = "ActionClient is invalid! Client:"+str(self.action_client)

@@ -25,6 +25,17 @@ class AUVConfig(object):
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
+        # emergency by force topics
+        self.EMERGENCY_TOPIC = 'abort'
+        self.VBS_CMD_TOPIC = 'core/vbs_cmd'
+        self.RPM_CMD_TOPIC = 'core/rpm_cmd'
+        self.LCG_PID_ENABLE_TOPIC = 'ctrl/lcg/pid_enable'
+        self.VBS_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
+        self.TCG_PID_ENABLE_TOPIC = 'ctrl/tcg/pid_enable'
+        self.YAW_PID_ENABLE_TOPIC = 'ctrl/dynamic_heading/pid_enable'
+        self.DEPTH_PID_ENABLE_TOPIC = 'ctrl/dynamic_depth/pid_enable'
+        self.VEL_PID_ENABLE_TOPIC = 'ctrl/dynamic_velocity/pid_enable'
+
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
@@ -57,7 +68,8 @@ class AUVConfig(object):
         self.MIN_ALTITUDE = 5
         # how many ticks to run emergency action before we give up
         # on the current wp and skip it
-        self.EMERGENCY_TRIALS_BEFORE_GIVING_UP = 10
+        # in ticks
+        self.EMERGENCY_TRIALS_BEFORE_GIVING_UP = 30
 
         self.MIN_DISTANCE_TO_LEADER = 5
 

@@ -1,64 +1,82 @@
 <!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py -->
 
 <launch>
+	<arg name="emergency_trials_before_giving_up" default="30" />
 	<arg name="robot_name" default="sam" />
+	<arg name="emergency_topic" default="abort" />
 	<arg name="plan_control_topic" default="imc/plan_control" />
 	<arg name="depth_topic" default="ctrl/depth_feedback" />
+	<arg name="depth_pid_enable_topic" default="ctrl/dynamic_depth/pid_enable" />
 	<arg name="leader_link" default="sam_1/base_link" />
-	<arg name="utm_link" default="utm" />
+	<arg name="rpm_cmd_topic" default="core/rpm_cmd" />
 	<arg name="path_topic" default="ctrl/planned_path" />
-	<arg name="poi_detector_link" default="sam/camera_down_link" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="base_link" default="sam/base_link" />
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
-	<arg name="emergency_trials_before_giving_up" default="10" />
+	<arg name="path_planner_name" default="/interp1d" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="5" />
+	<arg name="vel_pid_enable_topic" default="ctrl/dynamic_velocity/pid_enable" />
 	<arg name="abort_topic" default="imc/abort" />
 	<arg name="action_namespace" default="ctrl/wp_depth_action_planner" />
+	<arg name="tcg_pid_enable_topic" default="ctrl/tcg/pid_enable" />
+	<arg name="vbs_cmd_topic" default="core/vbs_cmd" />
 	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
 	<arg name="local_link" default="map" />
-	<arg name="plandb_topic" default="imc/plandb" />
+	<arg name="poi_detector_link" default="sam/camera_down_link" />
+	<arg name="lcg_pid_enable_topic" default="ctrl/lcg/pid_enable" />
 	<arg name="leak_topic" default="core/leak_fb" />
+	<arg name="plandb_topic" default="imc/plandb" />
 	<arg name="altitude_topic" default="core/dvl" />
-	<arg name="path_planner_name" default="/interp1d" />
+	<arg name="vbs_pid_enable_topic" default="ctrl/vbs/pid_enable" />
 	<arg name="enable_leader_follower" default="True" />
 	<arg name="min_distance_to_leader" default="5" />
 	<arg name="gps_fix_topic" default="core/gps" />
 	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
 	<arg name="camera_detection_topic" default="detection/poi_down" />
+	<arg name="yaw_pid_enable_topic" default="ctrl/dynamic_heading/pid_enable" />
+	<arg name="utm_link" default="utm" />
 	<arg name="estimated_state_topic" default="imc/estimated_state" />
 
 
 	<node name="sam_bt" pkg="smarc_bt" type="sam_bt.py" output="screen" ns="$(arg robot_name)">
+		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
 		<param name="robot_name" value="$(arg robot_name)" />
+		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="plan_control_topic" value="$(arg plan_control_topic)" />
 		<param name="depth_topic" value="$(arg depth_topic)" />
+		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		<param name="leader_link" value="$(arg leader_link)" />
-		<param name="utm_link" value="$(arg utm_link)" />
+		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />
 		<param name="path_topic" value="$(arg path_topic)" />
-		<param name="poi_detector_link" value="$(arg poi_detector_link)" />
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
 		<param name="base_link" value="$(arg base_link)" />
 		<param name="emergency_action_namespace" value="$(arg emergency_action_namespace)" />
 		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
-		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
+		<param name="path_planner_name" value="$(arg path_planner_name)" />
 		<param name="max_depth" value="$(arg max_depth)" />
 		<param name="min_altitude" value="$(arg min_altitude)" />
+		<param name="vel_pid_enable_topic" value="$(arg vel_pid_enable_topic)" />
 		<param name="abort_topic" value="$(arg abort_topic)" />
 		<param name="action_namespace" value="$(arg action_namespace)" />
+		<param name="tcg_pid_enable_topic" value="$(arg tcg_pid_enable_topic)" />
+		<param name="vbs_cmd_topic" value="$(arg vbs_cmd_topic)" />
 		<param name="plan_viz_topic" value="$(arg plan_viz_topic)" />
 		<param name="local_link" value="$(arg local_link)" />
-		<param name="plandb_topic" value="$(arg plandb_topic)" />
+		<param name="poi_detector_link" value="$(arg poi_detector_link)" />
+		<param name="lcg_pid_enable_topic" value="$(arg lcg_pid_enable_topic)" />
 		<param name="leak_topic" value="$(arg leak_topic)" />
+		<param name="plandb_topic" value="$(arg plandb_topic)" />
 		<param name="altitude_topic" value="$(arg altitude_topic)" />
-		<param name="path_planner_name" value="$(arg path_planner_name)" />
+		<param name="vbs_pid_enable_topic" value="$(arg vbs_pid_enable_topic)" />
 		<param name="enable_leader_follower" value="$(arg enable_leader_follower)" />
 		<param name="min_distance_to_leader" value="$(arg min_distance_to_leader)" />
 		<param name="gps_fix_topic" value="$(arg gps_fix_topic)" />
 		<param name="follow_action_namespace" value="$(arg follow_action_namespace)" />
 		<param name="camera_detection_topic" value="$(arg camera_detection_topic)" />
+		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
+		<param name="utm_link" value="$(arg utm_link)" />
 		<param name="estimated_state_topic" value="$(arg estimated_state_topic)" />
 	</node>
 </launch>

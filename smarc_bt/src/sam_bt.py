@@ -23,6 +23,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
+                       A_EmergencySurfaceByForce, \
                        A_SetUTMFromGPS, \
                        A_UpdateLatLon, \
                        A_RefineMission, \
@@ -166,7 +167,20 @@ def const_tree(auv_config):
                                   leakOK
                         ])
 
-        surface = A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+        surface = Fallback(name="FB_Surface",
+                           children=[
+                               A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE),
+                               A_EmergencySurfaceByForce(auv_config.EMERGENCY_TOPIC,
+                                                         auv_config.VBS_CMD_TOPIC,
+                                                         auv_config.RPM_CMD_TOPIC,
+                                                         auv_config.LCG_PID_ENABLE_TOPIC,
+                                                         auv_config.VBS_PID_ENABLE_TOPIC,
+                                                         auv_config.TCG_PID_ENABLE_TOPIC,
+                                                         auv_config.YAW_PID_ENABLE_TOPIC,
+                                                         auv_config.DEPTH_PID_ENABLE_TOPIC,
+                                                         auv_config.VEL_PID_ENABLE_TOPIC)
+
+                           ])
 
         skip_wp = Sequence(name='SQ-CountEmergenciesAndSkip',
                            children = [
@@ -296,7 +310,7 @@ def const_tree(auv_config):
 
 
 
-def main(config):
+def main(config, catkin_ws_path):
 
     utm_zone = rospy.get_param("~utm_zone", common_globals.DEFAULT_UTM_ZONE)
     utm_band = rospy.get_param("~utm_band", common_globals.DEFAULT_UTM_BAND)
@@ -311,7 +325,14 @@ def main(config):
         rospy.loginfo("Constructing tree")
         tree = const_tree(config)
         rospy.loginfo("Setting up tree")
-        setup_ok = tree.setup(timeout=10)
+        setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+        viz = pt.display.ascii_tree(tree.root)
+        rospy.loginfo(viz)
+        path = catkin_ws_path+'catkin_ws/src/smarc_missions/smarc_bt/last_ran_tree.txt'
+        with open(path, 'w+') as f:
+            f.write(viz)
+            rospy.loginfo("Wrote the tree to {}".format(path))
+
         if setup_ok:
             rospy.loginfo("Ticktocking....")
             rate = rospy.Rate(common_globals.BT_TICK_RATE)
@@ -324,14 +345,9 @@ def main(config):
                 else:
                     bb.set(bb_enums.TREE_TIP_NAME, tip.name)
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
-                #  try:
+
                 tree.tick()
-                #  except TypeError as e:
-                    #  rospy.logerr("TREE COULD NOT BE TICKED DUE TO TYPE ERROR!")
-                    #  rospy.logerr(e)
-                    #  rospy.logerr("BLACKBOARD:")
-                    #  for k,v in bb.__dict__.iteritems():
-                        #  rospy.logerr(str((k,v)))
+
 
                 rate.sleep()
 
@@ -353,12 +369,12 @@ if __name__ == '__main__':
     # uncomment this to generate bt_sam.launch file from auv_config.py
     # do this after you add a new field into auv_config.py
     # point path to where your catkin_ws is
+    import os
+    totally_safe_path = os.environ['ROSLISP_PACKAGE_DIRECTORIES']
+    catkin_ws_index = totally_safe_path.find('catkin_ws')
+    # this is '/home/ozer/smarc/' for me
+    catkin_ws_path = totally_safe_path[:catkin_ws_index]
     try:
-        import os
-        totally_safe_path = os.environ['ROSLISP_PACKAGE_DIRECTORIES']
-        catkin_ws_index = totally_safe_path.find('catkin_ws')
-        # this is '/home/ozer/smarc/' for me
-        catkin_ws_path = totally_safe_path[:catkin_ws_index]
         config.generate_launch_file(catkin_ws_path)
     except:
         print("Did not generate the launch file")
@@ -368,5 +384,5 @@ if __name__ == '__main__':
     config.read_rosparams()
     print(config)
     print('@@@@@@@@@@@@@')
-    main(config)
+    main(config, catkin_ws_path)
 
