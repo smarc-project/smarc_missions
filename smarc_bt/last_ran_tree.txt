@@ -1,0 +1,55 @@
+SQ-ROOT
+[o] SQ-DataIngestion
+    --> A_ReadAbort
+    --> A_ReadLeak
+    --> A_ReadDepth
+    --> A_ReadAlt
+    --> A_ReadCameraDetection
+    --> A_SetUTMFromGPS
+    --> A_UpdateTF
+    --> A_UpdateLatLon
+    [o] SQ-UpdateNeptus
+        --> A_UpdateNeptusEstimatedState
+        --> A_UpdateNeptusPlanControlState
+        --> A_UpdateNeptusVehicleState
+        --> A_UpdateNeptusPlanDB
+        --> A_UpdateNeptusPlanControl
+        --> A_VizPublishPlan
+[o] FB_SafetyOK
+    [o] SQ-SafetyChecks
+        --> C_NoAbortReceived
+        --> C_AltOK
+        --> C_DepthOK
+        --> C_LeakOK
+    [o] SQ-CountEmergenciesAndSkip
+        --> A_EmergencyCounter
+        --> A_SetNextPlanAction
+    [o] FB_Surface
+        --> A_EmergencySurface
+        --> A_EmergencySurfaceByForce
+[o] FB-Run
+    [o] SQ_PlannedMission
+        [o] FB_SynchMission
+            --> C_HaveRefinedMission
+            [o] SQ_Refinement
+                --> C_HaveCoarseMission
+                --> A_RefineMission
+                --> A_SetNextPlanAction
+        [o] FB_AutonomousUpdates
+            --> C_AutonomyDisabled
+            [o] FB_Poi
+                --> C_NoNewPOIDetected
+                --> A_UpdateMissonForPOI
+        [o] FB-ExecuteMissionPlan
+            --> C_PlanCompleted?
+            [o] SQ-FollowMissionPlan
+                --> C_StartPlanReceived
+                --> C_PlanIsNotChanged
+                --> A_GotoWaypoint
+                --> A_SetNextPlanAction
+            --> Idle
+    [o] SQ_LeaderFollower
+        --> C_LeaderFollowerEnabled
+        --> C_LeaderExists
+        --> C_LeaderIsFarEnough
+        --> A_FollowLeader

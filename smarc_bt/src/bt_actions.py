@@ -253,6 +253,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
         self.path_planner = None
         self.path_pub = rospy.Publisher(path_topic, Path, queue_size=1)
 
+        self.service_ok = False
 
     def no_service(self):
         return self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']
@@ -265,18 +266,18 @@ class A_RefineMission(pt.behaviour.Behaviour):
             rospy.wait_for_service(self.path_planner_service_name, timeout)
             self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
                                                    trajectory)
-            return True
+            self.service_ok = True
         except:
             rospy.logwarn_throttle_identical(5, "Can not reach the path planner at:"+self.path_planner_service_name)
-            return False
 
+        return True
 
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None or mission_plan.is_complete():
             return pt.Status.FAILURE
 
-        if self.no_service():
+        if self.no_service() or not self.service_ok:
             # there is no path planner, just copy the coarse points to the refined side
             mission_plan.set_refined_waypoints(mission_plan.waypoints)
             return pt.Status.SUCCESS
@@ -1001,8 +1002,6 @@ class A_FollowLeader(ptr.actions.ActionClient):
 
 
     def initialise(self):
-        if not self.action_server_ok:
-            return
         # construct the message
         self.action_goal = MoveBaseGoal()
         # leave 0,0,0 because we want to go to the frame's center
