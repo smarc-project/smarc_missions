@@ -183,6 +183,7 @@ class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
         self.yaw_pid_enable = rospy.Publisher(self.yaw_pid_enable_topic, Bool, queue_size=10)
         self.depth_pid_enable = rospy.Publisher(self.depth_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(self.vel_pid_enable_topic, Bool, queue_size=10)
+        return True
 
 
     def update(self):
@@ -628,6 +629,7 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         self.sub = rospy.Subscriber(self.plan_control_topic, PlanControl, self.plancontrol_cb)
+        return True
 
 
     def plancontrol_cb(self, plan_control_msg):
@@ -703,6 +705,7 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         self.estimated_state_pub = rospy.Publisher(self.estimated_state_topic, EstimatedState, queue_size=1)
+        return True
 
 
     def update(self):
@@ -742,6 +745,7 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         self.plan_control_state_pub = rospy.Publisher(self.plan_control_state_topic, PlanControlState, queue_size=1)
+        return True
 
 
     def update(self):
@@ -797,6 +801,7 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         self.vehicle_state_pub = rospy.Publisher(self.vehicle_state_topic, VehicleState, queue_size=1)
+        return True
 
 
     def update(self):
@@ -841,6 +846,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def setup(self, timeout):
         self.plandb_pub = rospy.Publisher(self.plandb_topic, PlanDB, queue_size=1)
         self.plandb_sub = rospy.Subscriber(self.plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
+        return True
 
 
 
