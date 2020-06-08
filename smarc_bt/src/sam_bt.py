@@ -295,7 +295,7 @@ def const_tree(auv_config):
         # and this will run after every success of the goto action
         set_next_plan_action = A_SetNextPlanAction()
         plan_is_same = C_PlanIsNotChanged()
-        idle = pt.behaviours.Running(name="Idle")
+        #  idle = pt.behaviours.Running(name="Idle")
 
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
@@ -308,8 +308,8 @@ def const_tree(auv_config):
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   plan_complete,
-                                  follow_plan,
-                                  idle
+                                  follow_plan
+                                  #  idle
                         ])
 
 
@@ -379,7 +379,12 @@ def main(config, catkin_ws_path):
                     bb.set(bb_enums.TREE_TIP_NAME, tip.name)
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
-                tree.tick()
+                try:
+                    tree.tick()
+                except:
+                    rospy.logerr("Last tip: {}".format(tip))
+                    pt.display.print_ascii_tree(tree.root, show_status=True)
+
                 pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()
 
