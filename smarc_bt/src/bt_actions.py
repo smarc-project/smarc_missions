@@ -164,8 +164,8 @@ class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
         self.vel_pid_enable = None
 
         self.emergency_topic = emergency_topic
-        self.vbs_topic = vbs_cmd_topic
-        self.rpm_topic = rpm_cmd_topic
+        self.vbs_cmd_topic = vbs_cmd_topic
+        self.rpm_cmd_topic = rpm_cmd_topic
         self.lcg_pid_enable_topic = lcg_pid_enable_topic
         self.vbs_pid_enable_topic = vbs_pid_enable_topic
         self.tcg_pid_enable_topic = tcg_pid_enable_topic
