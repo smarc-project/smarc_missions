@@ -153,15 +153,37 @@ class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
         """
         super(A_EmergencySurfaceByForce, self).__init__("A_EmergencySurfaceByForce")
 
-        self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
-        self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
-        self.lcg_pid_enable = rospy.Publisher(lcg_pid_enable_topic, Bool, queue_size=10)
-        self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
-        self.tcg_pid_enable = rospy.Publisher(tcg_pid_enable_topic, Bool, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
-        self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
-        self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
+        self.emergency_pub = None
+        self.vbs_pub = None
+        self.rpm_pub = None
+        self.lcg_pid_enable = None
+        self.vbs_pid_enable = None
+        self.tcg_pid_enable = None
+        self.yaw_pid_enable = None
+        self.depth_pid_enable = None
+        self.vel_pid_enable = None
+
+        self.emergency_topic = emergency_topic
+        self.vbs_topic = vbs_cmd_topic
+        self.rpm_topic = rpm_cmd_topic
+        self.lcg_pid_enable_topic = lcg_pid_enable_topic
+        self.vbs_pid_enable_topic = vbs_pid_enable_topic
+        self.tcg_pid_enable_topic = tcg_pid_enable_topic
+        self.yaw_pid_enable_topic = yaw_pid_enable_topic
+        self.depth_pid_enable_topic = depth_pid_enable_topic
+        self.vel_pid_enable_topic = vel_pid_enable_topic
+
+    def setup(self, timeout):
+        self.emergency_pub = rospy.Publisher(self.emergency_topic, Bool, queue_size=10)
+        self.vbs_pub = rospy.Publisher(self.vbs_cmd_topic, PercentStamped, queue_size=10)
+        self.rpm_pub = rospy.Publisher(self.rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.lcg_pid_enable = rospy.Publisher(self.lcg_pid_enable_topic, Bool, queue_size=10)
+        self.vbs_pid_enable = rospy.Publisher(self.vbs_pid_enable_topic, Bool, queue_size=10)
+        self.tcg_pid_enable = rospy.Publisher(self.tcg_pid_enable_topic, Bool, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher(self.yaw_pid_enable_topic, Bool, queue_size=10)
+        self.depth_pid_enable = rospy.Publisher(self.depth_pid_enable_topic, Bool, queue_size=10)
+        self.vel_pid_enable = rospy.Publisher(self.vel_pid_enable_topic, Bool, queue_size=10)
+
 
     def update(self):
         rospy.logerr_throttle(5, "FORCING EMERGENCY SURFACING")
@@ -295,7 +317,8 @@ class A_RefineMission(pt.behaviour.Behaviour):
         super(A_RefineMission, self).__init__('A_RefineMission')
         self.path_planner_service_name = path_planner_service_name
         self.path_planner = None
-        self.path_pub = rospy.Publisher(path_topic, Path, queue_size=1)
+        self.path_pub = None
+        self.path_topic = path_topic
 
         self.service_ok = False
 
@@ -306,6 +329,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
         if self.no_service():
             return True
 
+        self.path_pub = rospy.Publisher(self.path_topic, Path, queue_size=1)
         try:
             rospy.wait_for_service(self.path_planner_service_name, timeout)
             self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
@@ -597,8 +621,14 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
     def __init__(self, plan_control_topic):
         super(A_UpdateNeptusPlanControl, self).__init__("A_UpdateNeptusPlanControl")
         self.bb = pt.blackboard.Blackboard()
-        self.sub = rospy.Subscriber(plan_control_topic, PlanControl, self.plancontrol_cb)
         self.plan_control_msg = None
+        self.plan_control_topic = plan_control_topic
+
+        self.sub = None
+
+    def setup(self, timeout):
+        self.sub = rospy.Subscriber(self.plan_control_topic, PlanControl, self.plancontrol_cb)
+
 
     def plancontrol_cb(self, plan_control_msg):
         self.plan_control_msg = plan_control_msg
@@ -668,7 +698,12 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
     def __init__(self, estimated_state_topic):
         super(A_UpdateNeptusEstimatedState, self).__init__("A_UpdateNeptusEstimatedState")
         self.bb = pt.blackboard.Blackboard()
-        self.estimated_state_pub = rospy.Publisher(estimated_state_topic, EstimatedState, queue_size=1)
+        self.estimated_state_pub = None
+        self.estimated_state_topic = estimated_state_topic
+
+    def setup(self, timeout):
+        self.estimated_state_pub = rospy.Publisher(self.estimated_state_topic, EstimatedState, queue_size=1)
+
 
     def update(self):
         lat = self.bb.get(bb_enums.CURRENT_LATITUDE)
@@ -701,7 +736,13 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
     def __init__(self, plan_control_state_topic):
         super(A_UpdateNeptusPlanControlState, self).__init__("A_UpdateNeptusPlanControlState")
         self.bb = pt.blackboard.Blackboard()
-        self.plan_control_state_pub = rospy.Publisher(plan_control_state_topic, PlanControlState, queue_size=1)
+        self.plan_control_state_pub = None
+        self.plan_control_state_topic = plan_control_state_topic
+
+
+    def setup(self, timeout):
+        self.plan_control_state_pub = rospy.Publisher(self.plan_control_state_topic, PlanControlState, queue_size=1)
+
 
     def update(self):
         # construct current progress message for neptus
@@ -751,7 +792,12 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
     def __init__(self, vehicle_state_topic):
         super(A_UpdateNeptusVehicleState, self).__init__("A_UpdateNeptusVehicleState")
         self.bb = pt.blackboard.Blackboard()
-        self.vehicle_state_pub = rospy.Publisher(vehicle_state_topic, VehicleState, queue_size=1)
+        self.vehicle_state_pub = None
+        self.vehicle_state_topic = vehicle_state_topic
+
+    def setup(self, timeout):
+        self.vehicle_state_pub = rospy.Publisher(self.vehicle_state_topic, VehicleState, queue_size=1)
+
 
     def update(self):
         """
@@ -785,9 +831,17 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         self.plandb_msg.type = imc_enums.PLANDB_TYPE_SUCCESS
         self.plandb_msg.op = imc_enums.PLANDB_OP_SET
 
-        self.plandb_pub = rospy.Publisher(plandb_topic, PlanDB, queue_size=1)
-        self.plandb_sub = rospy.Subscriber(plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
+
+        self.plandb_pub = None
+        self.plandb_sub = None
         self.latest_plandb_msg = None
+        self.plandb_topic = plandb_topic
+
+
+    def setup(self, timeout):
+        self.plandb_pub = rospy.Publisher(self.plandb_topic, PlanDB, queue_size=1)
+        self.plandb_sub = rospy.Subscriber(self.plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
+
 
 
     def plandb_cb(self, plandb_msg):
@@ -991,7 +1045,12 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
     def __init__(self, plan_viz_topic):
         super(A_VizPublishPlan, self).__init__(name="A_VizPublishPlan")
         self.bb = pt.blackboard.Blackboard()
-        self.pa_pub = rospy.Publisher(plan_viz_topic, PoseArray, queue_size=1)
+        self.pa_pub = None
+        self.plan_viz_topic = plan_viz_topic
+
+    def update(self, timeout):
+        self.pa_pub = rospy.Publisher(self.plan_viz_topic, PoseArray, queue_size=1)
+
 
     def update(self):
         mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
