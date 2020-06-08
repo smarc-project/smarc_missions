@@ -25,8 +25,10 @@ CHECK_CBF_LIST = True
 # plans a user creates
 COARSE_PLAN_REFINED_PLAN_THRESHOLD = 1
 
-# if a poi is 5m away from the latest, its a new one
-POI_DIST = 5
+# if a poi is Xm away from the latest, its a new one
+POI_DIST = 10
+
+SETUP_TIMEOUT = 1.0
 
 
 

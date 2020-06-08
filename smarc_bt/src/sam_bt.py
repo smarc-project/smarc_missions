@@ -15,6 +15,7 @@ from std_msgs.msg import Float64
 from sam_msgs.msg import Leak
 from cola2_msgs.msg import DVL
 from geometry_msgs.msg import PointStamped
+from sensor_msgs.msg import NavSatFix
 
 from auv_config import AUVConfig
 
@@ -23,6 +24,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
+                       A_EmergencySurfaceByForce, \
                        A_SetUTMFromGPS, \
                        A_UpdateLatLon, \
                        A_RefineMission, \
@@ -33,7 +35,9 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
-                       A_FollowLeader
+                       A_FollowLeader, \
+                       A_SetDVLRunning
+
 
 from bt_conditions import C_PlanCompleted, \
                           C_NoAbortReceived, \
@@ -48,7 +52,8 @@ from bt_conditions import C_PlanCompleted, \
                           C_AutonomyDisabled, \
                           C_LeaderFollowerEnabled, \
                           C_LeaderExists, \
-                          C_LeaderIsFarEnough
+                          C_LeaderIsFarEnough, \
+                          C_AtDVLDepth
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -112,6 +117,13 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
         )
 
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_FIX_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.GPS_FIX:None}
+        )
+
         def const_neptus_tree():
             update_neptus = Sequence(name="SQ-UpdateNeptus",
                                      children=[
@@ -129,7 +141,7 @@ def const_tree(auv_config):
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
         update_latlon = A_UpdateLatLon()
-        set_utm_from_gps = A_SetUTMFromGPS(auv_config.GPS_FIX_TOPIC)
+        set_utm_from_gps = A_SetUTMFromGPS()
         neptus_tree = const_neptus_tree()
 
 
@@ -142,11 +154,32 @@ def const_tree(auv_config):
                             read_depth,
                             read_alt,
                             read_detection,
+                            read_gps,
                             set_utm_from_gps,
                             update_tf,
                             update_latlon,
                             neptus_tree
                         ])
+
+
+    def const_dvl_tree():
+        switch_on = Sequence(name="SQ_SwitchOnDVL",
+                             children=[
+                                 C_AtDVLDepth(auv_config.DVL_RUNNING_DEPTH),
+                                 A_SetDVLRunning(auv_config.START_STOP_DVL_NAMESPACE,
+                                                 True,
+                                                 auv_config.DVL_COOLDOWN)
+                             ])
+
+        switch_off = Fallback(name="FB_SwitchOffDVL",
+                              children=[
+                                  switch_on,
+                                  A_SetDVLRunning(auv_config.START_STOP_DVL_NAMESPACE,
+                                                  False,
+                                                  auv_config.DVL_COOLDOWN)
+                              ])
+
+        return switch_off
 
 
 
@@ -166,7 +199,20 @@ def const_tree(auv_config):
                                   leakOK
                         ])
 
-        surface = A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+        surface = Fallback(name="FB_Surface",
+                           children=[
+                               A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE),
+                               A_EmergencySurfaceByForce(auv_config.EMERGENCY_TOPIC,
+                                                         auv_config.VBS_CMD_TOPIC,
+                                                         auv_config.RPM_CMD_TOPIC,
+                                                         auv_config.LCG_PID_ENABLE_TOPIC,
+                                                         auv_config.VBS_PID_ENABLE_TOPIC,
+                                                         auv_config.TCG_PID_ENABLE_TOPIC,
+                                                         auv_config.YAW_PID_ENABLE_TOPIC,
+                                                         auv_config.DEPTH_PID_ENABLE_TOPIC,
+                                                         auv_config.VEL_PID_ENABLE_TOPIC)
+
+                           ])
 
         skip_wp = Sequence(name='SQ-CountEmergenciesAndSkip',
                            children = [
@@ -289,6 +335,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
+                              const_dvl_tree(),
                               run_tree
                     ])
 
@@ -296,7 +343,7 @@ def const_tree(auv_config):
 
 
 
-def main(config):
+def main(config, catkin_ws_path):
 
     utm_zone = rospy.get_param("~utm_zone", common_globals.DEFAULT_UTM_ZONE)
     utm_band = rospy.get_param("~utm_band", common_globals.DEFAULT_UTM_BAND)
@@ -311,7 +358,14 @@ def main(config):
         rospy.loginfo("Constructing tree")
         tree = const_tree(config)
         rospy.loginfo("Setting up tree")
-        setup_ok = tree.setup(timeout=10)
+        setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+        viz = pt.display.ascii_tree(tree.root)
+        rospy.loginfo(viz)
+        path = catkin_ws_path+'catkin_ws/src/smarc_missions/smarc_bt/last_ran_tree.txt'
+        with open(path, 'w+') as f:
+            f.write(viz)
+            rospy.loginfo("Wrote the tree to {}".format(path))
+
         if setup_ok:
             rospy.loginfo("Ticktocking....")
             rate = rospy.Rate(common_globals.BT_TICK_RATE)
@@ -324,14 +378,9 @@ def main(config):
                 else:
                     bb.set(bb_enums.TREE_TIP_NAME, tip.name)
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
-                #  try:
+
                 tree.tick()
-                #  except TypeError as e:
-                    #  rospy.logerr("TREE COULD NOT BE TICKED DUE TO TYPE ERROR!")
-                    #  rospy.logerr(e)
-                    #  rospy.logerr("BLACKBOARD:")
-                    #  for k,v in bb.__dict__.iteritems():
-                        #  rospy.logerr(str((k,v)))
+
 
                 rate.sleep()
 
@@ -353,12 +402,12 @@ if __name__ == '__main__':
     # uncomment this to generate bt_sam.launch file from auv_config.py
     # do this after you add a new field into auv_config.py
     # point path to where your catkin_ws is
+    import os
+    totally_safe_path = os.environ['ROSLISP_PACKAGE_DIRECTORIES']
+    catkin_ws_index = totally_safe_path.find('catkin_ws')
+    # this is '/home/ozer/smarc/' for me
+    catkin_ws_path = totally_safe_path[:catkin_ws_index]
     try:
-        import os
-        totally_safe_path = os.environ['ROSLISP_PACKAGE_DIRECTORIES']
-        catkin_ws_index = totally_safe_path.find('catkin_ws')
-        # this is '/home/ozer/smarc/' for me
-        catkin_ws_path = totally_safe_path[:catkin_ws_index]
         config.generate_launch_file(catkin_ws_path)
     except:
         print("Did not generate the launch file")
@@ -368,5 +417,5 @@ if __name__ == '__main__':
     config.read_rosparams()
     print(config)
     print('@@@@@@@@@@@@@')
-    main(config)
+    main(config, catkin_ws_path)
 

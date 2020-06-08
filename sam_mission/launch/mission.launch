@@ -18,7 +18,7 @@
 	<arg name="enable_leader_follower" default="True" />
     <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
 
-	<!-- Options: "", "/interp1d" -->
+	<!-- Options: "", or whatever is started at the bottom -->
     <arg name="path_planner_name" default=""/>
 
 	<!-- Croatia, biograd coast, should really be set from bringup -->
@@ -44,7 +44,7 @@
     <arg name="abort_topic" default="imc/abort"/>
     <arg name="gps_fix_topic" default="core/gps"/>
     <arg name="altitude_topic" default="core/dvl"/>
-    <arg name="depth_topic" default="ctrl/depth_feedback"/>
+	<arg name="depth_topic" default="ctrl/odom_listener/depth_feedback"/>
 
 
 	<!-- Action Servers -->
@@ -67,8 +67,13 @@
     <include file="$(find auv_simple_motion_planner)/launch/leader_follower_action.launch" pass_all_args="true"/>
 
 	<!-- Start the path planner service -->
-	<include file="$(find trajectories)/launch/interp1d.launch" pass_all_args="true">
-		<param name="waypoint_spacing" value="$(arg wp_tolerance)" />
+    <arg name="spline_degree" default="3" />
+    <arg name="smoothing_factor" default="0.1" />
+	<arg name="waypoint_spacing" default="0.1" />
+    <include file="$(find trajectories)/launch/bspline.launch" pass_all_args="true">
+        <param name="spline_degree" value="$(arg spline_degree)" type="int" />
+        <param name="smoothing_factor" value="$(arg smoothing_factor)" type="double" />
+		<param name="waypoint_spacing" value="$(arg waypoint_spacing)" type="double" />
 	</include>
 
 	<include file="$(find smarc_bt)/launch/bt_sam.launch" pass_all_args="true"/>

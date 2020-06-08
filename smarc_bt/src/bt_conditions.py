@@ -16,6 +16,25 @@ import bb_enums
 from bt_common import CBFCondition
 
 
+class C_AtDVLDepth(pt.behaviour.Behaviour):
+    """
+    Returns SUCCESS if at some specified depth
+    """
+    def __init__(self, dvl_depth):
+        self.bb = pt.blackboard.Blackboard()
+        self.dvl_depth = dvl_depth
+        super(C_AtDVLDepth, self).__init__(name="C_AtDVLDepth")
+
+    def update(self):
+        depth = self.bb.get(bb_enums.DEPTH)
+        if depth is None or depth < self.dvl_depth:
+            rospy.loginfo_throttle(10, "Not deep enough for DVL: {}".format(depth))
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+
 class C_NoAbortReceived(pt.behaviour.Behaviour):
     """
     This condition returns FAILURE forever after it returns it once.
@@ -48,6 +67,11 @@ class C_DepthOK(pt.behaviour.Behaviour):
 
     def update(self):
         depth = self.bb.get(bb_enums.DEPTH)
+
+        if depth is None:
+            rospy.logwarn_throttle(5, "NO DETH READ! The tree will wait for depth to run!")
+            return pt.Status.RUNNING
+
         if depth < self.max_depth:
             return pt.Status.SUCCESS
         else:
@@ -83,6 +107,10 @@ class C_AltOK(pt.behaviour.Behaviour):
 
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
+        if alt is None:
+            rospy.logwarn_throttle(5, "NO ALTITUDE READ! The tree will wait for altitude to run!")
+            return pt.Status.RUNNING
+
         if alt > self.min_alt:
             return pt.Status.SUCCESS
         else:
@@ -283,7 +311,7 @@ class C_LeaderExists(pt.behaviour.Behaviour):
 
         try:
             rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.base_link, self.leader_link))
-            self.listener.waitForTransform(self.base_link, self.leader_link, rospy.Time(), rospy.Duration(5.0))
+            self.listener.waitForTransform(self.base_link, self.leader_link, rospy.Time(), rospy.Duration(timeout))
             self.leader_exists = True
             rospy.loginfo_throttle(3, "...Got it, we got a leader to follow!")
         except:
@@ -317,7 +345,7 @@ class C_LeaderIsFarEnough(pt.behaviour.Behaviour):
     def setup(self, timeout):
         try:
             rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.base_link, self.leader_link))
-            self.listener.waitForTransform(self.base_link, self.leader_link, rospy.Time(), rospy.Duration(5.0))
+            self.listener.waitForTransform(self.base_link, self.leader_link, rospy.Time(), rospy.Duration(timeout))
             self.leader_exists = True
             rospy.loginfo_throttle(3, "...Got it, we got a leader to follow!")
         except:
