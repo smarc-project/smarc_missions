@@ -109,12 +109,13 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
             # shitty gps
             self._spam_period = min(self._spam_period*2, self._max_spam_period)
-            return pt.Status.FAILURE
+            return pt.Status.SUCCESS
 
         self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
 
         if self.gps_zone is None or self.gps_band is None:
-            return pt.Status.RUNNING
+            rospy.logwarn_throttle_identical(10, "gps zone and band from fromLatLong was None")
+            return pt.Status.SUCCESS
 
         # first read the UTMs given by ros params
         prev_band = self.bb.get(bb_enums.UTM_BAND)
