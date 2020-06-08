@@ -108,8 +108,8 @@ class C_AltOK(pt.behaviour.Behaviour):
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
         if alt is None:
-            rospy.logwarn_throttle(5, "NO ALTITUDE READ! The tree will wait for altitude to run!")
-            return pt.Status.RUNNING
+            rospy.logwarn_throttle(5, "NO ALTITUDE READ! The tree will run anyways")
+            return pt.Status.SUCCESS
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS
