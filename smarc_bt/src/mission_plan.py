@@ -33,10 +33,10 @@ class MissionPlan:
         self.aborted = False
 
         self.tf_listener = tf.TransformListener()
-        #  try:
-            #  self.tf_listener.waitForTransform(plan_frame, local_frame, rospy.Time(), rospy.Duration(4.0))
-        #  except:
-            #  rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
+        try:
+            self.tf_listener.waitForTransform(plan_frame, local_frame, rospy.Time(), rospy.Duration(4.0))
+        except:
+            rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
 
         # a list of names for each maneuver
         # good for feedback
