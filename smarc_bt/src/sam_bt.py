@@ -380,7 +380,7 @@ def main(config, catkin_ws_path):
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
                 tree.tick()
-                pt.display.print_ascii_tree(tree.root)
+                pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()
 
         else:
