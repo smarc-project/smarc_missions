@@ -43,9 +43,12 @@ class A_SetDVLRunning(pt.behaviour.Behaviour):
 
         self.sb = SetBool()
         self.sb.data = running
+        self.running = running
 
         self.last_toggle = 0
         self.cooldown = cooldown
+
+        self.service_name = dvl_on_off_service_name
 
     def update(self):
         # try not to call the service every tick...
@@ -63,9 +66,9 @@ class A_SetDVLRunning(pt.behaviour.Behaviour):
             return pt.Status.RUNNING
 
         try:
-            ret = self.switcher_service(self.sb)
+            ret = self.switcher_service(self.running)
         except rospy.service.ServiceException:
-            rospy.logwarn_throttle_identical(60, "DVL Start/stop service not found! Succeeding by default")
+            rospy.logwarn_throttle_identical(60, "DVL Start/stop service not found! Succeeding by default namespace:{}".format(self.service_name))
             return pt.Status.SUCCESS
 
         if ret.success:

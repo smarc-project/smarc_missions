@@ -11,7 +11,7 @@
 	<arg name="depth_pid_enable_topic" default="ctrl/dynamic_depth/pid_enable" />
 	<arg name="leader_link" default="sam_1/base_link" />
 	<arg name="rpm_cmd_topic" default="core/rpm_cmd" />
-	<arg name="start_stop_dvl_namespace" default="core/start_stop_dvl_service" />
+	<arg name="start_stop_dvl_namespace" default="/sam/core/start_stop_dvl" />
 	<arg name="path_topic" default="ctrl/planned_path" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="base_link" default="sam/base_link" />
