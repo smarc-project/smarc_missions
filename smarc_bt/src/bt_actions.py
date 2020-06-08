@@ -375,7 +375,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
             self.feedback_message = "Next action was None"
             return pt.Status.FAILURE
 
-        rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION to:"+str(next_action))
+        rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))
         self.bb.set(bb_enums.CURRENT_PLAN_ACTION, next_action)
         return pt.Status.SUCCESS
 

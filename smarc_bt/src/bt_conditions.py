@@ -132,6 +132,7 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
     def update(self):
         plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
         if plan_is_go is None or plan_is_go == False:
+            rospy.loginfo_throttle_identical(5, "Waiting for start plan")
             return pt.Status.FAILURE
         return pt.Status.SUCCESS
 
@@ -150,6 +151,7 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None or not mission_plan.is_complete():
+            rospy.loginfo_throttle_identical(5, "Plan is not done")
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
