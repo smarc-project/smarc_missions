@@ -787,6 +787,14 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
 
         self.plandb_pub = rospy.Publisher(plandb_topic, PlanDB, queue_size=1)
         self.plandb_sub = rospy.Subscriber(plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
+        self.latest_plandb_msg = None
+
+
+    def plandb_cb(self, plandb_msg):
+        """
+        as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
+        """
+        self.latest_plandb_msg = plandb_msg
 
 
     def make_plandb_info(self):
@@ -850,11 +858,11 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
 
 
+    def handle_plandb_msg(self):
+        plandb_msg = self.latest_plandb_msg
+        if pland_msg is None:
+            return
 
-    def plandb_cb(self, plandb_msg):
-        """
-        as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
-        """
         typee = plandb_msg.type
         op = plandb_msg.op
 
@@ -881,6 +889,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(5, "Received some unhandled planDB message:\n"+str(plandb_msg))
 
 
+
+
     def respond_set_success(self):
         current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
@@ -896,6 +906,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         # we just want to tell neptus we got the plan all the time
         # this keeps the thingy green
         self.respond_set_success()
+        self.handle_plandb_msg()
         return pt.Status.SUCCESS
 
 
