@@ -634,6 +634,7 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
 
 
     def plancontrol_cb(self, plan_control_msg):
+        rospy.loginfo("plancontrol_cb {}".format(plan_control_msg))
         self.plan_control_msg = plan_control_msg
 
     def update(self):
@@ -856,6 +857,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         """
         as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
         """
+        rospy.loginfo("plandb_db {}".format(plandb_msg))
         self.latest_plandb_msg = plandb_msg
 
 

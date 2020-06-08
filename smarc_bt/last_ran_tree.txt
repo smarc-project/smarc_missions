@@ -7,8 +7,6 @@ SQ-ROOT
     --> A_ReadCameraDetection
     --> A_ReadGPS
     --> A_SetUTMFromGPS
-    --> A_UpdateTF
-    --> A_UpdateLatLon
     [o] SQ-UpdateNeptus
         --> A_UpdateNeptusEstimatedState
         --> A_UpdateNeptusPlanControlState
@@ -53,7 +51,6 @@ SQ-ROOT
                 --> C_PlanIsNotChanged
                 --> A_GotoWaypoint
                 --> A_SetNextPlanAction
-            --> Idle
     [o] SQ_LeaderFollower
         --> C_LeaderFollowerEnabled
         --> C_LeaderExists

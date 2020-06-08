@@ -32,19 +32,13 @@ class MissionPlan:
 
         self.aborted = False
 
-        self.tf_listener = tf.TransformListener()
-        try:
-            self.tf_listener.waitForTransform(plan_frame, local_frame, rospy.Time(), rospy.Duration(4.0))
-        except:
-            rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
-
         # a list of names for each maneuver
         # good for feedback
         self.waypoint_man_ids = []
 
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg, plan_frame, local_frame, self.tf_listener)
+            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg, plan_frame, local_frame)
         else:
             self.waypoints = waypoints
             self.waypoint_man_ids = waypoint_man_ids
@@ -65,11 +59,18 @@ class MissionPlan:
 
 
     @staticmethod
-    def read_plandb(plandb, plan_frame, local_frame, tf_listener):
+    def read_plandb(plandb, plan_frame, local_frame):
         """
         planddb message is a bunch of nested objects,
         we want a list of waypoints in the local frame,
         """
+
+        tf_listener = tf.TransformListener()
+        try:
+            tf_listener.waitForTransform(plan_frame, local_frame, rospy.Time(), rospy.Duration(4.0))
+        except:
+            rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
+
         waypoints = []
         waypoint_man_ids = []
         request_id = plandb.request_id

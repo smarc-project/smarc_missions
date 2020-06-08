@@ -156,8 +156,8 @@ def const_tree(auv_config):
                             read_detection,
                             read_gps,
                             set_utm_from_gps,
-                            #update_tf,
-                            #update_latlon,
+                            update_tf,
+                            update_latlon,
                             neptus_tree
                         ])
 
@@ -222,14 +222,12 @@ def const_tree(auv_config):
                                A_SetNextPlanAction()
                            ])
 
-        # if anything about safety is 'bad', we abort everything
-        fallback_to_abort = Fallback(name='FB_SafetyOK',
-                                     children = [
-                                         safety_checks,
-                                         skip_wp,
-                                         surface
-                                     ])
-        return fallback_to_abort
+        return Fallback(name='FB_SafetyOK',
+                        children = [
+                            safety_checks,
+                            skip_wp,
+                            surface
+                        ])
 
 
     def const_leader_follower():
