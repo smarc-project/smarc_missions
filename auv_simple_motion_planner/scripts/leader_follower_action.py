@@ -95,13 +95,13 @@ class LeaderFollower(object):
                     rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
                     success = False
                     break
-                
+
                 xdiff = leader_trans[0]-follower_trans[0]
                 ydiff = leader_trans[1]-follower_trans[1]
                 zdiff = leader_trans[2]-follower_trans[2]
                 yaw_setpoint = math.atan2(ydiff,xdiff)
-                depth_setpoint = -zdiff 
-                rospy.loginfo_throttle(10,'yaw_setpoint:',yaw_setpoint, 'depth_setpoint:',depth_setpoint)
+                depth_setpoint = -zdiff
+                rospy.loginfo_throttle(10,'yaw_setpoint:'+str(yaw_setpoint)+' depth_setpoint:'+str(depth_setpoint))
 
                 self.depth_pub.publish(depth_setpoint)
 

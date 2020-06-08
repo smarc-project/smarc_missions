@@ -15,7 +15,6 @@ import tf
 import actionlib
 
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
@@ -24,6 +23,7 @@ from std_msgs.msg import Float64, Header, Bool, Empty
 
 # path planner service
 from trajectories.srv import trajectory
+from std_srvs.srv import SetBool
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 
@@ -34,9 +34,52 @@ import common_globals
 from mission_plan import MissionPlan
 
 
+class A_SetDVLRunning(pt.behaviour.Behaviour):
+    def __init__(self, dvl_on_off_service_name, running, cooldown):
+        super(A_SetDVLRunning, self).__init__(name="A_SetDVLRunning")
+        self.switcher_service = rospy.ServiceProxy(dvl_on_off_service_name,
+                                                   SetBool)
+        self.bb = pt.blackboard.Blackboard()
+
+        self.sb = SetBool()
+        self.sb.data = running
+
+        self.last_toggle = 0
+        self.cooldown = cooldown
+
+    def update(self):
+        # try not to call the service every tick...
+        dvl_is_running = self.bb.get(bb_enums.DVL_IS_RUNNING)
+        if dvl_is_running is not None:
+            if dvl_is_running == self.sb.data:
+                rospy.loginfo_throttle_identical(20, "DVL is already running:"+str(self.sb.data))
+                return pt.Status.SUCCESS
+
+        # check if enough time has passed since last call
+        t = time.time()
+        if t - self.last_toggle < self.cooldown:
+            # nope, return running while we wait
+            rospy.loginfo_throttle_identical(5, "Waiting on DVL toggle cooldown")
+            return pt.Status.RUNNING
+
+        try:
+            ret = self.switcher_service(self.sb)
+        except rospy.service.ServiceException:
+            rospy.logwarn_throttle_identical(60, "DVL Start/stop service not found! Succeeding by default")
+            return pt.Status.SUCCESS
+
+        if ret.success:
+            rospy.loginfo_throttle_identical(5, "DVL TOGGLED:"+str(self.sb.data))
+            self.last_toggle = time.time()
+            self.bb.set(bb_enums.DVL_IS_RUNNING, self.sb.data)
+            return pt.Status.SUCCESS
+
+        rospy.logwarn_throttle_identical(5, "DVL COULD NOT BE TOGGLED:{}, ret:{}".format(self.sb.data, ret))
+        return pt.Status.FAILURE
+
 
 class A_SetUTMFromGPS(pt.behaviour.Behaviour):
-    def __init__(self, gps_fix_topic):
+    def __init__(self):
         """
         Read GPS fix and set our utm band and zone from it.
         Warn when there is a change in it.
@@ -46,7 +89,6 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         """
 
         self.bb = pt.blackboard.Blackboard()
-        self.gps_sub = rospy.Subscriber(gps_fix_topic, NavSatFix, callback=self.gps_fix_cb)
         super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
 
         self.gps_zone = None
@@ -58,17 +100,16 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         self._max_spam_period = 60
 
 
-    def gps_fix_cb(self, data):
-        if(data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
+    def update(self):
+        data = self.bb.get(bb_enums.GPS_FIX)
+        if(data is None or data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
             rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
             # shitty gps
             self._spam_period = min(self._spam_period*2, self._max_spam_period)
-            return
+            return pt.Status.FAILURE
 
         self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
 
-
-    def update(self):
         if self.gps_zone is None or self.gps_band is None:
             return pt.Status.RUNNING
 

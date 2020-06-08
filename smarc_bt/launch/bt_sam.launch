@@ -5,10 +5,13 @@
 	<arg name="robot_name" default="sam" />
 	<arg name="emergency_topic" default="abort" />
 	<arg name="plan_control_topic" default="imc/plan_control" />
-	<arg name="depth_topic" default="ctrl/depth_feedback" />
+	<arg name="dvl_cooldown" default="0.5" />
+	<arg name="depth_topic" default="ctrl/odom_listener/depth_feedback" />
+	<arg name="dvl_running_depth" default="0.2" />
 	<arg name="depth_pid_enable_topic" default="ctrl/dynamic_depth/pid_enable" />
 	<arg name="leader_link" default="sam_1/base_link" />
 	<arg name="rpm_cmd_topic" default="core/rpm_cmd" />
+	<arg name="start_stop_dvl_namespace" default="core/start_stop_dvl_service" />
 	<arg name="path_topic" default="ctrl/planned_path" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="base_link" default="sam/base_link" />
@@ -45,10 +48,13 @@
 		<param name="robot_name" value="$(arg robot_name)" />
 		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="plan_control_topic" value="$(arg plan_control_topic)" />
+		<param name="dvl_cooldown" value="$(arg dvl_cooldown)" />
 		<param name="depth_topic" value="$(arg depth_topic)" />
+		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		<param name="leader_link" value="$(arg leader_link)" />
 		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />
+		<param name="start_stop_dvl_namespace" value="$(arg start_stop_dvl_namespace)" />
 		<param name="path_topic" value="$(arg path_topic)" />
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
 		<param name="base_link" value="$(arg base_link)" />

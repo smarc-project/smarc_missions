@@ -18,7 +18,7 @@ class AUVConfig(object):
         self.robot_name = 'sam'
 
         # topics
-        self.DEPTH_TOPIC = 'ctrl/depth_feedback'
+        self.DEPTH_TOPIC = 'ctrl/odom_listener/depth_feedback'
         self.ALTITUDE_TOPIC = 'core/dvl'
         self.LEAK_TOPIC = 'core/leak_fb'
         self.GPS_FIX_TOPIC = 'core/gps'
@@ -41,6 +41,7 @@ class AUVConfig(object):
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
         self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
+        self.START_STOP_DVL_NAMESPACE = 'core/start_stop_dvl_service'
         # this can be set to None to disable the use of a path planner
         # the robot will be given the user generated waypoints to follow in that case
         self.PATH_PLANNER_NAME = '/interp1d'
@@ -70,8 +71,12 @@ class AUVConfig(object):
         # on the current wp and skip it
         # in ticks
         self.EMERGENCY_TRIALS_BEFORE_GIVING_UP = 30
-
         self.MIN_DISTANCE_TO_LEADER = 5
+        # in seconds, dont spam the dvl service
+        self.DVL_COOLDOWN = 0.5
+        # how deep do we want to be to run the dvl
+        # we wanna shut off the dvl on the surface
+        self.DVL_RUNNING_DEPTH = 0.2
 
     def __str__(self):
         s = 'AUV_CONFIG:\n'

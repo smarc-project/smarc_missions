@@ -9,6 +9,7 @@ LEAK = 'leak'
 
 DEPTH = 'depth'
 ALTITUDE = 'altitude'
+GPS_FIX = 'gps_fix'
 
 MISSION_PLAN_OBJ = 'misison_plan'
 PLAN_IS_GO = 'plan_is_go'
@@ -36,4 +37,6 @@ ENABLE_AUTONOMY = 'enable_autonomy'
 
 TREE_TIP_NAME = 'tree_tip_name'
 TREE_TIP_STATUS = 'tree_tip_status'
+
+DVL_IS_RUNNING = 'dvl_is_running'
 

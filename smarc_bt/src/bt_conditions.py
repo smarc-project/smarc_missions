@@ -16,6 +16,25 @@ import bb_enums
 from bt_common import CBFCondition
 
 
+class C_AtDVLDepth(pt.behaviour.Behaviour):
+    """
+    Returns SUCCESS if at some specified depth
+    """
+    def __init__(self, dvl_depth):
+        self.bb = pt.blackboard.Blackboard()
+        self.dvl_depth = dvl_depth
+        super(C_AtDVLDepth, self).__init__(name="C_AtDVLDepth")
+
+    def update(self):
+        depth = self.bb.get(bb_enums.DEPTH)
+        if depth is None or depth < self.dvl_depth:
+            rospy.loginfo_throttle(10, "Not deep enough for DVL: {}".format(depth))
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+
 class C_NoAbortReceived(pt.behaviour.Behaviour):
     """
     This condition returns FAILURE forever after it returns it once.
