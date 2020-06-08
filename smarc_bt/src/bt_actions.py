@@ -860,7 +860,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
 
     def handle_plandb_msg(self):
         plandb_msg = self.latest_plandb_msg
-        if pland_msg is None:
+        if plandb_msg is None:
             return
 
         typee = plandb_msg.type
