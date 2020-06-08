@@ -69,8 +69,8 @@ class C_DepthOK(pt.behaviour.Behaviour):
         depth = self.bb.get(bb_enums.DEPTH)
 
         if depth is None:
-            rospy.logwarn_throttle(5, "NO DETH READ! The tree will wait for depth to run!")
-            return pt.Status.RUNNING
+            rospy.logwarn_throttle(5, "NO DEPTH READ!")
+            return pt.Status.SUCCESS
 
         if depth < self.max_depth:
             return pt.Status.SUCCESS

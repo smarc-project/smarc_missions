@@ -156,8 +156,8 @@ def const_tree(auv_config):
                             read_detection,
                             read_gps,
                             set_utm_from_gps,
-                            update_tf,
-                            update_latlon,
+                            #update_tf,
+                            #update_latlon,
                             neptus_tree
                         ])
 
@@ -379,11 +379,7 @@ def main(config, catkin_ws_path):
                     bb.set(bb_enums.TREE_TIP_NAME, tip.name)
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
-                try:
-                    tree.tick()
-                except:
-                    rospy.logerr("Last tip: {}".format(tip))
-                    pt.display.print_ascii_tree(tree.root, show_status=True)
+                tree.tick()
 
                 pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()

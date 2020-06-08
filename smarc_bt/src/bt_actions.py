@@ -722,6 +722,7 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
 
         if lat is None or lon is None or world_rot is None:
             rospy.logwarn_throttle_identical(10, "Could not update neptus estimated state because lat/lon/world_rot was None!")
+            return pt.Status.SUCCESS
 
         # construct message for neptus
         e_state = EstimatedState()
@@ -1055,8 +1056,9 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
         self.pa_pub = None
         self.plan_viz_topic = plan_viz_topic
 
-    def update(self, timeout):
+    def setup(self, timeout):
         self.pa_pub = rospy.Publisher(self.plan_viz_topic, PoseArray, queue_size=1)
+        return True
 
 
     def update(self):
