@@ -28,7 +28,9 @@ class C_AtDVLDepth(pt.behaviour.Behaviour):
     def update(self):
         depth = self.bb.get(bb_enums.DEPTH)
         if depth is None or depth < self.dvl_depth:
-            rospy.loginfo_throttle(10, "Not deep enough for DVL: {}".format(depth))
+            msg = "Not deep enough for DVL: {}".format(depth)
+            rospy.loginfo_throttle(10, msg)
+            self.feedback_message = msg
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
@@ -67,6 +69,7 @@ class C_DepthOK(pt.behaviour.Behaviour):
 
     def update(self):
         depth = self.bb.get(bb_enums.DEPTH)
+        self.feedback_message = "Last read:{}".format(depth)
 
         if depth is None:
             rospy.logwarn_throttle(5, "NO DEPTH READ!")
@@ -110,6 +113,7 @@ class C_AltOK(pt.behaviour.Behaviour):
 
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
+        self.feedback_message = "Last read:{}".format(alt)
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
             return pt.Status.SUCCESS
@@ -143,6 +147,7 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
 
     def update(self):
         plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
+        self.feedback_message = "Plan is go:{}".format(plan_is_go)
         if plan_is_go is None or plan_is_go == False:
             rospy.loginfo_throttle_identical(5, "Waiting for start plan")
             return pt.Status.FAILURE
@@ -166,6 +171,7 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(5, "Plan is not done")
             return pt.Status.FAILURE
 
+        self.feedback_message = "Current plan:{}".format(mission_plan.plan_id)
         return pt.Status.SUCCESS
 
 class C_HaveRefinedMission(pt.behaviour.Behaviour):
@@ -376,6 +382,7 @@ class C_LeaderIsFarEnough(pt.behaviour.Behaviour):
                                                    self.leader_link,
                                                    rospy.Time(0))
         dist = np.linalg.norm(trans)
+        self.feedback_message = "Distance to leader:{}".format(dist)
         if dist > self.min_distance_to_leader:
             return pt.Status.SUCCESS
 
