@@ -26,6 +26,8 @@ import tf
 from sam_msgs.msg import ThrusterRPMs, ThrusterAngles
 from std_msgs.msg import Float64, Header, Bool
 import math
+from visualization_msgs.msg import Marker
+from tf.transformations import quaternion_from_euler
 
 class WPDepthPlanner(object):
 
@@ -33,7 +35,33 @@ class WPDepthPlanner(object):
     _feedback = MoveBaseFeedback()
     _result = MoveBaseResult()
 
+    def create_marker(self, yaw_setpoint, depth_setpoint):
+        self.marker.header.frame_id = "/sam/odom"
+        self.marker.header.stamp = rospy.Time(0)
+        self.marker.ns = "/sam/viz"
+        self.marker.id = 0
+        self.marker.type = 0
+        self.marker.action = 0
+        self.marker.pose.position.x = self._feedback.base_position.pose.position.x
+        self.marker.pose.position.y = self._feedback.base_position.pose.position.y
+        self.marker.pose.position.z = depth_setpoint
 
+        q = quaternion_from_euler(0,0,yaw_setpoint)
+
+        self.marker.pose.orientation.x = q[0]
+        self.marker.pose.orientation.y = q[1]
+        self.marker.pose.orientation.z = q[2]
+        self.marker.pose.orientation.w = q[3]
+        self.marker.scale.x = 1
+        self.marker.scale.y = 0.1
+        self.marker.scale.z = 0.1
+        self.marker.color.a = 1.0 # Dont forget to set the alpha!
+        self.marker.color.r = 1.0
+        self.marker.color.g = 1.0
+        self.marker.color.b = 1.0
+
+        self.marker_pub.publish(self.marker)
+    
     def yaw_feedback_cb(self,yaw_feedback):
         self.yaw_feedback= yaw_feedback.data
 
@@ -132,7 +160,7 @@ class WPDepthPlanner(object):
                 return
 
             # Publish feedback
-            if counter % 1 == 0:
+            if counter % 5 == 0:
                 try:
                     (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
@@ -196,7 +224,7 @@ class WPDepthPlanner(object):
 			self.depth_pid_enable.publish(True)
                         self.yaw_pid_enable.publish(True)
                         self.yaw_pub.publish(yaw_setpoint)
-
+                        self.create_marker(yaw_setpoint,depth_setpoint)
                         # Thruster forward
                         rpm = ThrusterRPMs()
                         rpm.thruster_1_rpm = self.forward_rpm
@@ -209,6 +237,7 @@ class WPDepthPlanner(object):
                     rospy.loginfo_throttle_identical(5, "Normal WP following, no turbo turn")
                     self.yaw_pid_enable.publish(True)
                     self.yaw_pub.publish(yaw_setpoint)
+                    self.create_marker(yaw_setpoint,depth_setpoint)
 
                     # Thruster forward
                     rpm = ThrusterRPMs()
@@ -234,7 +263,6 @@ class WPDepthPlanner(object):
         self.vel_pid_enable.publish(False)
         rospy.loginfo('%s: Succeeded' % self._action_name)
         self._as.set_succeeded(self._result)
-
 
     def timer_callback(self, event):
         if self.nav_goal is None:
@@ -332,6 +360,9 @@ class WPDepthPlanner(object):
 	self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
 	self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
         self.vec_pub = rospy.Publisher(thrust_vector_cmd_topic, ThrusterAngles, queue_size=10)
+        
+        self.marker = Marker()
+        self.marker_pub = rospy.Publisher('/sam/viz/wp_marker', Marker, queue_size=1)
 
         self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()

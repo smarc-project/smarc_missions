@@ -44,7 +44,7 @@
     <arg name="abort_topic" default="imc/abort"/>
     <arg name="gps_fix_topic" default="core/gps"/>
     <arg name="altitude_topic" default="core/dvl"/>
-    <arg name="depth_topic" default="ctrl/depth_feedback"/>
+    <arg name="depth_topic" default="ctrl/odom_listener/depth_feedback"/>
 
 
 	<!-- Action Servers -->
