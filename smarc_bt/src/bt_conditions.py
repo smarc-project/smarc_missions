@@ -93,9 +93,10 @@ class C_LeakOK(pt.behaviour.Behaviour):
 
 
 class C_AltOK(pt.behaviour.Behaviour):
-    def __init__(self, min_alt):
+    def __init__(self, min_alt, absolute_min_alt):
         self.bb = pt.blackboard.Blackboard()
         self.min_alt = min_alt
+        self.absolute_min_alt = absolute_min_alt
         super(C_AltOK, self).__init__(name="C_AltOK")
 
         self.cbf_condition = CBFCondition(checked_field_topic=None,
@@ -105,16 +106,27 @@ class C_AltOK(pt.behaviour.Behaviour):
                                           update_func=self.update)
         self.update = self.cbf_condition.update
 
+        self.first_alt = None
+
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
         if alt is None:
-            rospy.logwarn_throttle(5, "NO ALTITUDE READ! The tree will run anyways")
+            rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
             return pt.Status.SUCCESS
+
+        # we also want to check if the vehicle is started somewhere that is already
+        # too shallow normally
+        if self.first_alt is None:
+            self.first_alt = alt
+
+        if self.first_alt < self.min_alt:
+            rospy.logwarn_throttle(5, "First read altitude is less than the minimum setup altitude, setting min altitude to {}m!".format(self.absolute_min_alt))
+            self.min_alt = self.absolute_min_alt
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS
         else:
-            rospy.logwarn_throttle(5, "Too close to the bottom!"+str(alt))
+            rospy.logwarn_throttle(5, "Too close to the bottom! "+str(alt))
             return pt.Status.FAILURE
 
 

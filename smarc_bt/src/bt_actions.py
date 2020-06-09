@@ -563,10 +563,10 @@ class A_UpdateTF(pt.behaviour.Behaviour):
                                                                      self.base_link,
                                                                      rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException):
-            rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.utm_link +" and "+ self.base_link)
+            rospy.logerr_throttle_identical(5, "Could not get transform between {} and {}".format(self.utm_link, self.base_link))
             return pt.Status.FAILURE
         except:
-            rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
+            rospy.logerr_throttle_identical(5, "Could not do tf lookup for some other reason")
             return pt.Status.FAILURE
 
         self.bb.set(bb_enums.WORLD_TRANS, world_trans)
@@ -634,7 +634,7 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
 
 
     def plancontrol_cb(self, plan_control_msg):
-        rospy.loginfo("plancontrol_cb {}".format(plan_control_msg))
+        #  rospy.loginfo("plancontrol_cb {}".format(plan_control_msg))
         self.plan_control_msg = plan_control_msg
 
     def update(self):
@@ -857,7 +857,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         """
         as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
         """
-        rospy.loginfo("plandb_db {}".format(plandb_msg))
+        #  rospy.loginfo("plandb_db {}".format(plandb_msg))
         self.latest_plandb_msg = plandb_msg
 
 

@@ -137,7 +137,7 @@ class ReadTopic(pt.behaviour.Behaviour):
         return True
 
     def _cb(self, msg):
-        rospy.loginfo("ReadTopic {}, {}".format(self.topic_name, msg))
+        #  rospy.loginfo("ReadTopic {}, {}".format(self.topic_name, msg))
         self.msg = msg
 
     def update(self):
