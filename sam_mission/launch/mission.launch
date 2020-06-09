@@ -18,7 +18,7 @@
 	<arg name="enable_leader_follower" default="True" />
     <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
 
-	<!-- Options: "", "/interp1d" -->
+	<!-- Options: "", or whatever is started at the bottom -->
     <arg name="path_planner_name" default=""/>
 
 	<!-- Croatia, biograd coast, should really be set from bringup -->
@@ -45,6 +45,7 @@
     <arg name="gps_fix_topic" default="core/gps"/>
     <arg name="altitude_topic" default="core/dvl"/>
     <arg name="depth_topic" default="ctrl/odom_listener/depth_feedback"/>
+
 
 
 	<!-- Action Servers -->

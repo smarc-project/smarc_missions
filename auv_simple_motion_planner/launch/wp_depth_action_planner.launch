@@ -6,7 +6,7 @@
     <arg name="wp_tolerance" default="5."/>
     <arg name="depth_tolerance" default="1."/>
     <arg name="base_frame" default="$(arg robot_name)/base_link"/>
-    <arg name="forward_rpm" default="1000"/>
+    <arg name="forward_rpm" default="400"/>
 	
 
     <!-- topics, note the root! -->
@@ -22,6 +22,7 @@
     <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
     <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
     <arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/odom_listener/yaw_feedback" />
+
     
 
 

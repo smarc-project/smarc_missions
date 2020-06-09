@@ -5,9 +5,8 @@ SQ-ROOT
     --> A_ReadDepth
     --> A_ReadAlt
     --> A_ReadCameraDetection
+    --> A_ReadGPS
     --> A_SetUTMFromGPS
-    --> A_UpdateTF
-    --> A_UpdateLatLon
     [o] SQ-UpdateNeptus
         --> A_UpdateNeptusEstimatedState
         --> A_UpdateNeptusPlanControlState
@@ -27,6 +26,11 @@ SQ-ROOT
     [o] FB_Surface
         --> A_EmergencySurface
         --> A_EmergencySurfaceByForce
+[o] FB_SwitchOffDVL
+    [o] SQ_SwitchOnDVL
+        --> C_AtDVLDepth
+        --> A_SetDVLRunning
+    --> A_SetDVLRunning
 [o] FB-Run
     [o] SQ_PlannedMission
         [o] FB_SynchMission
@@ -47,7 +51,6 @@ SQ-ROOT
                 --> C_PlanIsNotChanged
                 --> A_GotoWaypoint
                 --> A_SetNextPlanAction
-            --> Idle
     [o] SQ_LeaderFollower
         --> C_LeaderFollowerEnabled
         --> C_LeaderExists

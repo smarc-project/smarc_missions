@@ -16,6 +16,27 @@ import bb_enums
 from bt_common import CBFCondition
 
 
+class C_AtDVLDepth(pt.behaviour.Behaviour):
+    """
+    Returns SUCCESS if at some specified depth
+    """
+    def __init__(self, dvl_depth):
+        self.bb = pt.blackboard.Blackboard()
+        self.dvl_depth = dvl_depth
+        super(C_AtDVLDepth, self).__init__(name="C_AtDVLDepth")
+
+    def update(self):
+        depth = self.bb.get(bb_enums.DEPTH)
+        if depth is None or depth < self.dvl_depth:
+            msg = "Not deep enough for DVL: {}".format(depth)
+            rospy.loginfo_throttle(10, msg)
+            self.feedback_message = msg
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+
 class C_NoAbortReceived(pt.behaviour.Behaviour):
     """
     This condition returns FAILURE forever after it returns it once.
@@ -48,10 +69,11 @@ class C_DepthOK(pt.behaviour.Behaviour):
 
     def update(self):
         depth = self.bb.get(bb_enums.DEPTH)
+        self.feedback_message = "Last read:{}".format(depth)
 
         if depth is None:
-            rospy.logwarn_throttle(5, "NO DETH READ! The tree will wait for depth to run!")
-            return pt.Status.RUNNING
+            rospy.logwarn_throttle(5, "NO DEPTH READ!")
+            return pt.Status.SUCCESS
 
         if depth < self.max_depth:
             return pt.Status.SUCCESS
@@ -74,9 +96,10 @@ class C_LeakOK(pt.behaviour.Behaviour):
 
 
 class C_AltOK(pt.behaviour.Behaviour):
-    def __init__(self, min_alt):
+    def __init__(self, min_alt, absolute_min_alt):
         self.bb = pt.blackboard.Blackboard()
         self.min_alt = min_alt
+        self.absolute_min_alt = absolute_min_alt
         super(C_AltOK, self).__init__(name="C_AltOK")
 
         self.cbf_condition = CBFCondition(checked_field_topic=None,
@@ -86,16 +109,28 @@ class C_AltOK(pt.behaviour.Behaviour):
                                           update_func=self.update)
         self.update = self.cbf_condition.update
 
+        self.first_alt = None
+
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
+        self.feedback_message = "Last read:{}".format(alt)
         if alt is None:
-            rospy.logwarn_throttle(5, "NO ALTITUDE READ! The tree will wait for altitude to run!")
-            return pt.Status.RUNNING
+            rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
+            return pt.Status.SUCCESS
+
+        # we also want to check if the vehicle is started somewhere that is already
+        # too shallow normally
+        if self.first_alt is None:
+            self.first_alt = alt
+
+        if self.first_alt < self.min_alt:
+            rospy.logwarn_throttle(5, "First read altitude is less than the minimum setup altitude, setting min altitude to {}m!".format(self.absolute_min_alt))
+            self.min_alt = self.absolute_min_alt
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS
         else:
-            rospy.logwarn_throttle(5, "Too close to the bottom!"+str(alt))
+            rospy.logwarn_throttle(5, "Too close to the bottom! "+str(alt))
             return pt.Status.FAILURE
 
 
@@ -112,7 +147,9 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
 
     def update(self):
         plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
+        self.feedback_message = "Plan is go:{}".format(plan_is_go)
         if plan_is_go is None or plan_is_go == False:
+            rospy.loginfo_throttle_identical(5, "Waiting for start plan")
             return pt.Status.FAILURE
         return pt.Status.SUCCESS
 
@@ -131,8 +168,10 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None or not mission_plan.is_complete():
+            rospy.loginfo_throttle_identical(5, "Plan is not done")
             return pt.Status.FAILURE
 
+        self.feedback_message = "Current plan:{}".format(mission_plan.plan_id)
         return pt.Status.SUCCESS
 
 class C_HaveRefinedMission(pt.behaviour.Behaviour):
@@ -343,6 +382,7 @@ class C_LeaderIsFarEnough(pt.behaviour.Behaviour):
                                                    self.leader_link,
                                                    rospy.Time(0))
         dist = np.linalg.norm(trans)
+        self.feedback_message = "Distance to leader:{}".format(dist)
         if dist > self.min_distance_to_leader:
             return pt.Status.SUCCESS
 

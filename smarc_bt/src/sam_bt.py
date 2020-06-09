@@ -15,6 +15,7 @@ from std_msgs.msg import Float64
 from sam_msgs.msg import Leak
 from cola2_msgs.msg import DVL
 from geometry_msgs.msg import PointStamped
+from sensor_msgs.msg import NavSatFix
 
 from auv_config import AUVConfig
 
@@ -34,7 +35,9 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
-                       A_FollowLeader
+                       A_FollowLeader, \
+                       A_SetDVLRunning
+
 
 from bt_conditions import C_PlanCompleted, \
                           C_NoAbortReceived, \
@@ -49,7 +52,8 @@ from bt_conditions import C_PlanCompleted, \
                           C_AutonomyDisabled, \
                           C_LeaderFollowerEnabled, \
                           C_LeaderExists, \
-                          C_LeaderIsFarEnough
+                          C_LeaderIsFarEnough, \
+                          C_AtDVLDepth
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -113,6 +117,13 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
         )
 
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_FIX_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.GPS_FIX:None}
+        )
+
         def const_neptus_tree():
             update_neptus = Sequence(name="SQ-UpdateNeptus",
                                      children=[
@@ -130,7 +141,7 @@ def const_tree(auv_config):
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
         update_latlon = A_UpdateLatLon()
-        set_utm_from_gps = A_SetUTMFromGPS(auv_config.GPS_FIX_TOPIC)
+        set_utm_from_gps = A_SetUTMFromGPS()
         neptus_tree = const_neptus_tree()
 
 
@@ -143,6 +154,7 @@ def const_tree(auv_config):
                             read_depth,
                             read_alt,
                             read_detection,
+                            read_gps,
                             set_utm_from_gps,
                             update_tf,
                             update_latlon,
@@ -150,10 +162,31 @@ def const_tree(auv_config):
                         ])
 
 
+    def const_dvl_tree():
+        switch_on = Sequence(name="SQ_SwitchOnDVL",
+                             children=[
+                                 C_AtDVLDepth(auv_config.DVL_RUNNING_DEPTH),
+                                 A_SetDVLRunning(auv_config.START_STOP_DVL_NAMESPACE,
+                                                 True,
+                                                 auv_config.DVL_COOLDOWN)
+                             ])
+
+        switch_off = Fallback(name="FB_SwitchOffDVL",
+                              children=[
+                                  switch_on,
+                                  A_SetDVLRunning(auv_config.START_STOP_DVL_NAMESPACE,
+                                                  False,
+                                                  auv_config.DVL_COOLDOWN)
+                              ])
+
+        return switch_off
+
+
 
     def const_safety_tree():
         no_abort = C_NoAbortReceived()
-        altOK = C_AltOK(auv_config.MIN_ALTITUDE)
+        altOK = C_AltOK(auv_config.MIN_ALTITUDE,
+                        auv_config.ABSOLUTE_MIN_ALTITUDE)
         depthOK = C_DepthOK(auv_config.MAX_DEPTH)
         leakOK = C_LeakOK()
         # more safety checks will go here
@@ -190,14 +223,12 @@ def const_tree(auv_config):
                                A_SetNextPlanAction()
                            ])
 
-        # if anything about safety is 'bad', we abort everything
-        fallback_to_abort = Fallback(name='FB_SafetyOK',
-                                     children = [
-                                         safety_checks,
-                                         skip_wp,
-                                         surface
-                                     ])
-        return fallback_to_abort
+        return Fallback(name='FB_SafetyOK',
+                        children = [
+                            safety_checks,
+                            skip_wp,
+                            surface
+                        ])
 
 
     def const_leader_follower():
@@ -263,7 +294,7 @@ def const_tree(auv_config):
         # and this will run after every success of the goto action
         set_next_plan_action = A_SetNextPlanAction()
         plan_is_same = C_PlanIsNotChanged()
-        idle = pt.behaviours.Running(name="Idle")
+        #  idle = pt.behaviours.Running(name="Idle")
 
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
@@ -276,8 +307,8 @@ def const_tree(auv_config):
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   plan_complete,
-                                  follow_plan,
-                                  idle
+                                  follow_plan
+                                  #  idle
                         ])
 
 
@@ -303,6 +334,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
+                              const_dvl_tree(),
                               run_tree
                     ])
 
@@ -348,7 +380,7 @@ def main(config, catkin_ws_path):
 
                 tree.tick()
 
-
+                #  pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()
 
         else:

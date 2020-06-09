@@ -137,6 +137,7 @@ class ReadTopic(pt.behaviour.Behaviour):
         return True
 
     def _cb(self, msg):
+        #  rospy.loginfo("ReadTopic {}, {}".format(self.topic_name, msg))
         self.msg = msg
 
     def update(self):
@@ -152,7 +153,7 @@ class ReadTopic(pt.behaviour.Behaviour):
                         value = getattr(value, field)
                         self.bb.set(k, value, overwrite=True)
 
-        self.feedback_message = "Last read:"+str(self.last_read_value)
+        #  self.feedback_message = "Last read:"+str(self.last_read_value)
         return pt.Status.SUCCESS
 
 
@@ -288,6 +289,7 @@ class Counter(pt.behaviour.Behaviour):
 
         # increment the count
         self.i += 1
+        self.feedback_message = "Count:{}".format(self.i)
 
         # react to the result
         return pt.common.Status.FAILURE if self.i <= self.n else pt.common.Status.SUCCESS

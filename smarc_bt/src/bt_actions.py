@@ -15,7 +15,6 @@ import tf
 import actionlib
 
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from sensor_msgs.msg import NavSatFix
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
@@ -24,6 +23,7 @@ from std_msgs.msg import Float64, Header, Bool, Empty
 
 # path planner service
 from trajectories.srv import trajectory
+from std_srvs.srv import SetBool
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 
@@ -34,9 +34,55 @@ import common_globals
 from mission_plan import MissionPlan
 
 
+class A_SetDVLRunning(pt.behaviour.Behaviour):
+    def __init__(self, dvl_on_off_service_name, running, cooldown):
+        super(A_SetDVLRunning, self).__init__(name="A_SetDVLRunning")
+        self.switcher_service = rospy.ServiceProxy(dvl_on_off_service_name,
+                                                   SetBool)
+        self.bb = pt.blackboard.Blackboard()
+
+        self.sb = SetBool()
+        self.sb.data = running
+        self.running = running
+
+        self.last_toggle = 0
+        self.cooldown = cooldown
+
+        self.service_name = dvl_on_off_service_name
+
+    def update(self):
+        # try not to call the service every tick...
+        dvl_is_running = self.bb.get(bb_enums.DVL_IS_RUNNING)
+        if dvl_is_running is not None:
+            if dvl_is_running == self.sb.data:
+                rospy.loginfo_throttle_identical(20, "DVL is already running:"+str(self.sb.data))
+                return pt.Status.SUCCESS
+
+        # check if enough time has passed since last call
+        t = time.time()
+        if t - self.last_toggle < self.cooldown:
+            # nope, return running while we wait
+            rospy.loginfo_throttle_identical(5, "Waiting on DVL toggle cooldown")
+            return pt.Status.RUNNING
+
+        try:
+            ret = self.switcher_service(self.running)
+        except rospy.service.ServiceException:
+            rospy.logwarn_throttle_identical(60, "DVL Start/stop service not found! Succeeding by default namespace:{}".format(self.service_name))
+            return pt.Status.SUCCESS
+
+        if ret.success:
+            rospy.loginfo_throttle_identical(5, "DVL TOGGLED:"+str(self.sb.data))
+            self.last_toggle = time.time()
+            self.bb.set(bb_enums.DVL_IS_RUNNING, self.sb.data)
+            return pt.Status.SUCCESS
+
+        rospy.logwarn_throttle_identical(5, "DVL COULD NOT BE TOGGLED:{}, ret:{}".format(self.sb.data, ret))
+        return pt.Status.FAILURE
+
 
 class A_SetUTMFromGPS(pt.behaviour.Behaviour):
-    def __init__(self, gps_fix_topic):
+    def __init__(self):
         """
         Read GPS fix and set our utm band and zone from it.
         Warn when there is a change in it.
@@ -46,7 +92,6 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         """
 
         self.bb = pt.blackboard.Blackboard()
-        self.gps_sub = rospy.Subscriber(gps_fix_topic, NavSatFix, callback=self.gps_fix_cb)
         super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
 
         self.gps_zone = None
@@ -58,19 +103,19 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         self._max_spam_period = 60
 
 
-    def gps_fix_cb(self, data):
-        if(data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
+    def update(self):
+        data = self.bb.get(bb_enums.GPS_FIX)
+        if(data is None or data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
             rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
             # shitty gps
             self._spam_period = min(self._spam_period*2, self._max_spam_period)
-            return
+            return pt.Status.SUCCESS
 
         self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
 
-
-    def update(self):
         if self.gps_zone is None or self.gps_band is None:
-            return pt.Status.RUNNING
+            rospy.logwarn_throttle_identical(10, "gps zone and band from fromLatLong was None")
+            return pt.Status.SUCCESS
 
         # first read the UTMs given by ros params
         prev_band = self.bb.get(bb_enums.UTM_BAND)
@@ -109,15 +154,38 @@ class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
         """
         super(A_EmergencySurfaceByForce, self).__init__("A_EmergencySurfaceByForce")
 
-        self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
-        self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
-        self.lcg_pid_enable = rospy.Publisher(lcg_pid_enable_topic, Bool, queue_size=10)
-        self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
-        self.tcg_pid_enable = rospy.Publisher(tcg_pid_enable_topic, Bool, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
-        self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
-        self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
+        self.emergency_pub = None
+        self.vbs_pub = None
+        self.rpm_pub = None
+        self.lcg_pid_enable = None
+        self.vbs_pid_enable = None
+        self.tcg_pid_enable = None
+        self.yaw_pid_enable = None
+        self.depth_pid_enable = None
+        self.vel_pid_enable = None
+
+        self.emergency_topic = emergency_topic
+        self.vbs_cmd_topic = vbs_cmd_topic
+        self.rpm_cmd_topic = rpm_cmd_topic
+        self.lcg_pid_enable_topic = lcg_pid_enable_topic
+        self.vbs_pid_enable_topic = vbs_pid_enable_topic
+        self.tcg_pid_enable_topic = tcg_pid_enable_topic
+        self.yaw_pid_enable_topic = yaw_pid_enable_topic
+        self.depth_pid_enable_topic = depth_pid_enable_topic
+        self.vel_pid_enable_topic = vel_pid_enable_topic
+
+    def setup(self, timeout):
+        self.emergency_pub = rospy.Publisher(self.emergency_topic, Bool, queue_size=10)
+        self.vbs_pub = rospy.Publisher(self.vbs_cmd_topic, PercentStamped, queue_size=10)
+        self.rpm_pub = rospy.Publisher(self.rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.lcg_pid_enable = rospy.Publisher(self.lcg_pid_enable_topic, Bool, queue_size=10)
+        self.vbs_pid_enable = rospy.Publisher(self.vbs_pid_enable_topic, Bool, queue_size=10)
+        self.tcg_pid_enable = rospy.Publisher(self.tcg_pid_enable_topic, Bool, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher(self.yaw_pid_enable_topic, Bool, queue_size=10)
+        self.depth_pid_enable = rospy.Publisher(self.depth_pid_enable_topic, Bool, queue_size=10)
+        self.vel_pid_enable = rospy.Publisher(self.vel_pid_enable_topic, Bool, queue_size=10)
+        return True
+
 
     def update(self):
         rospy.logerr_throttle(5, "FORCING EMERGENCY SURFACING")
@@ -251,7 +319,8 @@ class A_RefineMission(pt.behaviour.Behaviour):
         super(A_RefineMission, self).__init__('A_RefineMission')
         self.path_planner_service_name = path_planner_service_name
         self.path_planner = None
-        self.path_pub = rospy.Publisher(path_topic, Path, queue_size=1)
+        self.path_pub = None
+        self.path_topic = path_topic
 
         self.service_ok = False
 
@@ -262,6 +331,7 @@ class A_RefineMission(pt.behaviour.Behaviour):
         if self.no_service():
             return True
 
+        self.path_pub = rospy.Publisher(self.path_topic, Path, queue_size=1)
         try:
             rospy.wait_for_service(self.path_planner_service_name, timeout)
             self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
@@ -331,7 +401,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
             self.feedback_message = "Next action was None"
             return pt.Status.FAILURE
 
-        rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION to:"+str(next_action))
+        rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))
         self.bb.set(bb_enums.CURRENT_PLAN_ACTION, next_action)
         return pt.Status.SUCCESS
 
@@ -493,10 +563,10 @@ class A_UpdateTF(pt.behaviour.Behaviour):
                                                                      self.base_link,
                                                                      rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException):
-            rospy.logwarn_throttle_identical(5, "Could not get transform between "+ self.utm_link +" and "+ self.base_link)
+            rospy.logerr_throttle_identical(5, "Could not get transform between {} and {}".format(self.utm_link, self.base_link))
             return pt.Status.FAILURE
         except:
-            rospy.logwarn_throttle_identical(5, "Could not do tf lookup for some other reason")
+            rospy.logerr_throttle_identical(5, "Could not do tf lookup for some other reason")
             return pt.Status.FAILURE
 
         self.bb.set(bb_enums.WORLD_TRANS, world_trans)
@@ -553,10 +623,18 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
     def __init__(self, plan_control_topic):
         super(A_UpdateNeptusPlanControl, self).__init__("A_UpdateNeptusPlanControl")
         self.bb = pt.blackboard.Blackboard()
-        self.sub = rospy.Subscriber(plan_control_topic, PlanControl, self.plancontrol_cb)
         self.plan_control_msg = None
+        self.plan_control_topic = plan_control_topic
+
+        self.sub = None
+
+    def setup(self, timeout):
+        self.sub = rospy.Subscriber(self.plan_control_topic, PlanControl, self.plancontrol_cb)
+        return True
+
 
     def plancontrol_cb(self, plan_control_msg):
+        #  rospy.loginfo("plancontrol_cb {}".format(plan_control_msg))
         self.plan_control_msg = plan_control_msg
 
     def update(self):
@@ -624,7 +702,13 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
     def __init__(self, estimated_state_topic):
         super(A_UpdateNeptusEstimatedState, self).__init__("A_UpdateNeptusEstimatedState")
         self.bb = pt.blackboard.Blackboard()
-        self.estimated_state_pub = rospy.Publisher(estimated_state_topic, EstimatedState, queue_size=1)
+        self.estimated_state_pub = None
+        self.estimated_state_topic = estimated_state_topic
+
+    def setup(self, timeout):
+        self.estimated_state_pub = rospy.Publisher(self.estimated_state_topic, EstimatedState, queue_size=1)
+        return True
+
 
     def update(self):
         lat = self.bb.get(bb_enums.CURRENT_LATITUDE)
@@ -639,6 +723,7 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
 
         if lat is None or lon is None or world_rot is None:
             rospy.logwarn_throttle_identical(10, "Could not update neptus estimated state because lat/lon/world_rot was None!")
+            return pt.Status.SUCCESS
 
         # construct message for neptus
         e_state = EstimatedState()
@@ -657,7 +742,14 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
     def __init__(self, plan_control_state_topic):
         super(A_UpdateNeptusPlanControlState, self).__init__("A_UpdateNeptusPlanControlState")
         self.bb = pt.blackboard.Blackboard()
-        self.plan_control_state_pub = rospy.Publisher(plan_control_state_topic, PlanControlState, queue_size=1)
+        self.plan_control_state_pub = None
+        self.plan_control_state_topic = plan_control_state_topic
+
+
+    def setup(self, timeout):
+        self.plan_control_state_pub = rospy.Publisher(self.plan_control_state_topic, PlanControlState, queue_size=1)
+        return True
+
 
     def update(self):
         # construct current progress message for neptus
@@ -707,7 +799,13 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
     def __init__(self, vehicle_state_topic):
         super(A_UpdateNeptusVehicleState, self).__init__("A_UpdateNeptusVehicleState")
         self.bb = pt.blackboard.Blackboard()
-        self.vehicle_state_pub = rospy.Publisher(vehicle_state_topic, VehicleState, queue_size=1)
+        self.vehicle_state_pub = None
+        self.vehicle_state_topic = vehicle_state_topic
+
+    def setup(self, timeout):
+        self.vehicle_state_pub = rospy.Publisher(self.vehicle_state_topic, VehicleState, queue_size=1)
+        return True
+
 
     def update(self):
         """
@@ -741,8 +839,26 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         self.plandb_msg.type = imc_enums.PLANDB_TYPE_SUCCESS
         self.plandb_msg.op = imc_enums.PLANDB_OP_SET
 
-        self.plandb_pub = rospy.Publisher(plandb_topic, PlanDB, queue_size=1)
-        self.plandb_sub = rospy.Subscriber(plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
+
+        self.plandb_pub = None
+        self.plandb_sub = None
+        self.latest_plandb_msg = None
+        self.plandb_topic = plandb_topic
+
+
+    def setup(self, timeout):
+        self.plandb_pub = rospy.Publisher(self.plandb_topic, PlanDB, queue_size=1)
+        self.plandb_sub = rospy.Subscriber(self.plandb_topic, PlanDB, callback=self.plandb_cb, queue_size=1)
+        return True
+
+
+
+    def plandb_cb(self, plandb_msg):
+        """
+        as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
+        """
+        #  rospy.loginfo("plandb_db {}".format(plandb_msg))
+        self.latest_plandb_msg = plandb_msg
 
 
     def make_plandb_info(self):
@@ -806,11 +922,11 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
 
 
+    def handle_plandb_msg(self):
+        plandb_msg = self.latest_plandb_msg
+        if plandb_msg is None:
+            return
 
-    def plandb_cb(self, plandb_msg):
-        """
-        as an answer to OUR answer of 'type=succes, op=set', neptus sends a 'type=request, op=get_info'.
-        """
         typee = plandb_msg.type
         op = plandb_msg.op
 
@@ -837,6 +953,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(5, "Received some unhandled planDB message:\n"+str(plandb_msg))
 
 
+
+
     def respond_set_success(self):
         current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
@@ -852,6 +970,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         # we just want to tell neptus we got the plan all the time
         # this keeps the thingy green
         self.respond_set_success()
+        self.handle_plandb_msg()
         return pt.Status.SUCCESS
 
 
@@ -936,7 +1055,13 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
     def __init__(self, plan_viz_topic):
         super(A_VizPublishPlan, self).__init__(name="A_VizPublishPlan")
         self.bb = pt.blackboard.Blackboard()
-        self.pa_pub = rospy.Publisher(plan_viz_topic, PoseArray, queue_size=1)
+        self.pa_pub = None
+        self.plan_viz_topic = plan_viz_topic
+
+    def setup(self, timeout):
+        self.pa_pub = rospy.Publisher(self.plan_viz_topic, PoseArray, queue_size=1)
+        return True
+
 
     def update(self):
         mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
