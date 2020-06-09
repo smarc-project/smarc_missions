@@ -334,7 +334,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
-                              const_dvl_tree(),
+                              #const_dvl_tree(),
                               run_tree
                     ])
 
