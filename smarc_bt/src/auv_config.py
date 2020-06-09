@@ -77,7 +77,7 @@ class AUVConfig(object):
         self.DVL_COOLDOWN = 0.5
         # how deep do we want to be to run the dvl
         # we wanna shut off the dvl on the surface
-        self.DVL_RUNNING_DEPTH = 0.2
+        self.DVL_RUNNING_DEPTH = 0.3
 
     def __str__(self):
         s = 'AUV_CONFIG:\n'
