@@ -10,6 +10,7 @@
 	<arg name="dvl_running_depth" default="0.2" />
 	<arg name="depth_pid_enable_topic" default="ctrl/dynamic_depth/pid_enable" />
 	<arg name="leader_link" default="sam_1/base_link" />
+	<arg name="absolute_min_altitude" default="1" />
 	<arg name="rpm_cmd_topic" default="core/rpm_cmd" />
 	<arg name="start_stop_dvl_namespace" default="/sam/core/start_stop_dvl" />
 	<arg name="path_topic" default="ctrl/planned_path" />
@@ -53,6 +54,7 @@
 		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		<param name="leader_link" value="$(arg leader_link)" />
+		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />
 		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />
 		<param name="start_stop_dvl_namespace" value="$(arg start_stop_dvl_namespace)" />
 		<param name="path_topic" value="$(arg path_topic)" />
