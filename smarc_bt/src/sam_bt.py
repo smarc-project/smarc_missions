@@ -185,7 +185,8 @@ def const_tree(auv_config):
 
     def const_safety_tree():
         no_abort = C_NoAbortReceived()
-        altOK = C_AltOK(auv_config.MIN_ALTITUDE)
+        altOK = C_AltOK(auv_config.MIN_ALTITUDE,
+                        auv_config.ABSOLUTE_MIN_ALTITUDE)
         depthOK = C_DepthOK(auv_config.MAX_DEPTH)
         leakOK = C_LeakOK()
         # more safety checks will go here
@@ -379,7 +380,7 @@ def main(config, catkin_ws_path):
 
                 tree.tick()
 
-                pt.display.print_ascii_tree(tree.root, show_status=True)
+                #  pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()
 
         else:
