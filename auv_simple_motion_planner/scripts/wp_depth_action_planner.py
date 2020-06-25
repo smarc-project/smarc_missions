@@ -44,7 +44,7 @@ class WPDepthPlanner(object):
         self.marker.action = 0
         self.marker.pose.position.x = self._feedback.base_position.pose.position.x
         self.marker.pose.position.y = self._feedback.base_position.pose.position.y
-        self.marker.pose.position.z = depth_setpoint
+        self.marker.pose.position.z = self._feedback.base_position.pose.position.z
 
         q = quaternion_from_euler(0,0,yaw_setpoint)
 

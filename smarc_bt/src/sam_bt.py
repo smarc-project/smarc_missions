@@ -202,16 +202,16 @@ def const_tree(auv_config):
 
         surface = Fallback(name="FB_Surface",
                            children=[
-                               A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE),
-                               A_EmergencySurfaceByForce(auv_config.EMERGENCY_TOPIC,
-                                                         auv_config.VBS_CMD_TOPIC,
-                                                         auv_config.RPM_CMD_TOPIC,
-                                                         auv_config.LCG_PID_ENABLE_TOPIC,
-                                                         auv_config.VBS_PID_ENABLE_TOPIC,
-                                                         auv_config.TCG_PID_ENABLE_TOPIC,
-                                                         auv_config.YAW_PID_ENABLE_TOPIC,
-                                                         auv_config.DEPTH_PID_ENABLE_TOPIC,
-                                                         auv_config.VEL_PID_ENABLE_TOPIC)
+                               A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                               #  A_EmergencySurfaceByForce(auv_config.EMERGENCY_TOPIC,
+                                                         #  auv_config.VBS_CMD_TOPIC,
+                                                         #  auv_config.RPM_CMD_TOPIC,
+                                                         #  auv_config.LCG_PID_ENABLE_TOPIC,
+                                                         #  auv_config.VBS_PID_ENABLE_TOPIC,
+                                                         #  auv_config.TCG_PID_ENABLE_TOPIC,
+                                                         #  auv_config.YAW_PID_ENABLE_TOPIC,
+                                                         #  auv_config.DEPTH_PID_ENABLE_TOPIC,
+                                                         #  auv_config.VEL_PID_ENABLE_TOPIC)
 
                            ])
 
@@ -334,7 +334,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
-                              const_dvl_tree(),
+                              #const_dvl_tree(),
                               run_tree
                     ])
 

@@ -96,7 +96,8 @@ class MissionPlan:
                 stamped_utm_point.point.z = depth
                 try:
                     waypoint_local = tf_listener.transformPoint(local_frame, stamped_utm_point)
-                    waypoint = (waypoint_local.point.x, waypoint_local.point.y, waypoint_local.point.z)
+                    # because the frame changes changes depth, we really want the original depth
+                    waypoint = (waypoint_local.point.x, waypoint_local.point.y, depth)
                     waypoints.append(waypoint)
                     waypoint_man_ids.append(man_id)
                 except:
