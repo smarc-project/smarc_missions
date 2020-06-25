@@ -92,7 +92,7 @@ class WPDepthPlanner(object):
         self.vec_pub.publish(0., rudder_angle, Header())
         loop_time = 0.
 
-        while not rospy.is_shutdown() and loop_time < .5/flip_rate:
+        while not rospy.is_shutdown() and loop_time < .37/flip_rate:
             self.rpm_pub.publish(rpm, rpm, Header())
             loop_time += 1./thrust_rate
             rate.sleep()
@@ -100,7 +100,7 @@ class WPDepthPlanner(object):
         self.vec_pub.publish(0., -rudder_angle, Header())
 
         loop_time = 0.
-        while not rospy.is_shutdown() and loop_time < .5/flip_rate:
+        while not rospy.is_shutdown() and loop_time < .63/flip_rate:
             self.rpm_pub.publish(-rpm, -rpm, Header())
             loop_time += 1./thrust_rate
             rate.sleep()
@@ -292,7 +292,8 @@ class WPDepthPlanner(object):
         xydiff = start_pos[:2] - end_pos[:2]
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
-        rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
+        # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
+	rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
