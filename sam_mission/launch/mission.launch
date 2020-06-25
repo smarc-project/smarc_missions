@@ -4,7 +4,7 @@
 
 	<!-- Hard limits -->
     <arg name="max_depth" default=20/>
-    <arg name="min_altitude" default=5/>
+    <arg name="min_altitude" default=1/>
     <arg name="emergency_trials_before_giving_up" default=10/>
 
 	<!-- Frames in tf -->
@@ -56,7 +56,7 @@
 
 	<!-- WP-Depth planner related -->
     <arg name="wp_tolerance" default="5."/>
-    <arg name="depth_tolerance" default="0.5"/>
+    <arg name="depth_tolerance" default="1"/>
 
 	<!-- Leader follower related -->
     <arg name="min_dist" default="5."/>
