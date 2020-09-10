@@ -1,0 +1,2 @@
+- git: {local-name: smarc_missions, uri: 'https://github.com/smarc-project/smarc_missions.git', version: noetic-devel}
+- git: {local-name: imc_ros_bridge, uri: 'https://github.com/smarc-project/imc_ros_bridge.git', version: noetic-devel}
