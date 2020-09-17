@@ -360,7 +360,8 @@ def main(config, catkin_ws_path):
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
-        path = catkin_ws_path+'catkin_ws/src/smarc_missions/smarc_bt/last_ran_tree.txt'
+        #path = catkin_ws_path+'catkin_ws/src/smarc_missions/smarc_bt/last_ran_tree.txt'
+        path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir, "last_ran_tree.txt")
         with open(path, 'w+') as f:
             f.write(viz)
             rospy.loginfo("Wrote the tree to {}".format(path))
