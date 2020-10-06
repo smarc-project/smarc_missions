@@ -56,7 +56,7 @@
 
 	<!-- WP-Depth planner related -->
     <arg name="wp_tolerance" default="5."/>
-    <arg name="depth_tolerance" default="0.5"/>
+    <arg name="depth_tolerance" default="1."/>
 
 	<!-- Leader follower related -->
     <arg name="min_dist" default="5."/>
