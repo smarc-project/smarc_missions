@@ -65,6 +65,7 @@
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>roslisp</exec_depend>
   <!-- <exec_depend>uuv_gazebo_ros_plugins_msgs</exec_depend> -->
 
 
