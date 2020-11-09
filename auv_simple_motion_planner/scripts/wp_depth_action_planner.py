@@ -23,7 +23,8 @@ from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 import actionlib
 import rospy
 import tf
-from sam_msgs.msg import ThrusterRPMs, ThrusterAngles
+from sam_msgs.msg import ThrusterAngles
+from smarc_msgs.msg import DualThrusterRPM
 from std_msgs.msg import Float64, Header, Bool
 import math
 from visualization_msgs.msg import Marker
@@ -146,9 +147,9 @@ class WPDepthPlanner(object):
                 self.nav_goal = None
 
                 # Stop thrusters
-                rpm = ThrusterRPMs()
-                rpm.thruster_1_rpm = 0.
-                rpm.thruster_2_rpm = 0.
+                rpm = DualThrusterRPM()
+                rpm.thruster_front.rpm = 0.
+                rpm.thruster_back.rpm = 0.
                 self.rpm_pub.publish(rpm)
                 self.yaw_pid_enable.publish(False)
                 self.depth_pid_enable.publish(False)
@@ -226,9 +227,9 @@ class WPDepthPlanner(object):
                         self.yaw_pub.publish(yaw_setpoint)
                         self.create_marker(yaw_setpoint,depth_setpoint)
                         # Thruster forward
-                        rpm = ThrusterRPMs()
-                        rpm.thruster_1_rpm = self.forward_rpm
-                        rpm.thruster_2_rpm = self.forward_rpm
+                        rpm = DualThrusterRPM()
+                        rpm.thruster_front.rpm = self.forward_rpm
+                        rpm.thruster_back.rpm = self.forward_rpm
                         self.rpm_pub.publish(rpm)
                         #rospy.loginfo("Thrusters forward")
 
@@ -240,9 +241,9 @@ class WPDepthPlanner(object):
                     self.create_marker(yaw_setpoint,depth_setpoint)
 
                     # Thruster forward
-                    rpm = ThrusterRPMs()
-                    rpm.thruster_1_rpm = self.forward_rpm
-                    rpm.thruster_2_rpm = self.forward_rpm
+                    rpm = DualThrusterRPM()
+                    rpm.thruster_front.rpm = self.forward_rpm
+                    rpm.thruster_back.rpm = self.forward_rpm
                     self.rpm_pub.publish(rpm)
                     #rospy.loginfo("Thrusters forward")
 
@@ -251,9 +252,9 @@ class WPDepthPlanner(object):
 
         # Stop thruster
 	self.vel_pid_enable.publish(False)
-	rpm = ThrusterRPMs()
-        rpm.thruster_1_rpm = 0.0
-        rpm.thruster_2_rpm = 0.0
+	rpm = DualThrusterRPM()
+        rpm.thruster_front.rpm = 0.0
+        rpm.thruster_back.rpm = 0.0
         self.rpm_pub.publish(rpm)
 
         #Stop controllers
@@ -348,7 +349,7 @@ class WPDepthPlanner(object):
 	self.yaw_feedback=0
 	rospy.Subscriber(yaw_feedback_topic, Float64, self.yaw_feedback_cb)
 
-        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, DualThrusterRPM, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.depth_pub = rospy.Publisher(depth_setpoint_topic, Float64, queue_size=10)
         self.vel_pub = rospy.Publisher(vel_setpoint_topic, Float64, queue_size=10)
