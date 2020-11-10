@@ -1,3 +1,0 @@
-geometry_msgs/PoseArray coarse
----
-nav_msgs/Path fine
