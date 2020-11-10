@@ -10,7 +10,7 @@
 	
 
     <!-- topics, note the root! -->
-    <arg name="rpm_cmd_topic" default="/$(arg robot_name)/core/rpm_cmd" />
+    <arg name="rpm_cmd_topic" default="/$(arg robot_name)/core/thrusters_cmd" />
     <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
     <arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
     <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
