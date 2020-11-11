@@ -19,7 +19,8 @@ from __future__ import division, print_function
 import actionlib
 import rospy
 import tf
-from sam_msgs.msg import ThrusterRPMs, PercentStamped
+from sam_msgs.msg import PercentStamped
+from smarc_msgs.msg import DualThrusterRPM
 from std_msgs.msg import Float64, Header, Bool, Empty
 from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 import math
@@ -66,9 +67,9 @@ class EmergencySurface(object):
             self.vbs_pub.publish(vbs_level)
 
             # Stop thrusters
-            rpm = ThrusterRPMs()
-            rpm.thruster_1_rpm = 0.0
-            rpm.thruster_2_rpm = 0.0
+            rpm = DualThrusterRPM()
+            rpm.thruster_front.rpm = 0.0
+            rpm.thruster_back.rpm = 0.0
             self.rpm_pub.publish(rpm)
 
             r.sleep()
@@ -84,7 +85,7 @@ class EmergencySurface(object):
 
         emergency_topic = rospy.get_param('~emergency_topic', '/sam/abort')
         vbs_cmd_topic = rospy.get_param('~vbs_cmd_topic', '/sam/core/vbs_cmd')
-        rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/rpm_cmd')
+        rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/thrusters_cmd')
         lcg_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/lcg/pid_enable')
         vbs_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/vbs/pid_enable')
         tcg_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/tcg/pid_enable')
@@ -95,7 +96,7 @@ class EmergencySurface(object):
         #rospy.Timer(rospy.Duration(2), self.timer_callback)
         self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
         self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, ThrusterRPMs, queue_size=10)
+        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, DualThrusterRPM, queue_size=10)
         self.lcg_pid_enable = rospy.Publisher(lcg_pid_enable_topic, Bool, queue_size=10)
         self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
         self.tcg_pid_enable = rospy.Publisher(tcg_pid_enable_topic, Bool, queue_size=10)
