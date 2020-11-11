@@ -149,7 +149,7 @@ class LeaderFollower(object):
 
     def __init__(self, name):
 
-        self.rpm = ThrusterRPMs()
+        self.rpm = DualThrusterRPM()
 
         """Publish yaw and depth setpoints based on waypoints"""
         self._action_name = name
