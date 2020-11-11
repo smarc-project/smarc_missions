@@ -93,8 +93,12 @@ class WPDepthPlanner(object):
         self.vec_pub.publish(0., rudder_angle, Header())
         loop_time = 0.
 
+        dualrpm = DualThrusterRPM()   
+
         while not rospy.is_shutdown() and loop_time < .37/flip_rate:
-            self.rpm_pub.publish(rpm, rpm, Header())
+            dualrpm.thruster_front.rpm = rpm
+            dualrpm.thruster_back.rpm = rpm
+            self.rpm_pub.publish(dualrpm)
             loop_time += 1./thrust_rate
             rate.sleep()
 
@@ -102,7 +106,9 @@ class WPDepthPlanner(object):
 
         loop_time = 0.
         while not rospy.is_shutdown() and loop_time < .63/flip_rate:
-            self.rpm_pub.publish(-rpm, -rpm, Header())
+            dualrpm.thruster_front.rpm = -rpm
+            dualrpm.thruster_back.rpm = -rpm
+            self.rpm_pub.publish(dualrpm)
             loop_time += 1./thrust_rate
             rate.sleep()
 
