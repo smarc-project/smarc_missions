@@ -334,7 +334,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
-                              #const_dvl_tree(),
+                             # const_dvl_tree(),
                               run_tree
                     ])
 
@@ -344,8 +344,8 @@ def const_tree(auv_config):
 
 def main(config, catkin_ws_path):
 
-    utm_zone = rospy.get_param("~utm_zone", common_globals.DEFAULT_UTM_ZONE)
-    utm_band = rospy.get_param("~utm_band", common_globals.DEFAULT_UTM_BAND)
+    utm_zone = rospy.get_param("/utm_zone", common_globals.DEFAULT_UTM_ZONE)
+    utm_band = rospy.get_param("/utm_band", common_globals.DEFAULT_UTM_BAND)
 
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.UTM_ZONE, utm_zone)
