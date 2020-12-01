@@ -7,6 +7,8 @@ SQ-ROOT
     --> A_ReadCameraDetection
     --> A_ReadGPS
     --> A_SetUTMFromGPS
+    --> A_UpdateTF
+    --> A_UpdateLatLon
     [o] SQ-UpdateNeptus
         --> A_UpdateNeptusEstimatedState
         --> A_UpdateNeptusPlanControlState
@@ -14,6 +16,7 @@ SQ-ROOT
         --> A_UpdateNeptusPlanDB
         --> A_UpdateNeptusPlanControl
         --> A_VizPublishPlan
+    --> A_PublishHeartbeat
 [o] FB_SafetyOK
     [o] SQ-SafetyChecks
         --> C_NoAbortReceived
@@ -25,12 +28,6 @@ SQ-ROOT
         --> A_SetNextPlanAction
     [o] FB_Surface
         --> A_EmergencySurface
-        --> A_EmergencySurfaceByForce
-[o] FB_SwitchOffDVL
-    [o] SQ_SwitchOnDVL
-        --> C_AtDVLDepth
-        --> A_SetDVLRunning
-    --> A_SetDVLRunning
 [o] FB-Run
     [o] SQ_PlannedMission
         [o] FB_SynchMission

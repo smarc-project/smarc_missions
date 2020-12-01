@@ -35,6 +35,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
+                       A_PublishHeartbeat, \
                        A_FollowLeader, \
                        A_SetDVLRunning
 
