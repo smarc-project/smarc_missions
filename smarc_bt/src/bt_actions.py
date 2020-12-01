@@ -1075,6 +1075,24 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
 
         return pt.Status.SUCCESS
 
+class A_PublishHeartbeat(pt.behaviour.Behaviour):
+    """
+    Publishes the heartbeat of bt after data ingestion process finished
+    """
+    def __init__(self, bt_heartbeat_topic):
+        super(A_PublishHeartbeat, self).__init__(name="A_PublishHeartbeat")
+        self.hb_pub = None
+        self.bt_heartbeat_topic = bt_heartbeat_topic
+
+    def setup(self, timeout):
+        self.hb_pub = rospy.Publisher(self.bt_heartbeat_topic, Empty, queue_size=1)
+        return True
+
+
+    def update(self):
+        self.hb_pub.publish(Empty())
+        return pt.Status.SUCCESS
+
 
 class A_FollowLeader(ptr.actions.ActionClient):
     def __init__(self,

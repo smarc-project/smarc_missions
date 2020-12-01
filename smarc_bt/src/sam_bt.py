@@ -143,6 +143,7 @@ def const_tree(auv_config):
         update_latlon = A_UpdateLatLon()
         set_utm_from_gps = A_SetUTMFromGPS()
         neptus_tree = const_neptus_tree()
+        publish_heartbeat = A_PublishHeartbeat(auv_config.HEARTBEAT_TOPIC)
 
 
         return Sequence(name="SQ-DataIngestion",
@@ -158,7 +159,8 @@ def const_tree(auv_config):
                             set_utm_from_gps,
                             update_tf,
                             update_latlon,
-                            neptus_tree
+                            neptus_tree,
+                            publish_heartbeat
                         ])
 
 
