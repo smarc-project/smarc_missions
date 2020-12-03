@@ -22,7 +22,6 @@ from sam_msgs.msg import ThrusterRPMs, PercentStamped
 from std_msgs.msg import Float64, Header, Bool, Empty
 
 # path planner service
-from trajectories.srv import trajectory
 from std_srvs.srv import SetBool
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
