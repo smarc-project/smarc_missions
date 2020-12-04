@@ -7,8 +7,9 @@
 	<arg name="plan_control_topic" default="imc/plan_control" />
 	<arg name="dvl_cooldown" default="0.5" />
 	<arg name="depth_topic" default="ctrl/odom_listener/depth_feedback" />
-	<arg name="dvl_running_depth" default="0.2" />
+	<arg name="dvl_running_depth" default="0.55" />
 	<arg name="depth_pid_enable_topic" default="ctrl/dynamic_depth/pid_enable" />
+	<arg name="heartbeat_topic" default="heartbeat" />
 	<arg name="leader_link" default="sam_1/base_link" />
 	<arg name="absolute_min_altitude" default="1" />
 	<arg name="rpm_cmd_topic" default="core/rpm_cmd" />
@@ -53,6 +54,7 @@
 		<param name="depth_topic" value="$(arg depth_topic)" />
 		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
 		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
+		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
 		<param name="leader_link" value="$(arg leader_link)" />
 		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />
 		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />

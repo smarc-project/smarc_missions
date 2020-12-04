@@ -35,7 +35,7 @@ class AUVConfig(object):
         self.YAW_PID_ENABLE_TOPIC = 'ctrl/dynamic_heading/pid_enable'
         self.DEPTH_PID_ENABLE_TOPIC = 'ctrl/dynamic_depth/pid_enable'
         self.VEL_PID_ENABLE_TOPIC = 'ctrl/dynamic_velocity/pid_enable'
-
+        self.HEARTBEAT_TOPIC = 'heartbeat'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'

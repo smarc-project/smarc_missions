@@ -22,7 +22,6 @@ from sam_msgs.msg import ThrusterRPMs, PercentStamped
 from std_msgs.msg import Float64, Header, Bool, Empty
 
 # path planner service
-from trajectories.srv import trajectory
 from std_srvs.srv import SetBool
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
@@ -1073,6 +1072,24 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
         self.pa_pub.publish(pa)
 
 
+        return pt.Status.SUCCESS
+
+class A_PublishHeartbeat(pt.behaviour.Behaviour):
+    """
+    Publishes the heartbeat of bt after data ingestion process finished
+    """
+    def __init__(self, bt_heartbeat_topic):
+        super(A_PublishHeartbeat, self).__init__(name="A_PublishHeartbeat")
+        self.hb_pub = None
+        self.bt_heartbeat_topic = bt_heartbeat_topic
+
+    def setup(self, timeout):
+        self.hb_pub = rospy.Publisher(self.bt_heartbeat_topic, Empty, queue_size=1)
+        return True
+
+
+    def update(self):
+        self.hb_pub.publish(Empty())
         return pt.Status.SUCCESS
 
 
