@@ -12,8 +12,8 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64
-from sam_msgs.msg import Leak
-from cola2_msgs.msg import DVL
+from smarc_msgs.msg import Leak
+from smarc_msgs.msg import DVL
 from geometry_msgs.msg import PointStamped
 from sensor_msgs.msg import NavSatFix
 
@@ -91,6 +91,7 @@ def const_tree(auv_config):
             variable_name = bb_enums.ABORT
         )
 
+        # TODO, common interface
         read_depth = ReadTopic(
             name = "A_ReadDepth",
             topic_name = auv_config.DEPTH_TOPIC,
@@ -98,6 +99,7 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.DEPTH:'data'} # this takes the Float64.data field and puts into the bb
         )
 
+        # TODO, common interface
         read_alt = ReadTopic(
             name = "A_ReadAlt",
             topic_name = auv_config.ALTITUDE_TOPIC,
@@ -204,20 +206,6 @@ def const_tree(auv_config):
                                   leakOK
                         ])
 
-        surface = Fallback(name="FB_Surface",
-                           children=[
-                               A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
-                               #  A_EmergencySurfaceByForce(auv_config.EMERGENCY_TOPIC,
-                                                         #  auv_config.VBS_CMD_TOPIC,
-                                                         #  auv_config.RPM_CMD_TOPIC,
-                                                         #  auv_config.LCG_PID_ENABLE_TOPIC,
-                                                         #  auv_config.VBS_PID_ENABLE_TOPIC,
-                                                         #  auv_config.TCG_PID_ENABLE_TOPIC,
-                                                         #  auv_config.YAW_PID_ENABLE_TOPIC,
-                                                         #  auv_config.DEPTH_PID_ENABLE_TOPIC,
-                                                         #  auv_config.VEL_PID_ENABLE_TOPIC)
-
-                           ])
 
         skip_wp = Sequence(name='SQ-CountEmergenciesAndSkip',
                            children = [
@@ -231,7 +219,7 @@ def const_tree(auv_config):
                         children = [
                             safety_checks,
                             skip_wp,
-                            surface
+                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
                         ])
 
 
@@ -294,7 +282,8 @@ def const_tree(auv_config):
         plan_complete = C_PlanCompleted()
         # but still wait for operator to tell us to 'go'
         start_received = C_StartPlanReceived()
-        gotowp = A_GotoWaypoint(auv_config.ACTION_NAMESPACE)
+        gotowp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                goal_tolerance = auv_config.WAYPOINT_TOLERANCE)
         # and this will run after every success of the goto action
         set_next_plan_action = A_SetNextPlanAction()
         plan_is_same = C_PlanIsNotChanged()
@@ -322,7 +311,9 @@ def const_tree(auv_config):
     planned_mission = Sequence(name="SQ_PlannedMission",
                                children=[
                                   const_synch_tree(),
-                                  const_autonomous_updates(),
+                                  # XXX stuff in here are not modified to work with utm-frame-everything
+                                  # they _could_ but not tested.
+                                  # const_autonomous_updates(),
                                   const_execute_mission_tree()
                                ])
 
@@ -330,7 +321,7 @@ def const_tree(auv_config):
     run_tree = Fallback(name="FB-Run",
                         children=[
                             planned_mission,
-                            const_leader_follower()
+                            #  const_leader_follower()
                         ])
 
     report_mission_complete = A_ReportMissionComplete(auv_config.MISSION_COMPLETE_TOPIC)

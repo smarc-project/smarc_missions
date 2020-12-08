@@ -20,32 +20,24 @@ class AUVConfig(object):
         # topics
         self.DEPTH_TOPIC = 'ctrl/odom_listener/depth_feedback'
         self.ALTITUDE_TOPIC = 'core/dvl'
-        self.LEAK_TOPIC = 'core/leak_fb'
+        self.LEAK_TOPIC = 'core/leak'
         self.GPS_FIX_TOPIC = 'core/gps'
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
-        # emergency by force topics
+
         self.EMERGENCY_TOPIC = 'abort'
-        self.VBS_CMD_TOPIC = 'core/vbs_cmd'
-        self.RPM_CMD_TOPIC = 'core/rpm_cmd'
-        self.LCG_PID_ENABLE_TOPIC = 'ctrl/lcg/pid_enable'
-        self.VBS_PID_ENABLE_TOPIC = 'ctrl/vbs/pid_enable'
-        self.TCG_PID_ENABLE_TOPIC = 'ctrl/tcg/pid_enable'
-        self.YAW_PID_ENABLE_TOPIC = 'ctrl/dynamic_heading/pid_enable'
-        self.DEPTH_PID_ENABLE_TOPIC = 'ctrl/dynamic_depth/pid_enable'
-        self.VEL_PID_ENABLE_TOPIC = 'ctrl/dynamic_velocity/pid_enable'
         self.HEARTBEAT_TOPIC = 'heartbeat'
         self.MISSION_COMPLETE_TOPIC = 'mission_complete'
 
         # actions and services
-        self.ACTION_NAMESPACE = 'ctrl/wp_depth_action_planner'
+        self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
         self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
-        self.START_STOP_DVL_NAMESPACE = "/"+self.robot_name+'/core/start_stop_dvl'
+        self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
         # this can be set to None to disable the use of a path planner
         # the robot will be given the user generated waypoints to follow in that case
-        self.PATH_PLANNER_NAME = '/interp1d'
+        self.PATH_PLANNER_NAME = 'None'
 
         # tf frame names
         self.BASE_LINK = self.robot_name+'/base_link'
@@ -79,6 +71,9 @@ class AUVConfig(object):
         # how deep do we want to be to run the dvl
         # we wanna shut off the dvl on the surface
         self.DVL_RUNNING_DEPTH = 0.55
+
+        # in meters
+        self.WAYPOINT_TOLERANCE = 1.5
 
     def __str__(self):
         s = 'AUV_CONFIG:\n'

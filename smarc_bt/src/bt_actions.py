@@ -14,7 +14,8 @@ import rospy
 import tf
 import actionlib
 
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+#  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
@@ -135,79 +136,6 @@ class A_SetUTMFromGPS(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
-class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
-    def __init__(self,
-                 emergency_topic,
-                 vbs_cmd_topic,
-                 rpm_cmd_topic,
-                 lcg_pid_enable_topic,
-                 vbs_pid_enable_topic,
-                 tcg_pid_enable_topic,
-                 yaw_pid_enable_topic,
-                 depth_pid_enable_topic,
-                 vel_pid_enable_topic):
-        """
-        Instead of using an action server, this action
-        publishes to the relevant topics directly as a last-resort
-        way to do emergency surfacing
-        """
-        super(A_EmergencySurfaceByForce, self).__init__("A_EmergencySurfaceByForce")
-
-        self.emergency_pub = None
-        self.vbs_pub = None
-        self.rpm_pub = None
-        self.lcg_pid_enable = None
-        self.vbs_pid_enable = None
-        self.tcg_pid_enable = None
-        self.yaw_pid_enable = None
-        self.depth_pid_enable = None
-        self.vel_pid_enable = None
-
-        self.emergency_topic = emergency_topic
-        self.vbs_cmd_topic = vbs_cmd_topic
-        self.rpm_cmd_topic = rpm_cmd_topic
-        self.lcg_pid_enable_topic = lcg_pid_enable_topic
-        self.vbs_pid_enable_topic = vbs_pid_enable_topic
-        self.tcg_pid_enable_topic = tcg_pid_enable_topic
-        self.yaw_pid_enable_topic = yaw_pid_enable_topic
-        self.depth_pid_enable_topic = depth_pid_enable_topic
-        self.vel_pid_enable_topic = vel_pid_enable_topic
-
-    def setup(self, timeout):
-        self.emergency_pub = rospy.Publisher(self.emergency_topic, Bool, queue_size=10)
-        self.vbs_pub = rospy.Publisher(self.vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm_pub = rospy.Publisher(self.rpm_cmd_topic, ThrusterRPMs, queue_size=10)
-        self.lcg_pid_enable = rospy.Publisher(self.lcg_pid_enable_topic, Bool, queue_size=10)
-        self.vbs_pid_enable = rospy.Publisher(self.vbs_pid_enable_topic, Bool, queue_size=10)
-        self.tcg_pid_enable = rospy.Publisher(self.tcg_pid_enable_topic, Bool, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher(self.yaw_pid_enable_topic, Bool, queue_size=10)
-        self.depth_pid_enable = rospy.Publisher(self.depth_pid_enable_topic, Bool, queue_size=10)
-        self.vel_pid_enable = rospy.Publisher(self.vel_pid_enable_topic, Bool, queue_size=10)
-        return True
-
-
-    def update(self):
-        rospy.logerr_throttle(5, "FORCING EMERGENCY SURFACING")
-        #Disable controllers
-        self.lcg_pid_enable.publish(False)
-        self.vbs_pid_enable.publish(False)
-        self.tcg_pid_enable.publish(False)
-        self.yaw_pid_enable.publish(False)
-        self.depth_pid_enable.publish(False)
-        self.vel_pid_enable.publish(False)
-
-        #set VBS to 0
-        vbs_level = PercentStamped()
-        vbs_level.value = 0.0;
-        self.vbs_pub.publish(vbs_level)
-
-        # Stop thrusters
-        rpm = ThrusterRPMs()
-        rpm.thruster_1_rpm = 0.0
-        rpm.thruster_2_rpm = 0.0
-        self.rpm_pub.publish(rpm)
-        return pt.Status.RUNNING
-
 
 
 class A_EmergencySurface(ptr.actions.ActionClient):
@@ -224,7 +152,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         ptr.actions.ActionClient.__init__(
             self,
             name="A_EmergencySurface",
-            action_spec=MoveBaseAction,
+            action_spec=GotoWaypointAction,
             action_goal=None,
             action_namespace= emergency_action_namespace,
             override_feedback_message_on_running="EMERGENCY SURFACING"
@@ -245,6 +173,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if not self.action_client.wait_for_server(rospy.Duration(timeout)):
             self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
             self.action_client = None
+            self.action_server_ok = False
         else:
             self.action_server_ok = True
 
@@ -252,10 +181,11 @@ class A_EmergencySurface(ptr.actions.ActionClient):
 
     def initialise(self):
         if not self.action_server_ok:
+            rospy.logwarn_throttle_identical(5, "No Action Server found for emergency action, will just block the tree!")
             return
         rospy.logwarn("EMERGENCY SURFACING")
         # construct the message
-        self.action_goal = MoveBaseGoal()
+        self.action_goal = GotoWaypointGoal()
         self.sent_goal = False
 
     def update(self):
@@ -407,7 +337,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
 
 class A_GotoWaypoint(ptr.actions.ActionClient):
-    def __init__(self, action_namespace):
+    def __init__(self, action_namespace, goal_tolerance, goal_tf_frame):
         """
         Runs an action server that will move the robot to the given waypoint
         """
@@ -425,13 +355,19 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         ptr.actions.ActionClient.__init__(
             self,
             name="A_GotoWaypoint",
-            action_spec=MoveBaseAction,
+            action_spec=GotoWaypointAction,
             action_goal=None,
             action_namespace = action_namespace,
             override_feedback_message_on_running="Moving to waypoint"
         )
 
         self.action_server_ok = False
+
+        assert goal_tolerance >= 1, "Goal tolerance must be >=1!, it is:"+str(goal_tolerance)
+        self.goal_tolerance = goal_tolerance
+
+        self.goal_tf_frame = goal_tf_frame
+
 
     def setup(self, timeout):
         """
@@ -449,11 +385,13 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         else:
             self.action_server_ok = True
 
+
         return True
 
 
     def initialise(self):
         if not self.action_server_ok:
+            rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
             return
 
         wp, frame = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
@@ -462,13 +400,33 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
             return
 
+        if frame != self.goal_tf_frame:
+            rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
+            return
+
         # construct the message
-        self.action_goal = MoveBaseGoal()
-        self.action_goal.target_pose.pose.position.x = wp[0]
-        self.action_goal.target_pose.pose.position.y = wp[1]
-        self.action_goal.target_pose.pose.position.z = wp[2]
-        self.action_goal.target_pose.header.frame_id = frame
-        rospy.loginfo("Goto waypoint action goal initialized")
+        #  self.action_goal = MoveBaseGoal()
+        #  self.action_goal.target_pose.pose.position.x = wp[0]
+        #  self.action_goal.target_pose.pose.position.y = wp[1]
+        #  self.action_goal.target_pose.pose.position.z = wp[2]
+        #  self.action_goal.target_pose.header.frame_id = frame
+        goal = GotoWaypointGoal()
+        goal.waypoint_pose.pose.position.x = wp[0]
+        goal.waypoint_pose.pose.position.y = wp[1]
+        goal.goal_tolerance = self.goal_tolerance
+        # 0=None, 1=Depth, 2=Altitude
+        # right now, the mission plan always has depth only.
+        goal.z_control_mode = 1
+        goal.travel_depth = wp[3]
+        # 0=None, 1=RPM, 2=speed
+        # right now, there is no planner-related thing for this
+        goal.speed_control_mode = 0
+        # TODO check this
+        goal.travel_speed = 0
+
+        self.action_goal = goal
+
+        rospy.loginfo("Goto waypoint action goal initialized:"+str(goal))
 
         # ensure that we still need to send the goal
         self.sent_goal = False
@@ -516,7 +474,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         result = self.action_client.get_result()
 
         # if the goal was accomplished
-        if result:
+        if result.reached_waypoint:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
             return pt.Status.SUCCESS
@@ -525,7 +483,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        pass
+        fb = str(msg.ETA)
+        self.feedback_message = "ETA:"+fb
+        rospy.loginfo_throttle(5, fb)
 
 
 class A_UpdateTF(pt.behaviour.Behaviour):
@@ -912,7 +872,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def handle_set_plan(self, plandb_msg):
         # there is a plan we can at least look at
         mission_plan = MissionPlan(plan_frame = self.utm_link,
-                                   local_frame = self.local_link,
+                                   local_frame = self.utm_link,
                                    plandb_msg = plandb_msg)
 
 
@@ -1116,7 +1076,7 @@ class A_FollowLeader(ptr.actions.ActionClient):
         ptr.actions.ActionClient.__init__(
             self,
             name="A_FollowLeader",
-            action_spec=MoveBaseAction,
+            action_spec=GotoWaypointAction,
             action_goal=None,
             action_namespace = action_namespace,
             override_feedback_message_on_running="Moving towards"+str(leader_link)
@@ -1145,7 +1105,7 @@ class A_FollowLeader(ptr.actions.ActionClient):
 
     def initialise(self):
         # construct the message
-        self.action_goal = MoveBaseGoal()
+        self.action_goal = GotoWaypointGoal()
         # leave 0,0,0 because we want to go to the frame's center
         self.action_goal.target_pose.header.frame_id = self.leader_link
         rospy.loginfo("Follow action goal initialized")
