@@ -93,6 +93,7 @@ class MissionPlan:
                 stamped_utm_point.header.stamp = rospy.Time(0)
                 stamped_utm_point.point.x = utm_point.x
                 stamped_utm_point.point.y = utm_point.y
+                # TODO add alti control possibility too, must check that in the imc message and all that
                 stamped_utm_point.point.z = depth
                 try:
                     waypoint_local = tf_listener.transformPoint(local_frame, stamped_utm_point)
