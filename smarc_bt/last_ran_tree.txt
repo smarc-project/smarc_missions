@@ -26,8 +26,7 @@ SQ-ROOT
     [o] SQ-CountEmergenciesAndSkip
         --> A_EmergencyCounter
         --> A_SetNextPlanAction
-    [o] FB_Surface
-        --> A_EmergencySurface
+    --> A_EmergencySurface
 [o] FB-Run
     [o] SQ_PlannedMission
         [o] FB_SynchMission
@@ -36,11 +35,6 @@ SQ-ROOT
                 --> C_HaveCoarseMission
                 --> A_RefineMission
                 --> A_SetNextPlanAction
-        [o] FB_AutonomousUpdates
-            --> C_AutonomyDisabled
-            [o] FB_Poi
-                --> C_NoNewPOIDetected
-                --> A_UpdateMissonForPOI
         [o] FB-ExecuteMissionPlan
             --> C_PlanCompleted?
             [o] SQ-FollowMissionPlan
@@ -48,9 +42,4 @@ SQ-ROOT
                 --> C_PlanIsNotChanged
                 --> A_GotoWaypoint
                 --> A_SetNextPlanAction
-    [o] SQ_LeaderFollower
-        --> C_LeaderFollowerEnabled
-        --> C_LeaderExists
-        --> C_LeaderIsFarEnough
-        --> A_FollowLeader
 --> A_ReportMissionComplete

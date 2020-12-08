@@ -24,8 +24,6 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
-                       A_EmergencySurfaceByForce, \
-                       A_SetUTMFromGPS, \
                        A_UpdateLatLon, \
                        A_RefineMission, \
                        A_UpdateNeptusEstimatedState, \
@@ -83,6 +81,9 @@ def const_tree(auv_config):
     # just for Neptus vehicle state for now
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.MANEUVER_ACTIONS, [])
+
+    bb.set(bb_enums.UTM_BAND, auv_config.UTM_BAND)
+    bb.set(bb_enums.UTM_ZONE, auv_config.UTM_ZONE)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -145,7 +146,6 @@ def const_tree(auv_config):
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
         update_latlon = A_UpdateLatLon()
-        set_utm_from_gps = A_SetUTMFromGPS()
         neptus_tree = const_neptus_tree()
         publish_heartbeat = A_PublishHeartbeat(auv_config.HEARTBEAT_TOPIC)
 
@@ -160,7 +160,6 @@ def const_tree(auv_config):
                             read_alt,
                             read_detection,
                             read_gps,
-                            set_utm_from_gps,
                             update_tf,
                             update_latlon,
                             neptus_tree,
@@ -283,7 +282,8 @@ def const_tree(auv_config):
         # but still wait for operator to tell us to 'go'
         start_received = C_StartPlanReceived()
         gotowp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                goal_tolerance = auv_config.WAYPOINT_TOLERANCE)
+                                goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+                                goal_tf_frame = auv_config.UTM_LINK)
         # and this will run after every success of the goto action
         set_next_plan_action = A_SetNextPlanAction()
         plan_is_same = C_PlanIsNotChanged()

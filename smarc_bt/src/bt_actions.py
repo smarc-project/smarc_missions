@@ -19,10 +19,8 @@ from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
-from sam_msgs.msg import ThrusterRPMs, PercentStamped
 from std_msgs.msg import Float64, Header, Bool, Empty
 
-# path planner service
 from std_srvs.srv import SetBool
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver

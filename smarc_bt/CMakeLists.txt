@@ -12,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
-  move_base_msgs
   sensor_msgs
   actionlib_msgs
   imc_ros_bridge

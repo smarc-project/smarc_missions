@@ -75,6 +75,11 @@ class AUVConfig(object):
         # in meters
         self.WAYPOINT_TOLERANCE = 1.5
 
+        # set global rosparams that _must_ be there to None
+        # i should find a better way of doing this but eh
+        self.UTM_ZONE = None
+        self.UTM_BAND = None
+
     def __str__(self):
         s = 'AUV_CONFIG:\n'
         for k,v in vars(self).iteritems():
@@ -100,7 +105,7 @@ class AUVConfig(object):
 
         bt_launch_path = 'catkin_ws/src/smarc_missions/smarc_bt/launch/bt_sam.launch'
         with open(catkin_ws_path+bt_launch_path, 'w+') as f:
-            f.write('<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py -->\n\n')
+            f.write('<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM, DO NOT MODIFY src/auv_config.py -->\n\n')
             f.write('<launch>\n')
             f.write(args_part)
             f.write(params_part)
@@ -113,9 +118,15 @@ class AUVConfig(object):
 
     def read_rosparams(self):
         for k,v in vars(self).iteritems():
-            param_name = '~'+k.lower()
+            if v is not None:
+                param_name = '~'+k.lower()
+            else:
+                param_name = k.lower()
             rosparam_v = rospy.get_param(param_name, None)
             if rosparam_v is not None:
                 self.__dict__[k] = rosparam_v
+
+            assert not (v is None and rosparam_v is None), "A required global rosparam ({}) is not set!".format(k)
+
 
 

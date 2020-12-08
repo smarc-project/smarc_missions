@@ -87,6 +87,7 @@ class MissionPlan:
                 lat = maneuver.lat
                 lon = maneuver.lon
                 depth = maneuver.z
+                # TODO possibly exchange with Nils' service instead?
                 utm_point = fromLatLong(np.degrees(lat), np.degrees(lon)).toPoint()
                 stamped_utm_point = PointStamped()
                 stamped_utm_point.header.frame_id = plan_frame
