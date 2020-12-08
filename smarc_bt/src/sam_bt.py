@@ -37,7 +37,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_VizPublishPlan, \
                        A_PublishHeartbeat, \
                        A_FollowLeader, \
-                       A_SetDVLRunning
+                       A_SetDVLRunning, \
+                       A_ReportMissionComplete
 
 
 from bt_conditions import C_PlanCompleted, \
@@ -332,13 +333,15 @@ def const_tree(auv_config):
                             const_leader_follower()
                         ])
 
+    report_mission_complete = A_ReportMissionComplete(auv_config.MISSION_COMPLETE_TOPIC)
 
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
                              # const_dvl_tree(),
-                              run_tree
+                              run_tree,
+                              report_mission_complete
                     ])
 
     return ptr.trees.BehaviourTree(root)

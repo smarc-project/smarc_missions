@@ -1,6 +1,7 @@
 <!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py -->
 
 <launch>
+	<arg name="mission_complete_topic" default="mission_complete" />
 	<arg name="emergency_trials_before_giving_up" default="30" />
 	<arg name="robot_name" default="sam" />
 	<arg name="emergency_topic" default="abort" />
@@ -46,6 +47,7 @@
 
 
 	<node name="sam_bt" pkg="smarc_bt" type="sam_bt.py" output="screen" ns="$(arg robot_name)">
+		<param name="mission_complete_topic" value="$(arg mission_complete_topic)" />
 		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
 		<param name="robot_name" value="$(arg robot_name)" />
 		<param name="emergency_topic" value="$(arg emergency_topic)" />

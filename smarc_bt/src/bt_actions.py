@@ -1205,3 +1205,25 @@ class A_FollowLeader(ptr.actions.ActionClient):
 
     def feedback_cb(self, msg):
         pass
+
+class A_ReportMissionComplete(pt.behaviour.Behaviour):
+    """
+    Publishes mission complete in the end as an Empty
+    """
+    def __init__(self, mission_complete_topic):
+        super(A_ReportMissionComplete, self).__init__(name="A_ReportMissionComplete")
+        self.bb = pt.blackboard.Blackboard()
+        self.mc_pub = None
+        self.mission_complete_topic = mission_complete_topic
+
+    def setup(self, timeout):
+        self.mc_pub = rospy.Publisher(self.mission_complete_topic, Empty, queue_size=1)
+        return True
+
+
+    def update(self):
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission_plan is None or (not mission_plan.is_complete()):
+            return pt.Status.FAILURE
+        self.mc_pub.publish(Empty())
+        return pt.Status.SUCCESS
