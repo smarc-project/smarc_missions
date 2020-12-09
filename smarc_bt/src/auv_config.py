@@ -90,7 +90,7 @@ class AUVConfig(object):
             return '\t\t<param name="{}" value="$(arg {})" />\n'.format(name.lower(), name.lower())
 
         args_part = ''
-        params_part ='\n\n\t<node name="sam_bt" pkg="smarc_bt" type="sam_bt.py" output="screen" ns="$(arg robot_name)">\n'
+        params_part ='\n\n\t<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">\n'
         for k,v in vars(self).iteritems():
             args_part += make_arg(k,v)
             params_part += make_param(k)

@@ -342,7 +342,7 @@ def main(config):
             f.write(viz)
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
-        launch_path = os.path.join(package_path, 'launch', 'bt_sam.launch')
+        launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
         try:
             config.generate_launch_file(launch_path)
         except:
