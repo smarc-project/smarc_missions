@@ -32,7 +32,7 @@
 	<arg name="altitude_topic" default="core/dvl" />
 	<arg name="path_planner_name" default="" />
 	<arg name="enable_leader_follower" default="True" />
-	<arg name="min_distance_to_leader" default="5" />
+	<arg name="min_distance_to_leader" default="5.0" />
 	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
 	<arg name="camera_detection_topic" default="detection/poi_down" />
 	<arg name="estimated_state_topic" default="imc/estimated_state" />

@@ -10,7 +10,7 @@
 	<!-- Frames in tf -->
 	<arg name="base_link" default="/$(arg robot_name)/base_link" />
 	<arg name="poi_detector_link" default="/$(arg robot_name)/camera_down_link" />
-	<arg name="utm_frame" default="utm" />
+	<arg name="utm_link" default="utm" />
 
 	<!-- Leader follower stuff -->
 	<!-- by default, use sam_1 as leader -->
@@ -42,7 +42,7 @@
     <arg name="waypoint_tolerance" default="5."/>
 
 	<!-- Leader follower related -->
-    <arg name="min_dist" default="5."/>
+    <arg name="min_distance_to_leader" default="5."/>
 
 
 	<!-- Start all actions before the BT -->
@@ -56,13 +56,13 @@
 		<arg name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)"/>
 		<arg name="base_link" value="$(arg base_link)"/>
 		<arg name="poi_detector_link" value="$(arg poi_detector_link)"/>
-		<!-- <arg name="utm_frame" value="$(arg utm_frame)"/> -->
+		<arg name="utm_link" value="$(arg utm_link)"/>
 		<arg name="leader_link" value="$(arg leader_link)"/>
 		<arg name="enable_leader_follower" value="$(arg enable_leader_follower)"/>
 		<arg name="follow_action_namespace" value="$(arg follow_action_namespace)"/>
 		<arg name="path_planner_name" value="$(arg path_planner_name)"/>
 		<arg name="waypoint_tolerance" value="$(arg waypoint_tolerance)"/>
-		<!-- <arg name="min_dist" value="$(arg min_dist)"/> -->
+		<arg name="min_distance_to_leader" value="$(arg min_distance_to_leader)"/>
 	</include>
 
 	<include file="$(find imc_ros_bridge)/launch/bridge.launch">
