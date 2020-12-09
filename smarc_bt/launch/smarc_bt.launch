@@ -14,23 +14,23 @@
 	<arg name="start_stop_dvl_namespace" default="core/toggle_dvl" />
 	<arg name="path_topic" default="ctrl/planned_path" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
-	<arg name="base_link" default="sam/base_link" />
+	<arg name="base_link" default="/sam/base_link" />
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
-	<arg name="waypoint_tolerance" default="1.5" />
+	<arg name="waypoint_tolerance" default="5.0" />
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
-	<arg name="emergency_trials_before_giving_up" default="30" />
+	<arg name="emergency_trials_before_giving_up" default="10" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="5" />
 	<arg name="abort_topic" default="imc/abort" />
 	<arg name="action_namespace" default="ctrl/goto_waypoint" />
 	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
 	<arg name="local_link" default="map" />
-	<arg name="poi_detector_link" default="sam/camera_down_link" />
+	<arg name="poi_detector_link" default="/sam/camera_down_link" />
 	<arg name="latlon_topic" default="dr/lat_lon" />
 	<arg name="leak_topic" default="core/leak" />
 	<arg name="plandb_topic" default="imc/plandb" />
 	<arg name="altitude_topic" default="core/dvl" />
-	<arg name="path_planner_name" default="None" />
+	<arg name="path_planner_name" default="" />
 	<arg name="enable_leader_follower" default="True" />
 	<arg name="min_distance_to_leader" default="5" />
 	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />

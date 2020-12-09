@@ -49,8 +49,31 @@
     <!-- <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/> -->
     <!-- <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/> -->
     <!-- <include file="$(find auv_simple_motion_planner)/launch/leader_follower_action.launch" pass_all_args="true"/> -->
-	<include file="$(find smarc_bt)/launch/smarc_bt.launch" pass_all_args="true"/>
-	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
+	<include file="$(find smarc_bt)/launch/smarc_bt.launch">
+		<arg name="robot_name" value="$(arg robot_name)"/>
+		<arg name="max_depth" value="$(arg max_depth)"/>
+		<arg name="min_altitude" value="$(arg min_altitude)"/>
+		<arg name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)"/>
+		<arg name="base_link" value="$(arg base_link)"/>
+		<arg name="poi_detector_link" value="$(arg poi_detector_link)"/>
+		<!-- <arg name="utm_frame" value="$(arg utm_frame)"/> -->
+		<arg name="leader_link" value="$(arg leader_link)"/>
+		<arg name="enable_leader_follower" value="$(arg enable_leader_follower)"/>
+		<arg name="follow_action_namespace" value="$(arg follow_action_namespace)"/>
+		<arg name="path_planner_name" value="$(arg path_planner_name)"/>
+		<arg name="waypoint_tolerance" value="$(arg waypoint_tolerance)"/>
+		<!-- <arg name="min_dist" value="$(arg min_dist)"/> -->
+	</include>
+
+	<include file="$(find imc_ros_bridge)/launch/bridge.launch">
+		<arg name="neptus_addr" value="$(arg neptus_addr)"/>
+		<arg name="bridge_addr" value="$(arg bridge_addr)"/>
+		<arg name="bridge_port" value="$(arg bridge_port)"/>
+		<arg name="node_name" value="$(arg node_name)"/>
+		<arg name="imc_id" value="$(arg imc_id)"/>
+		<arg name="imc_src" value="$(arg imc_src)"/>
+		<arg name="imc_system_name" value="$(arg imc_system_name)"/>
+	</include>
 
     
 </launch>
