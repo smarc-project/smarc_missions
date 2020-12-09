@@ -38,7 +38,7 @@
 	<arg name="estimated_state_topic" default="imc/estimated_state" />
 
 
-	<node name="sam_bt" pkg="smarc_bt" type="sam_bt.py" output="screen" ns="$(arg robot_name)">
+	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
 		<param name="mission_complete_topic" value="$(arg mission_complete_topic)" />
 		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="plan_control_topic" value="$(arg plan_control_topic)" />

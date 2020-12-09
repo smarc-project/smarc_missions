@@ -22,27 +22,10 @@ from geographic_msgs.msg import GeoPoint
 from auv_config import AUVConfig
 
 # tree leaves
-from bt_actions import A_GotoWaypoint, \
-                       A_SetNextPlanAction, \
-                       A_UpdateTF, \
-                       A_EmergencySurface, \
-                       A_RefineMission, \
-                       A_UpdateNeptusEstimatedState, \
-                       A_UpdateNeptusPlanControlState, \
-                       A_UpdateNeptusVehicleState, \
-                       A_UpdateNeptusPlanDB, \
-                       A_UpdateNeptusPlanControl, \
-                       A_UpdateMissonForPOI, \
-                       A_VizPublishPlan, \
-                       A_PublishHeartbeat, \
-                       A_FollowLeader, \
-                       A_SetDVLRunning, \
-                       A_ReportMissionComplete
 
-
-from bt_conditions import C_PlanCompleted, \
+from bt_conditions import C_DepthOK, \
+                          C_PlanCompleted, \
                           C_NoAbortReceived, \
-                          C_DepthOK, \
                           C_AltOK, \
                           C_LeakOK, \
                           C_StartPlanReceived, \
@@ -61,6 +44,23 @@ from bt_common import Sequence, \
                       ReadTopic, \
                       A_RunOnce, \
                       Counter
+
+from bt_actions import A_GotoWaypoint, \
+                       A_SetNextPlanAction, \
+                       A_UpdateTF, \
+                       A_EmergencySurface, \
+                       A_RefineMission, \
+                       A_UpdateNeptusEstimatedState, \
+                       A_UpdateNeptusPlanControlState, \
+                       A_UpdateNeptusVehicleState, \
+                       A_UpdateNeptusPlanDB, \
+                       A_UpdateNeptusPlanControl, \
+                       A_UpdateMissonForPOI, \
+                       A_VizPublishPlan, \
+                       A_PublishHeartbeat, \
+                       A_FollowLeader, \
+                       A_SetDVLRunning, \
+                       A_ReportMissionComplete
 
 
 # globally defined values

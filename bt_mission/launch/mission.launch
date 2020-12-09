@@ -3,9 +3,9 @@
     <arg name="robot_name" default="sam"/>
 
 	<!-- Hard limits -->
-    <arg name="max_depth" default=20/>
-    <arg name="min_altitude" default=5/>
-    <arg name="emergency_trials_before_giving_up" default=10/>
+    <arg name="max_depth" default="20"/>
+    <arg name="min_altitude" default="5"/>
+    <arg name="emergency_trials_before_giving_up" default="10"/>
 
 	<!-- Frames in tf -->
 	<arg name="base_link" default="/$(arg robot_name)/base_link" />

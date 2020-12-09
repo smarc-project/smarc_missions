@@ -13,8 +13,6 @@ import numpy as np
 import imc_enums
 import bb_enums
 
-from bt_common import CBFCondition
-
 
 class C_AtDVLDepth(pt.behaviour.Behaviour):
     """
@@ -60,12 +58,6 @@ class C_DepthOK(pt.behaviour.Behaviour):
         self.max_depth = max_depth
         super(C_DepthOK, self).__init__(name="C_DepthOK")
 
-        self.cbf_condition = CBFCondition(checked_field_topic=None,
-                                          checked_field_name='depth',
-                                          limit_type='<',
-                                          limit_value=self.max_depth,
-                                          update_func=self.update)
-        self.update = self.cbf_condition.update
 
     def update(self):
         depth = self.bb.get(bb_enums.DEPTH)
@@ -102,12 +94,6 @@ class C_AltOK(pt.behaviour.Behaviour):
         self.absolute_min_alt = absolute_min_alt
         super(C_AltOK, self).__init__(name="C_AltOK")
 
-        self.cbf_condition = CBFCondition(checked_field_topic=None,
-                                          checked_field_name='altitude',
-                                          limit_type='>',
-                                          limit_value=self.min_alt,
-                                          update_func=self.update)
-        self.update = self.cbf_condition.update
 
         self.first_alt = None
 
