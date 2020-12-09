@@ -128,7 +128,8 @@ def const_tree(auv_config):
                 A_UpdateNeptusVehicleState(auv_config.VEHICLE_STATE_TOPIC),
                 A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
                                      auv_config.UTM_LINK,
-                                     auv_config.LOCAL_LINK),
+                                     auv_config.LOCAL_LINK,
+                                     auv_config.LATLONTOUTM_SERVICE),
                 A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
                 A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
                                      ])
@@ -231,7 +232,8 @@ def const_tree(auv_config):
                                 C_NoNewPOIDetected(common_globals.POI_DIST),
                                 A_UpdateMissonForPOI(auv_config.UTM_LINK,
                                                      auv_config.LOCAL_LINK,
-                                                     auv_config.POI_DETECTOR_LINK)
+                                                     auv_config.POI_DETECTOR_LINK,
+                                                     auv_config.LATLONTOUTM_SERVICE)
                             ])
 
         return Fallback(name="FB_AutonomousUpdates",

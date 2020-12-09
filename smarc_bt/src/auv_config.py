@@ -38,6 +38,8 @@ class AUVConfig(object):
         # the robot will be given the user generated waypoints to follow in that case
         self.PATH_PLANNER_NAME = 'None'
 
+        self.LATLONTOUTM_SERVICE = self.robot_name+'/lat_lon_to_utm'
+
         # tf frame names
         self.BASE_LINK = self.robot_name+'/base_link'
         self.UTM_LINK = 'utm'
@@ -49,7 +51,7 @@ class AUVConfig(object):
         self.ENABLE_LEADER_FOLLOWER = True
 
         # imc related stuff, most likely never changes
-        self.PLANDB_TOPIC = 'imc/plandb'
+        self.PLANDB_TOPIC = 'imc/plan_db'
         self.PLAN_CONTROL_TOPIC = 'imc/plan_control'
         self.ESTIMATED_STATE_TOPIC = 'imc/estimated_state'
         self.PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'

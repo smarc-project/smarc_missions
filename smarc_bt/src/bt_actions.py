@@ -354,11 +354,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         goal = GotoWaypointGoal()
         goal.waypoint_pose.pose.position.x = wp[0]
         goal.waypoint_pose.pose.position.y = wp[1]
-        goal.goal_tolerance = self.goal_tolerance
+        # TODO uncomment once not read-only
+        # goal.goal_tolerance = self.goal_tolerance
         # 0=None, 1=Depth, 2=Altitude
         # right now, the mission plan always has depth only.
         goal.z_control_mode = 1
-        goal.travel_depth = wp[3]
+        goal.travel_depth = wp[2]
         # 0=None, 1=RPM, 2=speed
         # right now, there is no planner-related thing for this
         goal.speed_control_mode = 0
@@ -415,7 +416,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         result = self.action_client.get_result()
 
         # if the goal was accomplished
-        if result.reached_waypoint:
+        if result is not None and result.reached_waypoint:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
             return pt.Status.SUCCESS
@@ -696,12 +697,13 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
 
 
 class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
-    def __init__(self, plandb_topic, utm_link, local_link):
+    def __init__(self, plandb_topic, utm_link, local_link, latlontoutm_service_name):
         super(A_UpdateNeptusPlanDB, self).__init__("A_UpdateNeptusPlanDB")
         self.bb = pt.blackboard.Blackboard()
         # neptus sends lat/lon, which we convert to utm, which we then convert to local
         self.utm_link = utm_link
         self.local_link = local_link
+        self.latlontoutm_service_name = latlontoutm_service_name
 
         # the message body is largely the same, so we can re-use most of it
         self.plandb_msg = PlanDB()
@@ -782,7 +784,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def handle_set_plan(self, plandb_msg):
         # there is a plan we can at least look at
         mission_plan = MissionPlan(plan_frame = self.utm_link,
-                                   plandb_msg = plandb_msg)
+                                   plandb_msg = plandb_msg,
+                                   latlontoutm_service_name = self.latlontoutm_service_name)
 
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
@@ -848,12 +851,13 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
     and sets that as the current mission plan.
     always returns SUCCESS
     """
-    def __init__(self, utm_link, poi_link):
+    def __init__(self, utm_link, poi_link, latlontoutm_service_name):
         super(A_UpdateMissonForPOI, self).__init__(name="A_UpdateMissonForPOI")
         self.bb = pt.blackboard.Blackboard()
         self.utm_link = utm_link
         self.poi_link = poi_link
         self.tf_listener = tf.TransformListener()
+        self.latlontoutm_service_name = latlontoutm_service_name
 
         self.poi_link_available = False
 
@@ -907,7 +911,8 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         mission_plan = MissionPlan(plan_frame = self.utm_link,
                                    plandb_msg = pdb,
                                    waypoints = waypoints,
-                                   waypoint_man_ids=waypoint_man_ids)
+                                   waypoint_man_ids=waypoint_man_ids,
+                                   latlontoutm_service_name = self.latlontoutm_service_name)
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
 

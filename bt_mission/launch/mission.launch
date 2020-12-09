@@ -65,7 +65,7 @@
 		<arg name="min_distance_to_leader" value="$(arg min_distance_to_leader)"/>
 	</include>
 
-	<include file="$(find imc_ros_bridge)/launch/bridge.launch">
+	<include file="$(find imc_ros_bridge)/launch/bridge.launch" ns="$(arg robot_name)">
 		<arg name="neptus_addr" value="$(arg neptus_addr)"/>
 		<arg name="bridge_addr" value="$(arg bridge_addr)"/>
 		<arg name="bridge_port" value="$(arg bridge_port)"/>

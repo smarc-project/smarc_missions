@@ -5,7 +5,7 @@
 	<arg name="emergency_topic" default="abort" />
 	<arg name="plan_control_topic" default="imc/plan_control" />
 	<arg name="dvl_cooldown" default="0.5" />
-	<arg name="robot_name" default="sam" />
+	<arg name="robot_name" default="lolo" />
 	<arg name="dvl_running_depth" default="0.55" />
 	<arg name="heartbeat_topic" default="heartbeat" />
 	<arg name="leader_link" default="sam_1/base_link" />
@@ -14,27 +14,28 @@
 	<arg name="start_stop_dvl_namespace" default="core/toggle_dvl" />
 	<arg name="path_topic" default="ctrl/planned_path" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
-	<arg name="base_link" default="/sam/base_link" />
+	<arg name="base_link" default="/lolo/base_link" />
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
 	<arg name="waypoint_tolerance" default="5.0" />
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
 	<arg name="emergency_trials_before_giving_up" default="10" />
 	<arg name="max_depth" default="20" />
-	<arg name="min_altitude" default="5" />
+	<arg name="min_altitude" default="-1" />
 	<arg name="abort_topic" default="imc/abort" />
 	<arg name="action_namespace" default="ctrl/goto_waypoint" />
 	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
 	<arg name="local_link" default="map" />
-	<arg name="poi_detector_link" default="/sam/camera_down_link" />
+	<arg name="poi_detector_link" default="/lolo/camera_down_link" />
 	<arg name="latlon_topic" default="dr/lat_lon" />
 	<arg name="leak_topic" default="core/leak" />
-	<arg name="plandb_topic" default="imc/plandb" />
+	<arg name="plandb_topic" default="imc/plan_db" />
 	<arg name="altitude_topic" default="core/dvl" />
 	<arg name="path_planner_name" default="" />
 	<arg name="enable_leader_follower" default="True" />
 	<arg name="min_distance_to_leader" default="5.0" />
 	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
 	<arg name="camera_detection_topic" default="detection/poi_down" />
+	<arg name="latlontoutm_service" default="sam/lat_lon_to_utm" />
 	<arg name="estimated_state_topic" default="imc/estimated_state" />
 
 
@@ -73,6 +74,7 @@
 		<param name="min_distance_to_leader" value="$(arg min_distance_to_leader)" />
 		<param name="follow_action_namespace" value="$(arg follow_action_namespace)" />
 		<param name="camera_detection_topic" value="$(arg camera_detection_topic)" />
+		<param name="latlontoutm_service" value="$(arg latlontoutm_service)" />
 		<param name="estimated_state_topic" value="$(arg estimated_state_topic)" />
 	</node>
 </launch>

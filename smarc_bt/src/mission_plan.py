@@ -15,11 +15,13 @@ import bb_enums
 
 from geometry_msgs.msg import PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
+from smarc_msgs.srv import LatLonToUTM
 
 
 class MissionPlan:
     def __init__(self,
                  plandb_msg,
+                 latlontoutm_service_name,
                  plan_frame = 'utm',
                  waypoints=None,
                  waypoint_man_ids=None):
@@ -30,6 +32,9 @@ class MissionPlan:
         self.plan_id = plandb_msg.plan_id
         self.plan_frame = plan_frame
 
+        # self.latlontoutm_service_name = latlontoutm_service_name
+        self.latlontoutm_service_name = "/lolo/lat_lon_to_utm" 
+
         self.aborted = False
 
         # a list of names for each maneuver
@@ -38,7 +43,7 @@ class MissionPlan:
 
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg)
+            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg, self.latlontoutm_service_name)
         else:
             self.waypoints = waypoints
             self.waypoint_man_ids = waypoint_man_ids
@@ -59,16 +64,11 @@ class MissionPlan:
 
 
     @staticmethod
-    def read_plandb(plandb):
+    def read_plandb(plandb, latlontoutm_service_name):
         """
         planddb message is a bunch of nested objects,
         we want a list of waypoints in the local frame,
         """
-
-        latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
-                                                 GeoPoint)
-
-
         waypoints = []
         waypoint_man_ids = []
         request_id = plandb.request_id
@@ -82,18 +82,23 @@ class MissionPlan:
             maneuver = plan_man.maneuver
             # probably every maneuver has lat lon z in them, but just in case...
             if man_imc_id == imc_enums.MANEUVER_GOTO:
+                rospy.loginfo("Waiting for latlontoutm service "+str(latlontoutm_service_name))
+                rospy.wait_for_service(latlontoutm_service_name)
+                rospy.loginfo("Got latlontoutm service")
                 try:
+                    latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
+                                                             LatLonToUTM)
                     gp = GeoPoint()
-                    gp.latitude = maneuver.lat
-                    gp.longitude = maneuver.lon
+                    gp.latitude = np.degrees(maneuver.lat)
+                    gp.longitude = np.degrees(maneuver.lon)
                     # TODO check this
                     gp.altitude = -maneuver.z
-                    utm_point = self.latlontoutm_service(gp)
+                    res = latlontoutm_service(gp)
                 except rospy.service.ServiceException:
-                    rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
+                    rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
                     return None, None
 
-                waypoint = (utm_point.x, utm_point.y, maneuver.z)
+                waypoint = (res.utm_point.x, res.utm_point.y, maneuver.z)
                 waypoints.append(waypoint)
                 waypoint_man_ids.append(man_id)
 
