@@ -3,6 +3,8 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+import os
+
 import rospy
 import py_trees as pt
 import py_trees_ros as ptr
@@ -15,7 +17,7 @@ from std_msgs.msg import Float64
 from smarc_msgs.msg import Leak
 from smarc_msgs.msg import DVL
 from geometry_msgs.msg import PointStamped
-from sensor_msgs.msg import NavSatFix
+from geographic_msgs.msg import GeoPoint
 
 from auv_config import AUVConfig
 
@@ -24,7 +26,6 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
-                       A_UpdateLatLon, \
                        A_RefineMission, \
                        A_UpdateNeptusEstimatedState, \
                        A_UpdateNeptusPlanControlState, \
@@ -82,9 +83,6 @@ def const_tree(auv_config):
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.MANEUVER_ACTIONS, [])
 
-    bb.set(bb_enums.UTM_BAND, auv_config.UTM_BAND)
-    bb.set(bb_enums.UTM_ZONE, auv_config.UTM_ZONE)
-
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
             name = "A_ReadAbort",
@@ -92,15 +90,6 @@ def const_tree(auv_config):
             variable_name = bb_enums.ABORT
         )
 
-        # TODO, common interface
-        read_depth = ReadTopic(
-            name = "A_ReadDepth",
-            topic_name = auv_config.DEPTH_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.DEPTH:'data'} # this takes the Float64.data field and puts into the bb
-        )
-
-        # TODO, common interface
         read_alt = ReadTopic(
             name = "A_ReadAlt",
             topic_name = auv_config.ALTITUDE_TOPIC,
@@ -122,12 +111,14 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
         )
 
-        read_gps = ReadTopic(
-            name = "A_ReadGPS",
-            topic_name = auv_config.GPS_FIX_TOPIC,
-            topic_type = NavSatFix,
-            blackboard_variables = {bb_enums.GPS_FIX:None}
+        read_latlon = ReadTopic(
+            name = "A_ReadLatlon",
+            topic_name = auv_config.LATLON_TOPIC,
+            topic_type = GeoPoint,
+            blackboard_variables = {bb_enums.CURRENT_LATITUDE : 'latitude',
+                                    bb_enums.CURRENT_LONGITUDE : 'longitude'}
         )
+
 
         def const_neptus_tree():
             update_neptus = Sequence(name="SQ-UpdateNeptus",
@@ -145,7 +136,6 @@ def const_tree(auv_config):
 
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
-        update_latlon = A_UpdateLatLon()
         neptus_tree = const_neptus_tree()
         publish_heartbeat = A_PublishHeartbeat(auv_config.HEARTBEAT_TOPIC)
 
@@ -156,12 +146,10 @@ def const_tree(auv_config):
                         children=[
                             read_abort,
                             read_leak,
-                            read_depth,
                             read_alt,
                             read_detection,
-                            read_gps,
+                            read_latlon,
                             update_tf,
-                            update_latlon,
                             neptus_tree,
                             publish_heartbeat
                         ])
@@ -339,16 +327,7 @@ def const_tree(auv_config):
 
 
 
-def main(config, catkin_ws_path):
-
-    utm_zone = rospy.get_param("/utm_zone", common_globals.DEFAULT_UTM_ZONE)
-    utm_band = rospy.get_param("/utm_band", common_globals.DEFAULT_UTM_BAND)
-
-    bb = pt.blackboard.Blackboard()
-    bb.set(bb_enums.UTM_ZONE, utm_zone)
-    bb.set(bb_enums.UTM_BAND, utm_band)
-
-
+def main(config):
 
     try:
         rospy.loginfo("Constructing tree")
@@ -357,15 +336,25 @@ def main(config, catkin_ws_path):
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
-        #path = catkin_ws_path+'catkin_ws/src/smarc_missions/smarc_bt/last_ran_tree.txt'
-        path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir, "last_ran_tree.txt")
-        with open(path, 'w+') as f:
+        package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
+        last_ran_tree_path = os.path.join(package_path, 'last_ran_tree.txt')
+        with open(last_ran_tree_path, 'w+') as f:
             f.write(viz)
-            rospy.loginfo("Wrote the tree to {}".format(path))
+            rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
+
+        launch_path = os.path.join(package_path, 'launch', 'bt_sam.launch')
+        try:
+            config.generate_launch_file(launch_path)
+        except:
+            print("Did not generate the launch file")
+
+
 
         if setup_ok:
             rospy.loginfo("Ticktocking....")
             rate = rospy.Rate(common_globals.BT_TICK_RATE)
+
+            bb = pt.blackboard.Blackboard()
 
             while not rospy.is_shutdown():
                 tip = tree.tip()
@@ -396,23 +385,10 @@ if __name__ == '__main__':
 
     config = AUVConfig()
 
-    # uncomment this to generate bt_sam.launch file from auv_config.py
-    # do this after you add a new field into auv_config.py
-    # point path to where your catkin_ws is
-    import os
-    totally_safe_path = os.environ['ROSLISP_PACKAGE_DIRECTORIES']
-    catkin_ws_index = totally_safe_path.find('catkin_ws')
-    # this is '/home/ozer/smarc/' for me
-    catkin_ws_path = totally_safe_path[:catkin_ws_index]
-    try:
-        config.generate_launch_file(catkin_ws_path)
-    except:
-        print("Did not generate the launch file")
-
     # read all the fields from rosparams, lowercased and with ~ prepended
     print('@@@@@@@@@@@@@')
     config.read_rosparams()
     print(config)
     print('@@@@@@@@@@@@@')
-    main(config, catkin_ws_path)
+    main(config)
 

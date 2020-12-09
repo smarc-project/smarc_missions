@@ -9,14 +9,10 @@ LEAK = 'leak'
 
 DEPTH = 'depth'
 ALTITUDE = 'altitude'
-GPS_FIX = 'gps_fix'
 
 MISSION_PLAN_OBJ = 'misison_plan'
 PLAN_IS_GO = 'plan_is_go'
 MANEUVER_ACTIONS = 'maneuver_actions'
-
-UTM_BAND = 'utm_band'
-UTM_ZONE = 'utm_zone'
 
 CURRENT_LATITUDE = 'lat'
 CURRENT_LONGITUDE ='lon'

@@ -18,13 +18,12 @@ class AUVConfig(object):
         self.robot_name = 'sam'
 
         # topics
-        self.DEPTH_TOPIC = 'ctrl/odom_listener/depth_feedback'
         self.ALTITUDE_TOPIC = 'core/dvl'
         self.LEAK_TOPIC = 'core/leak'
-        self.GPS_FIX_TOPIC = 'core/gps'
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
+        self.LATLON_TOPIC = 'dr/lat_lon'
 
         self.EMERGENCY_TOPIC = 'abort'
         self.HEARTBEAT_TOPIC = 'heartbeat'
@@ -75,11 +74,6 @@ class AUVConfig(object):
         # in meters
         self.WAYPOINT_TOLERANCE = 1.5
 
-        # set global rosparams that _must_ be there to None
-        # i should find a better way of doing this but eh
-        self.UTM_ZONE = None
-        self.UTM_BAND = None
-
     def __str__(self):
         s = 'AUV_CONFIG:\n'
         for k,v in vars(self).iteritems():
@@ -88,7 +82,7 @@ class AUVConfig(object):
         return s
 
 
-    def generate_launch_file(self, catkin_ws_path):
+    def generate_launch_file(self, launchfile_path):
         def make_arg(name, default):
             return '\t<arg name="{}" default="{}" />\n'.format(name.lower(), default)
 
@@ -103,8 +97,7 @@ class AUVConfig(object):
 
         params_part += '\t</node>\n'
 
-        bt_launch_path = 'catkin_ws/src/smarc_missions/smarc_bt/launch/bt_sam.launch'
-        with open(catkin_ws_path+bt_launch_path, 'w+') as f:
+        with open(launchfile_path, 'w+') as f:
             f.write('<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM, DO NOT MODIFY src/auv_config.py -->\n\n')
             f.write('<launch>\n')
             f.write(args_part)
@@ -112,8 +105,8 @@ class AUVConfig(object):
             f.write('</launch>\n')
 
 
-        print("Generated default launch file at {}".format(catkin_ws_path+bt_launch_path))
-        print("You might need to restart the ros mon instance to read the new launch file")
+        print("Generated default launch file at {}".format(launchfile_path))
+        print("You might need to restart the launch script (mission.launch) to read the new launch file")
 
 
     def read_rosparams(self):

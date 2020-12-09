@@ -21,10 +21,6 @@
 	<!-- Options: "", or whatever is started at the bottom -->
     <arg name="path_planner_name" default=""/>
 
-	<!-- Croatia, biograd coast, should really be set from bringup -->
-    <arg name="utm_zone" default="33"/>
-    <arg name="utm_band" default="T"/>
-
 	<!-- Bridge related -->
     <arg name="neptus_addr" default="127.0.0.1"/>
     <arg name="bridge_addr" default="127.0.0.1"/>
@@ -35,38 +31,25 @@
     <arg name="imc_src" default="$(arg imc_id)"/>
     <arg name="imc_system_name" default="sam"/>
 
-	<!-- Topics -->
-    <arg name="plandb_topic" default="imc/plan_db"/>
-    <arg name="plan_control_topic" default="imc/plan_control"/>
-    <arg name="estimated_state_topic" default="imc/estimated_state"/>
-    <arg name="plan_control_state_topic" default="imc/plan_control_state"/>
-    <arg name="vehicle_state_topic" default="imc/vehicle_state"/>
-    <arg name="abort_topic" default="imc/abort"/>
-    <arg name="gps_fix_topic" default="core/gps"/>
-    <arg name="altitude_topic" default="core/dvl"/>
-    <arg name="depth_topic" default="ctrl/odom_listener/depth_feedback"/>
-
-
 
 	<!-- Action Servers -->
-    <arg name="action_namespace" default="ctrl/wp_depth_action_planner"/>
-    <arg name="emergency_action_namespace" default="ctrl/emergency_surface_action"/>
-    <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
+	<!-- <arg name="action_namespace" default="ctrl/wp_depth_action_planner"/> -->
+	<!-- <arg name="emergency_action_namespace" default="ctrl/emergency_surface_action"/> -->
+	<!-- <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/> -->
 
 
 	<!-- WP-Depth planner related -->
+	<!--  TODO make sure this is read from the BT-->
     <arg name="wp_tolerance" default="5."/>
-    <arg name="depth_tolerance" default="1."/>
 
 	<!-- Leader follower related -->
     <arg name="min_dist" default="5."/>
 
 
 	<!-- Start all actions before the BT -->
-    <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/>
-    <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/>
-    <include file="$(find auv_simple_motion_planner)/launch/leader_follower_action.launch" pass_all_args="true"/>
-
+    <!-- <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/> -->
+    <!-- <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/> -->
+    <!-- <include file="$(find auv_simple_motion_planner)/launch/leader_follower_action.launch" pass_all_args="true"/> -->
 	<include file="$(find smarc_bt)/launch/bt_sam.launch" pass_all_args="true"/>
 	<include file="$(find imc_ros_bridge)/launch/bridge_sam.launch" pass_all_args="true"/>
 

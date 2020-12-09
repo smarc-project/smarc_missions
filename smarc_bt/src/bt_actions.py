@@ -8,7 +8,6 @@ import py_trees_ros as ptr
 
 import time
 import numpy as np
-from geodesy.utm import fromLatLong, UTMPoint
 
 import rospy
 import tf
@@ -77,62 +76,6 @@ class A_SetDVLRunning(pt.behaviour.Behaviour):
 
         rospy.logwarn_throttle_identical(5, "DVL COULD NOT BE TOGGLED:{}, ret:{}".format(self.sb.data, ret))
         return pt.Status.FAILURE
-
-
-class A_SetUTMFromGPS(pt.behaviour.Behaviour):
-    def __init__(self):
-        """
-        Read GPS fix and set our utm band and zone from it.
-        Warn when there is a change in it.
-
-        Returns RUNNING until a GPS fix is read.
-        Returns SUCCESS afterwards.
-        """
-
-        self.bb = pt.blackboard.Blackboard()
-        super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
-
-        self.gps_zone = None
-        self.gps_band = None
-
-        # how many seconds to wait before we complain about bad gps.
-        # exponential backoff happens to this until max is reached.
-        self._spam_period = 1
-        self._max_spam_period = 60
-
-
-    def update(self):
-        data = self.bb.get(bb_enums.GPS_FIX)
-        if(data is None or data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
-            rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
-            # shitty gps
-            self._spam_period = min(self._spam_period*2, self._max_spam_period)
-            return pt.Status.SUCCESS
-
-        self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
-
-        if self.gps_zone is None or self.gps_band is None:
-            rospy.logwarn_throttle_identical(10, "gps zone and band from fromLatLong was None")
-            return pt.Status.SUCCESS
-
-        # first read the UTMs given by ros params
-        prev_band = self.bb.get(bb_enums.UTM_BAND)
-        prev_zone = self.bb.get(bb_enums.UTM_ZONE)
-
-        if prev_zone != self.gps_zone or prev_band != self.gps_band:
-            rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!\n Prev:"+str((prev_zone, prev_band))+" gps:"+str((self.gps_zone, self.gps_band)))
-
-            if common_globals.TRUST_GPS:
-                rospy.logwarn_once("USING GPS UTM!")
-                self.bb.set(bb_enums.UTM_ZONE, self.gps_zone)
-                self.bb.set(bb_enums.UTM_BAND, self.gps_band)
-            else:
-                rospy.logwarn_once("USING PREVIOUS UTM!")
-                self.bb.set(bb_enums.UTM_ZONE, prev_zone)
-                self.bb.set(bb_enums.UTM_BAND, prev_band)
-
-        return pt.Status.SUCCESS
-
 
 
 
@@ -538,41 +481,10 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         ps.point.z = world_trans[2]
         self.bb.set(bb_enums.LOCATION_POINT_STAMPED, ps)
 
-        return pt.Status.SUCCESS
+        # the Z component is UP, so invert to get "depth"
+        self.bb.set(bb_enums.DEPTH, -world_trans[2])
 
 
-class A_UpdateLatLon(pt.behaviour.Behaviour):
-    """
-    We use the tf to update our lat/lon instead of the actual GPS topic because
-    we might not have GPS, but tf is updated by dead-reckoninig and does all
-    kinds of filtering.
-    """
-    def __init__(self):
-        super(A_UpdateLatLon, self).__init__("A_UpdateLatLon")
-        self.bb = pt.blackboard.Blackboard()
-
-    def update(self):
-        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
-
-        # get the utm zone of our current lat,lon
-        utmz = self.bb.get(bb_enums.UTM_ZONE)
-        band = self.bb.get(bb_enums.UTM_BAND)
-
-        if utmz is None or band is None or world_trans is None:
-            reason = "Could not update current lat/lon!"
-            rospy.logwarn_throttle_identical(5, reason)
-            self.feedback_message = reason
-            return pt.Status.FAILURE
-
-
-        # get positional feedback of the p2p goal
-        easting, northing = world_trans[0], world_trans[1]
-        # make utm point
-        pnt = UTMPoint(easting=easting, northing=northing, altitude=0, zone=utmz, band=band)
-        # get lat-lon
-        pnt = pnt.toMsg()
-        self.bb.set(bb_enums.CURRENT_LATITUDE, pnt.latitude)
-        self.bb.set(bb_enums.CURRENT_LONGITUDE, pnt.longitude)
         return pt.Status.SUCCESS
 
 
@@ -870,7 +782,6 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def handle_set_plan(self, plandb_msg):
         # there is a plan we can at least look at
         mission_plan = MissionPlan(plan_frame = self.utm_link,
-                                   local_frame = self.utm_link,
                                    plandb_msg = plandb_msg)
 
 
@@ -937,11 +848,10 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
     and sets that as the current mission plan.
     always returns SUCCESS
     """
-    def __init__(self, utm_link, local_link, poi_link):
+    def __init__(self, utm_link, poi_link):
         super(A_UpdateMissonForPOI, self).__init__(name="A_UpdateMissonForPOI")
         self.bb = pt.blackboard.Blackboard()
         self.utm_link = utm_link
-        self.local_link = local_link
         self.poi_link = poi_link
         self.tf_listener = tf.TransformListener()
 
@@ -950,12 +860,12 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
         try:
-            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.poi_link, self.local_link))
-            self.tf_listener.waitForTransform(self.poi_link, self.local_link, rospy.Time(), rospy.Duration(timeout))
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.poi_link, self.utm_link))
+            self.tf_listener.waitForTransform(self.poi_link, self.utm_link, rospy.Time(), rospy.Duration(timeout))
             rospy.loginfo_throttle(3, "...Got it")
             self.poi_link_available = True
         except:
-            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.local_link+" disabling updates")
+            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.utm_link+" disabling updates")
 
         return True
 
@@ -966,7 +876,7 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         poi = self.bb.get(bb_enums.POI_POINT_STAMPED)
         if poi is None:
             return pt.Status.SUCCESS
-        poi_local = self.tf_listener.transformPoint(self.local_link, poi)
+        poi_local = self.tf_listener.transformPoint(self.utm_link, poi)
 
         x = poi_local.point.x
         y = poi_local.point.y
@@ -995,7 +905,6 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
 
         # set it in the tree
         mission_plan = MissionPlan(plan_frame = self.utm_link,
-                                   local_frame = self.local_link,
                                    plandb_msg = pdb,
                                    waypoints = waypoints,
                                    waypoint_man_ids=waypoint_man_ids)

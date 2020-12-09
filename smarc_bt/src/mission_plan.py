@@ -3,7 +3,6 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-from geodesy.utm import fromLatLong
 import rospy
 import tf
 import time
@@ -15,20 +14,21 @@ import imc_enums
 import bb_enums
 
 from geometry_msgs.msg import PointStamped, Pose, PoseArray
+from geographic_msgs.msg import GeoPoint
+
 
 class MissionPlan:
     def __init__(self,
-                 plan_frame,
-                 local_frame,
                  plandb_msg,
+                 plan_frame = 'utm',
                  waypoints=None,
                  waypoint_man_ids=None):
         """
         A container object to keep things related to the mission plan.
         """
         self.plandb_msg = plandb_msg
-        self.local_frame = local_frame
         self.plan_id = plandb_msg.plan_id
+        self.plan_frame = plan_frame
 
         self.aborted = False
 
@@ -38,7 +38,7 @@ class MissionPlan:
 
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg, plan_frame, local_frame)
+            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg)
         else:
             self.waypoints = waypoints
             self.waypoint_man_ids = waypoint_man_ids
@@ -59,17 +59,15 @@ class MissionPlan:
 
 
     @staticmethod
-    def read_plandb(plandb, plan_frame, local_frame):
+    def read_plandb(plandb):
         """
         planddb message is a bunch of nested objects,
         we want a list of waypoints in the local frame,
         """
 
-        tf_listener = tf.TransformListener()
-        try:
-            tf_listener.waitForTransform(plan_frame, local_frame, rospy.Time(), rospy.Duration(4.0))
-        except:
-            rospy.logerr_throttle(5, "Could not find tf from:"+plan_frame+" to:"+local_frame)
+        latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
+                                                 GeoPoint)
+
 
         waypoints = []
         waypoint_man_ids = []
@@ -84,26 +82,21 @@ class MissionPlan:
             maneuver = plan_man.maneuver
             # probably every maneuver has lat lon z in them, but just in case...
             if man_imc_id == imc_enums.MANEUVER_GOTO:
-                lat = maneuver.lat
-                lon = maneuver.lon
-                depth = maneuver.z
-                # TODO possibly exchange with Nils' service instead?
-                utm_point = fromLatLong(np.degrees(lat), np.degrees(lon)).toPoint()
-                stamped_utm_point = PointStamped()
-                stamped_utm_point.header.frame_id = plan_frame
-                stamped_utm_point.header.stamp = rospy.Time(0)
-                stamped_utm_point.point.x = utm_point.x
-                stamped_utm_point.point.y = utm_point.y
-                # TODO add alti control possibility too, must check that in the imc message and all that
-                stamped_utm_point.point.z = depth
                 try:
-                    waypoint_local = tf_listener.transformPoint(local_frame, stamped_utm_point)
-                    # because the frame changes changes depth, we really want the original depth
-                    waypoint = (waypoint_local.point.x, waypoint_local.point.y, depth)
-                    waypoints.append(waypoint)
-                    waypoint_man_ids.append(man_id)
-                except:
-                    rospy.logwarn_throttle_identical(10, "Can not transform plan point to local point!")
+                    gp = GeoPoint()
+                    gp.latitude = maneuver.lat
+                    gp.longitude = maneuver.lon
+                    # TODO check this
+                    gp.altitude = -maneuver.z
+                    utm_point = self.latlontoutm_service(gp)
+                except rospy.service.ServiceException:
+                    rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
+                    return None, None
+
+                waypoint = (utm_point.x, utm_point.y, maneuver.z)
+                waypoints.append(waypoint)
+                waypoint_man_ids.append(man_id)
+
             else:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
 
@@ -111,21 +104,9 @@ class MissionPlan:
 
 
 
-    def get_pose_array(self, vehicle_point_stamped=None, flip_z=False):
+    def get_pose_array(self, flip_z=False):
         pa = PoseArray()
-        pa.header.frame_id = self.local_frame
-
-        # add the vehicles location as the first waypoint
-        if vehicle_point_stamped is not None:
-            local_vehicle = self.tf_listener.transformPoint(self.local_frame, vehicle_point_stamped)
-            vp = Pose()
-            vp.position.x = local_vehicle.point.x
-            vp.position.y = local_vehicle.point.y
-            if flip_z:
-                vp.position.z = -local_vehicle.point.z
-            else:
-                vp.position.z = local_vehicle.point.z
-            pa.poses.append(vp)
+        pa.header.frame_id = self.plan_frame
 
         # add the rest of the waypoints
         for wp in self.waypoints:
@@ -143,8 +124,8 @@ class MissionPlan:
 
     def path_to_list(self, path_msg):
         frame = path_msg.header.frame_id
-        if frame != '' and frame != self.local_frame:
-            rospy.logerr_throttle_identical(5, "Refined waypoints are not in "+self.local_frame+" they are in "+frame+" !")
+        if frame != '' and frame != self.plan_frame:
+            rospy.logerr_throttle_identical(5, "Refined waypoints are not in "+self.plan_frame+" they are in "+frame+" !")
             return []
 
         wps = []
@@ -212,7 +193,7 @@ class MissionPlan:
         if self.is_complete() or self.refined_waypoints is None:
             return None
         ref_wp = self.refined_waypoints[self.current_refined_wp_index]
-        return ref_wp, self.local_frame
+        return ref_wp, self.plan_frame
 
 
 

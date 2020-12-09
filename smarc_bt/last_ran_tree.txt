@@ -2,13 +2,10 @@ SQ-ROOT
 [o] SQ-DataIngestion
     --> A_ReadAbort
     --> A_ReadLeak
-    --> A_ReadDepth
     --> A_ReadAlt
     --> A_ReadCameraDetection
-    --> A_ReadGPS
-    --> A_SetUTMFromGPS
+    --> A_ReadLatlon
     --> A_UpdateTF
-    --> A_UpdateLatLon
     [o] SQ-UpdateNeptus
         --> A_UpdateNeptusEstimatedState
         --> A_UpdateNeptusPlanControlState
