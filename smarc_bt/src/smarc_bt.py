@@ -13,7 +13,7 @@ import py_trees_ros as ptr
 from py_trees.composites import Selector as Fallback
 
 # messages
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Empty
 from smarc_msgs.msg import Leak
 from smarc_msgs.msg import DVL
 from geometry_msgs.msg import PointStamped
@@ -43,6 +43,7 @@ from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
                       ReadTopic, \
                       A_RunOnce, \
+                      A_SimplePublisher, \
                       Counter
 
 from bt_actions import A_GotoWaypoint, \
@@ -57,7 +58,6 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
-                       A_PublishHeartbeat, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
                        A_ReportMissionComplete
@@ -138,7 +138,8 @@ def const_tree(auv_config):
 
         update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
         neptus_tree = const_neptus_tree()
-        publish_heartbeat = A_PublishHeartbeat(auv_config.HEARTBEAT_TOPIC)
+        publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
+                                              message_object = Empty())
 
 
         return Sequence(name="SQ-DataIngestion",
@@ -203,10 +204,16 @@ def const_tree(auv_config):
                                A_SetNextPlanAction()
                            ])
 
+        publish_abort = A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
+                                          message_object = Empty())
+
+
+
         return Fallback(name='FB_SafetyOK',
                         children = [
                             safety_checks,
                             skip_wp,
+                            publish_abort,
                             A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
                         ])
 
@@ -345,10 +352,10 @@ def main(config):
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
         launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
-        try:
-            config.generate_launch_file(launch_path)
-        except:
-            print("Did not generate the launch file")
+        #  try:
+        config.generate_launch_file(launch_path)
+        #  except:
+            #  print("Did not generate the launch file")
 
 
 

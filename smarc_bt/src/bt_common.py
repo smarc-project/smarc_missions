@@ -34,6 +34,32 @@ class A_RunOnce(pt.behaviour.Behaviour):
 
 
 
+class A_SimplePublisher(pt.behaviour.Behaviour):
+    """
+    Simply publishes the given message when ticked and returns SUCCESS
+    """
+    def __init__(self, topic, message_object, queue_size=1):
+        super(A_SimplePublisher, self).__init__("A_SimplePublisher_"+topic)
+        self.topic = topic
+        self.message_object = message_object
+        self.message_type = type(message_object)
+        self.queue_size = queue_size
+
+    def setup(self, timeout):
+        self.pub = rospy.Publisher(self.topic, self.message_type, queue_size=self.queue_size)
+        return True
+
+    def update(self):
+        try:
+            self.pub(self.message_object)
+            return pt.Status.SUCCESS
+        except:
+            rospy.logwarn_throttle(1, "Couldn't publish into "+self.topic+"!")
+            return pt.Status.FAILURE
+
+
+
+
 class ReadTopic(pt.behaviour.Behaviour):
     """
     A simple subscriber that returns SUCCESS all the time,

@@ -25,9 +25,9 @@ class AUVConfig(object):
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
 
-        self.EMERGENCY_TOPIC = 'abort'
-        self.HEARTBEAT_TOPIC = 'heartbeat'
-        self.MISSION_COMPLETE_TOPIC = 'mission_complete'
+        self.EMERGENCY_TOPIC = '/'+self.robot_name+'/core/abort'
+        self.HEARTBEAT_TOPIC = '/'+self.robot_name+'/core/heartbeat'
+        self.MISSION_COMPLETE_TOPIC = '/'+self.robot_name+'/core/mission_complete'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
@@ -38,7 +38,7 @@ class AUVConfig(object):
         # the robot will be given the user generated waypoints to follow in that case
         self.PATH_PLANNER_NAME = 'None'
 
-        self.LATLONTOUTM_SERVICE = self.robot_name+'/lat_lon_to_utm'
+        self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/lat_lon_to_utm'
 
         # tf frame names
         self.BASE_LINK = self.robot_name+'/base_link'
@@ -86,14 +86,18 @@ class AUVConfig(object):
 
     def generate_launch_file(self, launchfile_path):
         def make_arg(name, default):
+            if type(default) == type(self.robot_name):
+                default = default.replace('/'+self.robot_name, '/$(arg robot_name)')
             return '\t<arg name="{}" default="{}" />\n'.format(name.lower(), default)
 
         def make_param(name):
             return '\t\t<param name="{}" value="$(arg {})" />\n'.format(name.lower(), name.lower())
 
-        args_part = ''
+        args_part = '\t<arg name="robot_name" default="sam" />\n\n'
         params_part ='\n\n\t<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">\n'
         for k,v in vars(self).iteritems():
+            if k == 'robot_name':
+                continue
             args_part += make_arg(k,v)
             params_part += make_param(k)
 

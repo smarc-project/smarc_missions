@@ -32,8 +32,7 @@ class MissionPlan:
         self.plan_id = plandb_msg.plan_id
         self.plan_frame = plan_frame
 
-        # self.latlontoutm_service_name = latlontoutm_service_name
-        self.latlontoutm_service_name = "/lolo/lat_lon_to_utm" 
+        self.latlontoutm_service_name = latlontoutm_service_name
 
         self.aborted = False
 

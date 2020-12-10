@@ -13,7 +13,7 @@ SQ-ROOT
         --> A_UpdateNeptusPlanDB
         --> A_UpdateNeptusPlanControl
         --> A_VizPublishPlan
-    --> A_PublishHeartbeat
+    --> A_SimplePublisher_/sam/core/heartbeat
 [o] FB_SafetyOK
     [o] SQ-SafetyChecks
         --> C_NoAbortReceived
@@ -23,6 +23,7 @@ SQ-ROOT
     [o] SQ-CountEmergenciesAndSkip
         --> A_EmergencyCounter
         --> A_SetNextPlanAction
+    --> A_SimplePublisher_/sam/core/abort
     --> A_EmergencySurface
 [o] FB-Run
     [o] SQ_PlannedMission
