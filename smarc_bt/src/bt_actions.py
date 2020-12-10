@@ -346,24 +346,20 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             return
 
         # construct the message
-        #  self.action_goal = MoveBaseGoal()
-        #  self.action_goal.target_pose.pose.position.x = wp[0]
-        #  self.action_goal.target_pose.pose.position.y = wp[1]
-        #  self.action_goal.target_pose.pose.position.z = wp[2]
-        #  self.action_goal.target_pose.header.frame_id = frame
         goal = GotoWaypointGoal()
         goal.waypoint_pose.pose.position.x = wp[0]
         goal.waypoint_pose.pose.position.y = wp[1]
-        # TODO uncomment once not read-only
-        # goal.goal_tolerance = self.goal_tolerance
+        goal.goal_tolerance = self.goal_tolerance
         # 0=None, 1=Depth, 2=Altitude
         # right now, the mission plan always has depth only.
+        # TODO read from neptus
         goal.z_control_mode = 1
         goal.travel_depth = wp[2]
         # 0=None, 1=RPM, 2=speed
+        # TODO read from neptus
         # right now, there is no planner-related thing for this
         goal.speed_control_mode = 0
-        # TODO check this
+        # TODO read from neptus too
         goal.travel_speed = 0
 
         self.action_goal = goal
@@ -945,24 +941,6 @@ class A_VizPublishPlan(pt.behaviour.Behaviour):
 
 
         return pt.Status.SUCCESS
-
-#  class A_PublishHeartbeat(pt.behaviour.Behaviour):
-    #  """
-    #  Publishes the heartbeat of bt after data ingestion process finished
-    #  """
-    #  def __init__(self, bt_heartbeat_topic):
-        #  super(A_PublishHeartbeat, self).__init__(name="A_PublishHeartbeat")
-        #  self.hb_pub = None
-        #  self.bt_heartbeat_topic = bt_heartbeat_topic
-#
-    #  def setup(self, timeout):
-        #  self.hb_pub = rospy.Publisher(self.bt_heartbeat_topic, Empty, queue_size=1)
-        #  return True
-#
-#
-    #  def update(self):
-        #  self.hb_pub.publish(Empty())
-        #  return pt.Status.SUCCESS
 
 
 class A_FollowLeader(ptr.actions.ActionClient):
