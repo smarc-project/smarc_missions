@@ -29,7 +29,6 @@ from bt_conditions import C_DepthOK, \
                           C_AltOK, \
                           C_LeakOK, \
                           C_StartPlanReceived, \
-                          C_HaveRefinedMission, \
                           C_HaveCoarseMission, \
                           C_PlanIsNotChanged, \
                           C_NoNewPOIDetected, \
@@ -50,7 +49,6 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_UpdateTF, \
                        A_EmergencySurface, \
-                       A_RefineMission, \
                        A_UpdateNeptusEstimatedState, \
                        A_UpdateNeptusPlanControlState, \
                        A_UpdateNeptusVehicleState, \
@@ -251,27 +249,19 @@ def const_tree(auv_config):
 
 
     def const_synch_tree():
-        have_refined_mission = C_HaveRefinedMission()
         have_coarse_mission = C_HaveCoarseMission()
-        refine_mission = A_RefineMission(config.PATH_PLANNER_NAME,
-                                         config.PATH_TOPIC)
         # we need one here too, to initialize the mission in the first place
         # set dont_visit to True so we dont skip the first wp of the plan
+        # and simply ready the bb to have the waypoint in it
         set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
 
 
-        refinement_tree = Sequence(name="SQ_Refinement",
-                                   children=[
-                                       have_coarse_mission,
-                                       refine_mission,
-                                       set_next_plan_action
-                                   ])
-
-        return Fallback(name='FB_SynchMission',
+        return Sequence(name="SQ_GotMission",
                         children=[
-                            have_refined_mission,
-                            refinement_tree
+                            have_coarse_mission,
+                            set_next_plan_action
                         ])
+
 
 
     def const_execute_mission_tree():
@@ -284,7 +274,6 @@ def const_tree(auv_config):
         # and this will run after every success of the goto action
         set_next_plan_action = A_SetNextPlanAction()
         plan_is_same = C_PlanIsNotChanged()
-        #  idle = pt.behaviours.Running(name="Idle")
 
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
@@ -298,7 +287,6 @@ def const_tree(auv_config):
                         children=[
                                   plan_complete,
                                   follow_plan
-                                  #  idle
                         ])
 
 
@@ -352,10 +340,10 @@ def main(config):
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
         launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
-        #  try:
-        config.generate_launch_file(launch_path)
-        #  except:
-            #  print("Did not generate the launch file")
+        try:
+            config.generate_launch_file(launch_path)
+        except:
+            print("Did not generate the launch file")
 
 
 

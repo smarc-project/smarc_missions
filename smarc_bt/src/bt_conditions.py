@@ -160,17 +160,6 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
         self.feedback_message = "Current plan:{}".format(mission_plan.plan_id)
         return pt.Status.SUCCESS
 
-class C_HaveRefinedMission(pt.behaviour.Behaviour):
-    def __init__(self):
-        self.bb = pt.blackboard.Blackboard()
-        super(C_HaveRefinedMission, self).__init__(name="C_HaveRefinedMission")
-
-    def update(self):
-        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.refined_waypoints is None:
-            return pt.Status.FAILURE
-
-        return pt.Status.SUCCESS
 
 class C_HaveCoarseMission(pt.behaviour.Behaviour):
     def __init__(self):

@@ -5,6 +5,7 @@
 
 ########################
 # IMC Enums
+# See https://github.com/LSTS/imc/blob/master/IMC.xml
 ########################
 STATE_BLOCKED = 0
 STATE_READY = 1
@@ -33,6 +34,21 @@ PLANDB_OP_BOOT = 7
 
 # TODO eventually implement other types of maneuvers
 MANEUVER_GOTO = 450
+
+
+# Speed units
+SPEED_UNIT_MPS = 0
+SPEED_UNIT_RPM = 1
+SPEED_UNIT_PERCENTAGE = 2
+
+# These are the same in smarc_msgs/GotoWaypoint.action
+# Z units
+Z_NONE = 0
+Z_DEPTH = 1
+Z_ALTITUDE = 2
+Z_HEIGHT = 3
+
+
 
 # a list of actions that we will consider
 # as the imc 'executing' state

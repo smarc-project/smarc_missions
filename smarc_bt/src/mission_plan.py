@@ -18,13 +18,39 @@ from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
 
 
+class Waypoint:
+    def __init__(self,
+                 maneuver_id,
+                 x,
+                 y,
+                 z,
+                 z_unit,
+                 speed,
+                 speed_unit,
+                 tf_frame):
+
+        self.maneuver_id = maneuver_id
+        self.x = x
+        self.y = y
+        self.z = z
+        self.z_unit = z_unit
+        self.speed = speed
+        self.speed_unit = speed_unit
+        self.tf_frame = tf_frame
+
+    def __str__(self):
+        s = '{},{},{}'.format(self.x, self.y, self.z)
+        return s
+
+
+
 class MissionPlan:
     def __init__(self,
                  plandb_msg,
                  latlontoutm_service_name,
                  plan_frame = 'utm',
-                 waypoints=None,
-                 waypoint_man_ids=None):
+                 waypoints=None
+                 ):
         """
         A container object to keep things related to the mission plan.
         """
@@ -42,21 +68,12 @@ class MissionPlan:
 
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints, self.waypoint_man_ids = self.read_plandb(plandb_msg, self.latlontoutm_service_name)
+            self.waypoints = self.read_plandb(plandb_msg, self.latlontoutm_service_name)
         else:
             self.waypoints = waypoints
-            self.waypoint_man_ids = waypoint_man_ids
-            if self.waypoint_man_ids is None:
-                self.waypoint_man_ids = []
-                for i,wp in enumerate(self.waypoints):
-                    self.waypoint_man_ids.append("Goto"+str(i+1))
-
-
-        self.refined_waypoints = None
 
         # keep track of which waypoint we are going to
         self.current_wp_index = 0
-        self.current_refined_wp_index = 0
 
         # used to report when the mission was received
         self.creation_time = time.time()
@@ -69,7 +86,6 @@ class MissionPlan:
         we want a list of waypoints in the local frame,
         """
         waypoints = []
-        waypoint_man_ids = []
         request_id = plandb.request_id
         plan_id = plandb.plan_id
         plan_spec = plandb.plan_spec
@@ -90,21 +106,31 @@ class MissionPlan:
                     gp = GeoPoint()
                     gp.latitude = np.degrees(maneuver.lat)
                     gp.longitude = np.degrees(maneuver.lon)
-                    # TODO check this
                     gp.altitude = -maneuver.z
                     res = latlontoutm_service(gp)
                 except rospy.service.ServiceException:
                     rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
                     return None, None
 
-                waypoint = (res.utm_point.x, res.utm_point.y, maneuver.z)
+
+                # these are in IMC enums, map to whatever enums the action that will consume
+                # will need when you are publishing it
+                waypoint = Waypoint(
+                    maneuver_id = man_id,
+                    tf_frame = self.plan_frame,
+                    x = res.utm_point.x,
+                    y = res.utm_point.y,
+                    z = maneuver.z,
+                    speed = maneuver.speed,
+                    z_unit = maneuver.z_units,
+                    speed_unit = maneuver.speed_units
+                )
                 waypoints.append(waypoint)
-                waypoint_man_ids.append(man_id)
 
             else:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
 
-        return waypoints, waypoint_man_ids
+        return waypoints
 
 
 
@@ -115,12 +141,12 @@ class MissionPlan:
         # add the rest of the waypoints
         for wp in self.waypoints:
             p = Pose()
-            p.position.x = wp[0]
-            p.position.y = wp[1]
+            p.position.x = wp.x
+            p.position.y = wp.y
             if flip_z:
-                p.position.z = -wp[2]
+                p.position.z = -wp.z
             else:
-                p.position.z = wp[2]
+                p.position.z = wp.z
             pa.poses.append(p)
 
         return pa
@@ -129,7 +155,7 @@ class MissionPlan:
     def path_to_list(self, path_msg):
         frame = path_msg.header.frame_id
         if frame != '' and frame != self.plan_frame:
-            rospy.logerr_throttle_identical(5, "Refined waypoints are not in "+self.plan_frame+" they are in "+frame+" !")
+            rospy.logerr_throttle_identical(5, "Waypoints are not in "+self.plan_frame+" they are in "+frame+" !")
             return []
 
         wps = []
@@ -147,28 +173,13 @@ class MissionPlan:
         s = ''
         for wp in self.waypoints:
             s += str(wp)+'\n'
-        if self.refined_waypoints is not None:
-            s += "with "+str(len(self.refined_waypoints))+" refined waypoints"
         return s
 
-
-    def set_refined_waypoints(self, refined_waypoints):
-        """
-        given the waypoints in the plan, a path planner
-        should create a more detailed and kinematically possible path
-        to follow, we will keep that in this object too
-        """
-        self.refined_waypoints = refined_waypoints
 
 
     def is_complete(self):
         # check if we are 'done'
-        if self.refined_waypoints is None:
-            # not even refined, we are def. not done
-            return False
-
-        if self.current_refined_wp_index >= len(self.refined_waypoints) or \
-           self.current_wp_index >= len(self.waypoints):
+        if self.current_wp_index >= len(self.waypoints):
             # we went tru all wps, we're done
             return True
 
@@ -177,27 +188,20 @@ class MissionPlan:
 
     def visit_wp(self):
         """ call this when you finish going to the wp"""
-        if self.is_complete() or self.refined_waypoints is None:
+        if self.is_complete():
             return
 
-        ref_wp = self.refined_waypoints[self.current_refined_wp_index]
-        coarse_wp = self.waypoints[self.current_wp_index]
-        self.current_refined_wp_index += 1
-        # check if the refined waypoint is close to a 'real' waypoint
-        # if it is, we can count the 'real' wp as reached too
-        diff = math.sqrt((ref_wp[0]-coarse_wp[0])**2 + (ref_wp[1]-coarse_wp[1])**2)
-        if diff < common_globals.COARSE_PLAN_REFINED_PLAN_THRESHOLD:
-            self.current_wp_index += 1
+        self.current_wp_index += 1
 
 
     def get_current_wp(self):
         """
         pop a wp from the remaining wps and return it
         """
-        if self.is_complete() or self.refined_waypoints is None:
+        if self.is_complete():
             return None
-        ref_wp = self.refined_waypoints[self.current_refined_wp_index]
-        return ref_wp, self.plan_frame
+        wp = self.waypoints[self.current_wp_index]
+        return wp
 
 
 

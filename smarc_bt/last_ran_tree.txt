@@ -27,12 +27,9 @@ SQ-ROOT
     --> A_EmergencySurface
 [o] FB-Run
     [o] SQ_PlannedMission
-        [o] FB_SynchMission
-            --> C_HaveRefinedMission
-            [o] SQ_Refinement
-                --> C_HaveCoarseMission
-                --> A_RefineMission
-                --> A_SetNextPlanAction
+        [o] SQ_GotMission
+            --> C_HaveCoarseMission
+            --> A_SetNextPlanAction
         [o] FB-ExecuteMissionPlan
             --> C_PlanCompleted?
             [o] SQ-FollowMissionPlan

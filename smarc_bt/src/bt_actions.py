@@ -179,67 +179,6 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         pass
 
 
-class A_RefineMission(pt.behaviour.Behaviour):
-    def __init__(self, path_planner_service_name, path_topic):
-        """
-        Takes the current mission plan object and run a path planner
-        on its waypoints.
-        """
-        self.bb = pt.blackboard.Blackboard()
-        super(A_RefineMission, self).__init__('A_RefineMission')
-        self.path_planner_service_name = path_planner_service_name
-        self.path_planner = None
-        self.path_pub = None
-        self.path_topic = path_topic
-
-        self.service_ok = False
-
-    def no_service(self):
-        return self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']
-
-    def setup(self, timeout):
-        if self.no_service():
-            return True
-
-        self.path_pub = rospy.Publisher(self.path_topic, Path, queue_size=1)
-        try:
-            rospy.wait_for_service(self.path_planner_service_name, timeout)
-            self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
-                                                   trajectory)
-            self.service_ok = True
-        except:
-            rospy.logwarn_throttle_identical(5, "Can not reach the path planner at:"+self.path_planner_service_name)
-
-        return True
-
-    def update(self):
-        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.is_complete():
-            return pt.Status.FAILURE
-
-        if self.no_service() or not self.service_ok:
-            # there is no path planner, just copy the coarse points to the refined side
-            mission_plan.set_refined_waypoints(mission_plan.waypoints)
-            return pt.Status.SUCCESS
-
-        if len(mission_plan.waypoints) <= 1:
-            # there is literally just one point, cant plan for that apparently
-            mission_plan.set_refined_waypoints(mission_plan.waypoints)
-            return pt.Status.SUCCESS
-
-
-        # give the location of the auv as the first point in the plan
-        # to prevent overshooting the first real waypoint
-        ps = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
-        trajectory_response = self.path_planner(mission_plan.get_pose_array(ps))
-        refined_path = trajectory_response.fine
-        refined_path.header.frame_id = 'map'
-        self.path_pub.publish(refined_path)
-        mission_plan.set_refined_waypoints(mission_plan.path_to_list(refined_path))
-        rospy.loginfo_throttle_identical(10, "Refined waypoints length:"+str(len(mission_plan.refined_waypoints)))
-        return pt.Status.SUCCESS
-
-
 
 
 class A_SetNextPlanAction(pt.behaviour.Behaviour):
@@ -335,36 +274,45 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
             return
 
-        wp, frame = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
+        wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
         # if this is the first ever action, we need to get it ourselves
         if wp is None:
             rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
             return
 
-        if frame != self.goal_tf_frame:
+        if wp.frame != self.goal_tf_frame:
             rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
             return
 
         # construct the message
         goal = GotoWaypointGoal()
-        goal.waypoint_pose.pose.position.x = wp[0]
-        goal.waypoint_pose.pose.position.y = wp[1]
+        goal.waypoint_pose.pose.position.x = wp.x
+        goal.waypoint_pose.pose.position.y = wp.y
         goal.goal_tolerance = self.goal_tolerance
-        # 0=None, 1=Depth, 2=Altitude
-        # right now, the mission plan always has depth only.
-        # TODO read from neptus
-        goal.z_control_mode = 1
-        goal.travel_depth = wp[2]
-        # 0=None, 1=RPM, 2=speed
-        # TODO read from neptus
-        # right now, there is no planner-related thing for this
-        goal.speed_control_mode = 0
-        # TODO read from neptus too
-        goal.travel_speed = 0
+
+        # 0=None, 1=Depth, 2=Altitude in the action
+        # thankfully these are the same in IMC and in the Action
+        # but Action doesnt have 'height'
+        if wp.z_unit == imc_enums.Z_HEIGHT:
+            wp.z_unit = imc_enums.Z_NONE
+        goal.z_control_mode = wp.z_unit
+        goal.travel_depth = wp.z
+
+        # 0=None, 1=RPM, 2=speed in the action
+        # 0=speed, 1=rpm, 2=percentage in IMC
+        if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
+        elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+        else:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
+            rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
+
+        goal.travel_speed = wp.speed
 
         self.action_goal = goal
 
-        rospy.loginfo("Goto waypoint action goal initialized:"+str(goal))
+        rospy.loginfo(">>> Goto waypoint action goal initialized:"+str(goal))
 
         # ensure that we still need to send the goal
         self.sent_goal = False
