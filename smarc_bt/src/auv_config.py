@@ -25,18 +25,15 @@ class AUVConfig(object):
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
 
-        self.EMERGENCY_TOPIC = '/'+self.robot_name+'/core/abort'
-        self.HEARTBEAT_TOPIC = '/'+self.robot_name+'/core/heartbeat'
-        self.MISSION_COMPLETE_TOPIC = '/'+self.robot_name+'/core/mission_complete'
+        self.EMERGENCY_TOPIC = 'core/abort'
+        self.HEARTBEAT_TOPIC = 'core/heartbeat'
+        self.MISSION_COMPLETE_TOPIC = 'core/mission_complete'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
         self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
         self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
-        # this can be set to None to disable the use of a path planner
-        # the robot will be given the user generated waypoints to follow in that case
-        self.PATH_PLANNER_NAME = 'None'
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/lat_lon_to_utm'
 
