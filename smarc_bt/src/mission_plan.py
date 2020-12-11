@@ -72,6 +72,9 @@ class MissionPlan:
         else:
             self.waypoints = waypoints
 
+        for wp in self.waypoints:
+            self.waypoint_man_ids.append(wp.maneuver_id)
+
         # keep track of which waypoint we are going to
         self.current_wp_index = 0
 
@@ -117,7 +120,7 @@ class MissionPlan:
                 # will need when you are publishing it
                 waypoint = Waypoint(
                     maneuver_id = man_id,
-                    tf_frame = self.plan_frame,
+                    tf_frame = 'utm',
                     x = res.utm_point.x,
                     y = res.utm_point.y,
                     z = maneuver.z,
