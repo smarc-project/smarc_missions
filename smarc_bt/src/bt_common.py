@@ -51,7 +51,7 @@ class A_SimplePublisher(pt.behaviour.Behaviour):
 
     def update(self):
         try:
-            self.pub(self.message_object)
+            self.pub.publish(self.message_object)
             return pt.Status.SUCCESS
         except:
             rospy.logwarn_throttle(1, "Couldn't publish into "+self.topic+"!")
