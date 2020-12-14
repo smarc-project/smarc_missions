@@ -31,7 +31,7 @@
 
 
 	<!-- Waypoint action related -->
-    <arg name="waypoint_tolerance" default="3."/>
+    <arg name="waypoint_tolerance" default="5."/>
 
 	<!-- Leader follower related -->
     <arg name="min_distance_to_leader" default="5."/>
