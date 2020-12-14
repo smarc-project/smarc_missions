@@ -1,0 +1,4 @@
+<launch>
+    <include file="$(find smarc_mission_sim)/launch/mission_sim.launch"/>
+    <test test-name="monitor_plan_test" pkg="smarc_mission_sim" type="monitor_plan_test.py" />
+</launch>
