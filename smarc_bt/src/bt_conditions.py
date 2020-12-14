@@ -153,7 +153,10 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
 
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or not mission_plan.is_complete():
+        if mission_plan is None:
+            rospy.loginfo_throttle(5, "No plan received yet")
+            return pt.Status.FAILURE
+        elif mission_plan.is_complete():
             rospy.loginfo_throttle_identical(5, "Plan is not done")
             return pt.Status.FAILURE
 
@@ -168,7 +171,7 @@ class C_HaveCoarseMission(pt.behaviour.Behaviour):
 
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.waypoints is None:
+        if mission_plan is None or mission_plan.waypoints is None or len(mission_plan.waypoint) <= 0:
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
