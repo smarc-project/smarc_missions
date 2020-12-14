@@ -93,7 +93,7 @@ class ReadTopic(pt.behaviour.Behaviour):
     def update(self):
         if self.msg is not None:
             self.last_read_value = copy.copy(self.msg)
-            for k,v in self.blackboard_variables.iteritems():
+            for k,v in self.blackboard_variables.items():
                 if v is None:
                     self.bb.set(k, self.msg, overwrite=True)
                 else:

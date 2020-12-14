@@ -75,7 +75,7 @@ class AUVConfig(object):
 
     def __str__(self):
         s = 'AUV_CONFIG:\n'
-        for k,v in vars(self).iteritems():
+        for k,v in vars(self).items():
             s += str(k)+':'+str(v) +'\n'
         s += '********\n'
         return s
@@ -92,7 +92,7 @@ class AUVConfig(object):
 
         args_part = '\t<arg name="robot_name" default="sam" />\n\n'
         params_part ='\n\n\t<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">\n'
-        for k,v in vars(self).iteritems():
+        for k,v in vars(self).items():
             if k == 'robot_name':
                 continue
             args_part += make_arg(k,v)
@@ -113,7 +113,7 @@ class AUVConfig(object):
 
 
     def read_rosparams(self):
-        for k,v in vars(self).iteritems():
+        for k,v in vars(self).items():
             if v is not None:
                 param_name = '~'+k.lower()
             else:
