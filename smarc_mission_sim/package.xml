@@ -1,14 +1,13 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>smarc_bt</name>
+  <name>smarc_mission_sim</name>
   <version>0.0.0</version>
-  <description>The waypoint following package</description>
+  <description>The smarc_mission_sim package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="ozero@kth.se">Ozer Ozkahraman</maintainer>
-  <maintainer email="sprague@kth.se">Christopher Iliffe Sprague</maintainer>
+  <maintainer email="nilsbore@gmail.com">nbore</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -20,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/sam_march</url> -->
+  <!-- <url type="website">http://wiki.ros.org/smarc_mission_sim</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -50,26 +49,40 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>rospy</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <!-- <build_depend>move_base_msgs</build_depend> -->
+  <build_depend>geodesy</build_depend>
+  <build_depend>geographic_msgs</build_depend>
+  <build_depend>smarc_msgs</build_depend>
   <build_depend>sensor_msgs</build_depend>
-  <build_depend>actionlib_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
   <build_depend>imc_ros_bridge</build_depend>
-  <build_depend>py_trees_ros</build_depend>
-  <!-- <build_depend>uuv_gazebo_ros_plugins_msgs</build_depend> -->
-  <build_export_depend>roscpp</build_export_depend>
-  <build_export_depend>rospy</build_export_depend>
-  <build_export_depend>std_msgs</build_export_depend>
-  <build_export_depend>py_trees_ros</build_export_depend>
-  <!-- <build_export_depend>uuv_gazebo_ros_plugins_msgs</build_export_depend> -->
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>rospy</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
+  <build_depend>rostest</build_depend>
+  <build_depend>tf_lat_lon</build_depend>
+  <build_depend>lolo_description</build_depend>
+  <build_depend>bt_mission</build_depend>
+  <build_export_depend>geodesy</build_export_depend>
+  <build_export_depend>geographic_msgs</build_export_depend>
+  <build_export_depend>smarc_msgs</build_export_depend>
+  <build_export_depend>sensor_msgs</build_export_depend>
+  <build_export_depend>nav_msgs</build_export_depend>
+  <build_export_depend>tf2_ros</build_export_depend>
+  <build_export_depend>tf2_geometry_msgs</build_export_depend>
+  <build_export_depend>imc_ros_bridge</build_export_depend>
+  <build_export_depend>tf_lat_lon</build_export_depend>
+  <build_export_depend>lolo_description</build_export_depend>
+  <build_export_depend>bt_mission</build_export_depend>
+  <exec_depend>geodesy</exec_depend>
+  <exec_depend>geographic_msgs</exec_depend>
   <exec_depend>smarc_msgs</exec_depend>
-  <exec_depend>py_trees_ros</exec_depend>
-  <!-- <exec_depend>uuv_gazebo_ros_plugins_msgs</exec_depend> -->
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>imc_ros_bridge</exec_depend>
+  <exec_depend>tf_lat_lon</exec_depend>
+  <exec_depend>lolo_description</exec_depend>
+  <exec_depend>bt_mission</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

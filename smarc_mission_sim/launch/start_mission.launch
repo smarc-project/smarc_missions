@@ -1,0 +1,6 @@
+<launch>
+
+<arg name="node_start_delay" default="5.0"/>
+<node name="neptus_start_spoofer" pkg="rostopic" type="rostopic" args="pub -f $(find smarc_mission_sim)/launch/neptus_start_msg.bagy /lolo/imc/plan_control imc_ros_bridge/PlanControl --rate 1" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@'"/>
+
+</launch>
