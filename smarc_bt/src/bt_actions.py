@@ -576,8 +576,11 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
         msg.man_id = tip_name+'('+tip_status[7]+')'
 
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.is_complete():
+        if mission_plan is None:
             msg.plan_id = 'No plan'
+            msg.plan_progress = 100.0
+        elif mission_plan.is_complete():
+            msg.plan_id = 'Mission complete'
             msg.plan_progress = 100.0
         else:
             current_wp_index = mission_plan.current_wp_index
