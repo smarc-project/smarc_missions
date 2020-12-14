@@ -18,9 +18,6 @@
 	<arg name="enable_leader_follower" default="True" />
     <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
 
-	<!-- Options: "", or whatever is started at the bottom -->
-    <arg name="path_planner_name" default=""/>
-
 	<!-- Bridge related -->
     <arg name="neptus_addr" default="127.0.0.1"/>
     <arg name="bridge_addr" default="127.0.0.1"/>
@@ -32,11 +29,6 @@
     <arg name="imc_system_name" default="sam"/>
 
 
-	<!-- Action Servers -->
-	<!-- <arg name="action_namespace" default="ctrl/wp_depth_action_planner"/> -->
-	<!-- <arg name="emergency_action_namespace" default="ctrl/emergency_surface_action"/> -->
-	<!-- <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/> -->
-
 
 	<!-- WP-Depth planner related -->
     <arg name="waypoint_tolerance" default="5."/>
@@ -46,9 +38,6 @@
 
 
 	<!-- Start all actions before the BT -->
-    <!-- <include file="$(find auv_simple_motion_planner)/launch/emergency_surface_action.launch" pass_all_args="true"/> -->
-    <!-- <include file="$(find auv_simple_motion_planner)/launch/wp_depth_action_planner.launch" pass_all_args="true"/> -->
-    <!-- <include file="$(find auv_simple_motion_planner)/launch/leader_follower_action.launch" pass_all_args="true"/> -->
 	<include file="$(find smarc_bt)/launch/smarc_bt.launch">
 		<arg name="robot_name" value="$(arg robot_name)"/>
 		<arg name="max_depth" value="$(arg max_depth)"/>
@@ -60,7 +49,6 @@
 		<arg name="leader_link" value="$(arg leader_link)"/>
 		<arg name="enable_leader_follower" value="$(arg enable_leader_follower)"/>
 		<arg name="follow_action_namespace" value="$(arg follow_action_namespace)"/>
-		<arg name="path_planner_name" value="$(arg path_planner_name)"/>
 		<arg name="waypoint_tolerance" value="$(arg waypoint_tolerance)"/>
 		<arg name="min_distance_to_leader" value="$(arg min_distance_to_leader)"/>
 	</include>
