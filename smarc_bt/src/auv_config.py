@@ -93,15 +93,16 @@ class AUVConfig(object):
         args_part = '\t<arg name="robot_name" default="sam" />\n\n'
         params_part ='\n\n\t<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">\n'
         for k,v in vars(self).iteritems():
+            params_part += make_param(k)
             if k == 'robot_name':
                 continue
-            args_part += make_arg(k,v)
-            params_part += make_param(k)
+            else:
+                args_part += make_arg(k,v)
 
         params_part += '\t</node>\n'
 
         with open(launchfile_path, 'w+') as f:
-            f.write('<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM, DO NOT MODIFY src/auv_config.py -->\n\n')
+            f.write('<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py, DO NOT MODIFY -->\n\n')
             f.write('<launch>\n')
             f.write(args_part)
             f.write(params_part)
@@ -118,11 +119,14 @@ class AUVConfig(object):
                 param_name = '~'+k.lower()
             else:
                 param_name = k.lower()
+
             rosparam_v = rospy.get_param(param_name, None)
             if rosparam_v is not None:
                 self.__dict__[k] = rosparam_v
+            else:
+                rospy.logwarn("{} parameter not read from launch file, using:{}".format(param_name, v))
 
-            assert not (v is None and rosparam_v is None), "A required global rosparam ({}) is not set!".format(k)
+            assert not (v is None and rosparam_v is None), "A required global rosparam ({}) is not set!".format(param_name)
 
 
 
