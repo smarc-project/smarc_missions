@@ -57,15 +57,18 @@
   <build_depend>sensor_msgs</build_depend>
   <build_depend>actionlib_msgs</build_depend>
   <build_depend>imc_ros_bridge</build_depend>
+  <build_depend>py_trees_ros</build_depend>
   <!-- <build_depend>uuv_gazebo_ros_plugins_msgs</build_depend> -->
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>py_trees_ros</build_export_depend>
   <!-- <build_export_depend>uuv_gazebo_ros_plugins_msgs</build_export_depend> -->
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>smarc_msgs</exec_depend>
+  <exec_depend>py_trees_ros</exec_depend>
   <!-- <exec_depend>uuv_gazebo_ros_plugins_msgs</exec_depend> -->
 
 
