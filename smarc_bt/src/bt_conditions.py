@@ -171,7 +171,7 @@ class C_HaveCoarseMission(pt.behaviour.Behaviour):
 
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.waypoints is None or len(mission_plan.waypoint) <= 0:
+        if mission_plan is None or mission_plan.waypoints is None or len(mission_plan.waypoints) <= 0:
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS
