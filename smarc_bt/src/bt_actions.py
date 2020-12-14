@@ -280,7 +280,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
             return
 
-        if wp.frame != self.goal_tf_frame:
+        if wp.tf_frame != self.goal_tf_frame:
             rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
             return
 
@@ -302,13 +302,15 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # 0=speed, 1=rpm, 2=percentage in IMC
         if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
             goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
+            goal.travel_rpm = wp.speed
         elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
             goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+            goal.travel_speed = wp.speed
         else:
             goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
             rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
 
-        goal.travel_speed = wp.speed
+        
 
         self.action_goal = goal
 
