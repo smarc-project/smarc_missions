@@ -30,7 +30,7 @@
 
 
 
-	<!-- WP-Depth planner related -->
+	<!-- Waypoint action related -->
     <arg name="waypoint_tolerance" default="5."/>
 
 	<!-- Leader follower related -->

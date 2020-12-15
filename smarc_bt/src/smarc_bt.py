@@ -290,6 +290,8 @@ def const_tree(auv_config):
                         ])
 
 
+    publish_mission_complete = A_SimplePublisher(topic = auv_config.MISSION_COMPLETE_TOPIC,
+                                                 message_object = Empty())
 
     # The root of the tree is here
 
@@ -299,7 +301,8 @@ def const_tree(auv_config):
                                   # XXX stuff in here are not modified to work with utm-frame-everything
                                   # they _could_ but not tested.
                                   # const_autonomous_updates(),
-                                  const_execute_mission_tree()
+                                  const_execute_mission_tree(),
+                                  publish_mission_complete
                                ])
 
 
@@ -309,15 +312,13 @@ def const_tree(auv_config):
                             #  const_leader_follower()
                         ])
 
-    report_mission_complete = A_ReportMissionComplete(auv_config.MISSION_COMPLETE_TOPIC)
 
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
                              # const_dvl_tree(),
-                              run_tree,
-                              report_mission_complete
+                              run_tree
                     ])
 
     return ptr.trees.BehaviourTree(root)
