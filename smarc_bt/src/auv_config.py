@@ -57,8 +57,8 @@ class AUVConfig(object):
 
         # hard values
         self.MAX_DEPTH = 20
-        self.MIN_ALTITUDE = 5
-        self.ABSOLUTE_MIN_ALTITUDE = 1
+        self.MIN_ALTITUDE = -1
+        self.ABSOLUTE_MIN_ALTITUDE = -1
         # how many ticks to run emergency action before we give up
         # on the current wp and skip it
         # in ticks
