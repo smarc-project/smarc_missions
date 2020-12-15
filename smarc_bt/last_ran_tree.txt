@@ -17,7 +17,6 @@ SQ-ROOT
 [o] FB_SafetyOK
     [o] SQ-SafetyChecks
         --> C_NoAbortReceived
-        --> C_AltOK
         --> C_DepthOK
         --> C_LeakOK
     [o] SQ-CountEmergenciesAndSkip
@@ -29,7 +28,9 @@ SQ-ROOT
     [o] SQ_PlannedMission
         [o] SQ_GotMission
             --> C_HaveCoarseMission
-            --> A_SetNextPlanAction
+            [o] FB_NoMoreActionsLeft
+                --> A_SetNextPlanAction
+                --> A_ReportMissionComplete
         [o] FB-ExecuteMissionPlan
             --> C_PlanCompleted?
             [o] SQ-FollowMissionPlan
@@ -37,4 +38,4 @@ SQ-ROOT
                 --> C_PlanIsNotChanged
                 --> A_GotoWaypoint
                 --> A_SetNextPlanAction
-        --> A_SimplePublisher_core/mission_complete
+        --> A_ReportMissionComplete

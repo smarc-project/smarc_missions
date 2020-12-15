@@ -18,7 +18,7 @@
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="base_link" default="/$(arg robot_name)/base_link" />
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
-	<arg name="waypoint_tolerance" default="1.5" />
+	<arg name="waypoint_tolerance" default="5" />
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
 	<arg name="emergency_trials_before_giving_up" default="10" />
 	<arg name="max_depth" default="20" />
@@ -40,40 +40,5 @@
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
-		<param name="mission_complete_topic" value="$(arg mission_complete_topic)" />
-		<param name="emergency_topic" value="$(arg emergency_topic)" />
-		<param name="plan_control_topic" value="$(arg plan_control_topic)" />
-		<param name="dvl_cooldown" value="$(arg dvl_cooldown)" />
-		<param name="robot_name" value="$(arg robot_name)" />
-		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
-		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
-		<param name="leader_link" value="$(arg leader_link)" />
-		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />
-		<param name="utm_link" value="$(arg utm_link)" />
-		<param name="start_stop_dvl_namespace" value="$(arg start_stop_dvl_namespace)" />
-		<param name="path_topic" value="$(arg path_topic)" />
-		<param name="poi_detector_link" value="$(arg poi_detector_link)" />
-		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
-		<param name="base_link" value="$(arg base_link)" />
-		<param name="emergency_action_namespace" value="$(arg emergency_action_namespace)" />
-		<param name="waypoint_tolerance" value="$(arg waypoint_tolerance)" />
-		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
-		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
-		<param name="max_depth" value="$(arg max_depth)" />
-		<param name="min_altitude" value="$(arg min_altitude)" />
-		<param name="abort_topic" value="$(arg abort_topic)" />
-		<param name="action_namespace" value="$(arg action_namespace)" />
-		<param name="plan_viz_topic" value="$(arg plan_viz_topic)" />
-		<param name="local_link" value="$(arg local_link)" />
-		<param name="plandb_topic" value="$(arg plandb_topic)" />
-		<param name="latlon_topic" value="$(arg latlon_topic)" />
-		<param name="leak_topic" value="$(arg leak_topic)" />
-		<param name="altitude_topic" value="$(arg altitude_topic)" />
-		<param name="enable_leader_follower" value="$(arg enable_leader_follower)" />
-		<param name="min_distance_to_leader" value="$(arg min_distance_to_leader)" />
-		<param name="follow_action_namespace" value="$(arg follow_action_namespace)" />
-		<param name="camera_detection_topic" value="$(arg camera_detection_topic)" />
-		<param name="latlontoutm_service" value="$(arg latlontoutm_service)" />
-		<param name="estimated_state_topic" value="$(arg estimated_state_topic)" />
 	</node>
 </launch>

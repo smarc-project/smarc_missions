@@ -188,7 +188,7 @@ def const_tree(auv_config):
                         blackbox_level=1,
                         children=[
                                   no_abort,
-                                  altOK,
+                                  #altOK,
                                   depthOK,
                                   leakOK
                         ])
@@ -254,12 +254,19 @@ def const_tree(auv_config):
         # set dont_visit to True so we dont skip the first wp of the plan
         # and simply ready the bb to have the waypoint in it
         set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
+        publish_mission_complete = A_ReportMissionComplete(mission_complete_topic = auv_config.MISSION_COMPLETE_TOPIC)
+
+        done_mission = Fallback(name="FB_NoMoreActionsLeft",
+                                children=[
+                                    set_next_plan_action,
+                                    publish_mission_complete
+                                    ])
 
 
         return Sequence(name="SQ_GotMission",
                         children=[
                             have_coarse_mission,
-                            set_next_plan_action
+                            done_mission
                         ])
 
 
@@ -290,8 +297,9 @@ def const_tree(auv_config):
                         ])
 
 
-    publish_mission_complete = A_SimplePublisher(topic = auv_config.MISSION_COMPLETE_TOPIC,
-                                                 message_object = Empty())
+    # publish_mission_complete = A_SimplePublisher(topic = auv_config.MISSION_COMPLETE_TOPIC,
+    #                                            message_object = Empty())
+    publish_mission_complete = A_ReportMissionComplete(mission_complete_topic = auv_config.MISSION_COMPLETE_TOPIC)
 
     # The root of the tree is here
 
