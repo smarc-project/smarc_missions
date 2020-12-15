@@ -1,26 +1,26 @@
-<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM, DO NOT MODIFY src/auv_config.py -->
+<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py, DO NOT MODIFY -->
 
 <launch>
 	<arg name="robot_name" default="sam" />
 
-	<arg name="mission_complete_topic" default="/$(arg robot_name)/core/mission_complete" />
-	<arg name="emergency_topic" default="/$(arg robot_name)/core/abort" />
+	<arg name="mission_complete_topic" default="core/mission_complete" />
+	<arg name="emergency_topic" default="core/abort" />
 	<arg name="plan_control_topic" default="imc/plan_control" />
 	<arg name="dvl_cooldown" default="0.5" />
 	<arg name="dvl_running_depth" default="0.55" />
-	<arg name="heartbeat_topic" default="/$(arg robot_name)/core/heartbeat" />
+	<arg name="heartbeat_topic" default="core/heartbeat" />
 	<arg name="leader_link" default="sam_1/base_link" />
 	<arg name="absolute_min_altitude" default="1" />
 	<arg name="utm_link" default="utm" />
 	<arg name="start_stop_dvl_namespace" default="core/toggle_dvl" />
 	<arg name="path_topic" default="ctrl/planned_path" />
-	<arg name="poi_detector_link" default="sam/camera_down_link" />
+	<arg name="poi_detector_link" default="/$(arg robot_name)/camera_down_link" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
-	<arg name="base_link" default="sam/base_link" />
+	<arg name="base_link" default="/$(arg robot_name)/base_link" />
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
 	<arg name="waypoint_tolerance" default="1.5" />
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
-	<arg name="emergency_trials_before_giving_up" default="30" />
+	<arg name="emergency_trials_before_giving_up" default="10" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="5" />
 	<arg name="abort_topic" default="imc/abort" />
@@ -32,7 +32,7 @@
 	<arg name="leak_topic" default="core/leak" />
 	<arg name="altitude_topic" default="core/dvl" />
 	<arg name="enable_leader_follower" default="True" />
-	<arg name="min_distance_to_leader" default="5" />
+	<arg name="min_distance_to_leader" default="5.0" />
 	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
 	<arg name="camera_detection_topic" default="detection/poi_down" />
 	<arg name="latlontoutm_service" default="/$(arg robot_name)/lat_lon_to_utm" />
@@ -44,6 +44,7 @@
 		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="plan_control_topic" value="$(arg plan_control_topic)" />
 		<param name="dvl_cooldown" value="$(arg dvl_cooldown)" />
+		<param name="robot_name" value="$(arg robot_name)" />
 		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
 		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
 		<param name="leader_link" value="$(arg leader_link)" />

@@ -823,6 +823,10 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         return True
 
     def update(self):
+        # UNTESTED STUFF HERE, RETURN FAILURE TO KEEP PPL
+        # FROM USING THIS ACTION
+        return pt.Status.FAILURE
+
         if not self.poi_link_available:
             return pt.Status.FAILURE
 
