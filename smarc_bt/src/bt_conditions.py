@@ -156,7 +156,7 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
         if mission_plan is None:
             rospy.loginfo_throttle(5, "No plan received yet")
             return pt.Status.FAILURE
-        elif mission_plan.is_complete():
+        elif not mission_plan.is_complete():
             rospy.loginfo_throttle_identical(5, "Plan is not done")
             return pt.Status.FAILURE
 
