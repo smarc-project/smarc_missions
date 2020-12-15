@@ -160,6 +160,7 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(5, "Plan is not done")
             return pt.Status.FAILURE
 
+        rospy.loginfo_throttle_identical(2, "Plan is complete!")
         self.feedback_message = "Current plan:{}".format(mission_plan.plan_id)
         return pt.Status.SUCCESS
 
