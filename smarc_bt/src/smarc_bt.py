@@ -335,7 +335,8 @@ def main(config):
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
         package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-        last_ran_tree_path = os.path.join(package_path, 'last_ran_tree.txt')
+        #last_ran_tree_path = os.path.join(package_path, 'last_ran_tree.txt')
+        last_ran_tree_path = 'last_ran_tree.txt' # this will put it in the ~/.ros folder if run from launch file
         with open(last_ran_tree_path, 'w+') as f:
             f.write(viz)
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
