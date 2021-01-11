@@ -355,7 +355,9 @@ def main():
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
-        last_ran_tree_path = os.path.join(package_path, 'last_ran_tree.txt')
+
+        # this will put it in the ~/.ros folder if run from launch file
+        last_ran_tree_path = 'last_ran_tree.txt'
         with open(last_ran_tree_path, 'w+') as f:
             f.write(viz)
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
