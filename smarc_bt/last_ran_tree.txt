@@ -17,6 +17,7 @@ SQ-ROOT
 [o] FB_SafetyOK
     [o] SQ-SafetyChecks
         --> C_NoAbortReceived
+        --> C_AltOK
         --> C_DepthOK
         --> C_LeakOK
     [o] SQ-CountEmergenciesAndSkip

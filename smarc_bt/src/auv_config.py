@@ -57,7 +57,7 @@ class AUVConfig(object):
 
         # hard values
         self.MAX_DEPTH = 20
-        self.MIN_ALTITUDE = -1
+        self.MIN_ALTITUDE = 1
         self.ABSOLUTE_MIN_ALTITUDE = -1
         # how many ticks to run emergency action before we give up
         # on the current wp and skip it
@@ -73,6 +73,7 @@ class AUVConfig(object):
         # in meters
         self.WAYPOINT_TOLERANCE = 1.5
 
+
     def __str__(self):
         s = 'AUV_CONFIG:\n'
         for k,v in vars(self).items():
@@ -84,7 +85,7 @@ class AUVConfig(object):
     def generate_launch_file(self, launchfile_path):
         def make_arg(name, default):
             if type(default) == type(self.robot_name):
-                default = default.replace('/'+self.robot_name, '/$(arg robot_name)')
+                default = default.replace(self.robot_name+'/', '$(arg robot_name)/')
             return '\t<arg name="{}" default="{}" />\n'.format(name.lower(), default)
 
         def make_param(name):
@@ -95,20 +96,23 @@ class AUVConfig(object):
 
         for k,v in vars(self).items():
             if k == 'robot_name':
+                params_part += make_param(k)
                 continue
             else:
                 args_part += make_arg(k,v)
+                params_part += make_param(k)
 
         params_part += '\t</node>\n'
 
+        generated_launchfile = ''
+        generated_launchfile+= '<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py, DO NOT MODIFY -->\n\n'
+        generated_launchfile+= '<launch>\n'
+        generated_launchfile+= args_part
+        generated_launchfile+= params_part
+        generated_launchfile+= '</launch>\n'
+
         with open(launchfile_path, 'w+') as f:
-            f.write('<!-- THIS LAUNCH FILE WAS AUTO-GENERATED FROM src/auv_config.py, DO NOT MODIFY -->\n\n')
-            f.write('<launch>\n')
-            f.write(args_part)
-            f.write(params_part)
-            f.write('</launch>\n')
-
-
+            f.write(generated_launchfile)
         print("Generated default launch file at {}".format(launchfile_path))
         print("You might need to restart the launch script (mission.launch) to read the new launch file")
 
