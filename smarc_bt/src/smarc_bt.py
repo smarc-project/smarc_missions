@@ -188,7 +188,7 @@ def const_tree(auv_config):
                         blackbox_level=1,
                         children=[
                                   no_abort,
-                                  #altOK,
+                                  altOK,
                                   depthOK,
                                   leakOK
                         ])
@@ -333,7 +333,20 @@ def const_tree(auv_config):
 
 
 
-def main(config):
+def main():
+
+    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
+
+    config = AUVConfig()
+    launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
+    try:
+        config.generate_launch_file(launch_path)
+    except:
+        print("Did not generate the launch file")
+
+    # read all the fields from rosparams, lowercased and with ~ prepended
+    # this might over-write the defaults, as it should
+    config.read_rosparams()
 
     try:
         rospy.loginfo("Constructing tree")
@@ -342,21 +355,16 @@ def main(config):
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
-        package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
         last_ran_tree_path = os.path.join(package_path, 'last_ran_tree.txt')
         with open(last_ran_tree_path, 'w+') as f:
             f.write(viz)
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
-        launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
-        try:
-            config.generate_launch_file(launch_path)
-        except:
-            print("Did not generate the launch file")
 
 
 
         if setup_ok:
+            rospy.loginfo(config)
             rospy.loginfo("Ticktocking....")
             rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
@@ -388,13 +396,5 @@ def main(config):
 if __name__ == '__main__':
     # init the node
     rospy.init_node("bt")
-
-    config = AUVConfig()
-
-    # read all the fields from rosparams, lowercased and with ~ prepended
-    print('@@@@@@@@@@@@@')
-    config.read_rosparams()
-    print(config)
-    print('@@@@@@@@@@@@@')
-    main(config)
+    main()
 
