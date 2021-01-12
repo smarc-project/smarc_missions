@@ -75,9 +75,30 @@ class AUVConfig(object):
 
 
     def __str__(self):
-        s = 'AUV_CONFIG:\n'
+        s = '\nAUV_CONFIG:\n'
+
+        topics = 'TOPICS:\n'
+        tflinks = 'TF LINKS:\n'
+        actions_services = 'ACTIONS AND SERVICES:\n'
+        others = 'OTHER:\n'
         for k,v in vars(self).items():
-            s += str(k)+':'+str(v) +'\n'
+            l = '\t'+str(k)+'\t: '+str(v) +'\n'
+            if 'TOPIC' in k:
+                topics += l
+            elif 'LINK' in k:
+                tflinks += l
+            elif 'ACTION' in k or 'SERVICE' in k:
+                actions_services += l
+            elif k == 'robot_name':
+                continue
+            else:
+                others += l
+
+        s += 'ROBOT_NAME:'+self.robot_name+'\n\n'
+        s += topics
+        s += tflinks
+        s += actions_services
+        s += others
         s += '********\n'
         return s
 
