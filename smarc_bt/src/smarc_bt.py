@@ -57,8 +57,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
-                       A_SetDVLRunning, \
-                       A_ReportMissionComplete
+                       A_SetDVLRunning
 
 
 # globally defined values
@@ -80,6 +79,9 @@ def const_tree(auv_config):
     # just for Neptus vehicle state for now
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.MANEUVER_ACTIONS, [])
+
+    # just for clarity when looking at the bb in the field
+    bb.set(bb_enums.MISSION_FINALIZED, False)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -254,19 +256,11 @@ def const_tree(auv_config):
         # set dont_visit to True so we dont skip the first wp of the plan
         # and simply ready the bb to have the waypoint in it
         set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
-        publish_mission_complete = A_ReportMissionComplete(mission_complete_topic = auv_config.MISSION_COMPLETE_TOPIC)
-
-        done_mission = Fallback(name="FB_NoMoreActionsLeft",
-                                children=[
-                                    set_next_plan_action,
-                                    publish_mission_complete
-                                    ])
-
 
         return Sequence(name="SQ_GotMission",
                         children=[
                             have_coarse_mission,
-                            done_mission
+                            set_next_plan_action
                         ])
 
 
@@ -297,9 +291,23 @@ def const_tree(auv_config):
                         ])
 
 
-    # publish_mission_complete = A_SimplePublisher(topic = auv_config.MISSION_COMPLETE_TOPIC,
-    #                                            message_object = Empty())
-    publish_mission_complete = A_ReportMissionComplete(mission_complete_topic = auv_config.MISSION_COMPLETE_TOPIC)
+    def const_finalize_mission():
+        publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
+                                             message_object = Empty())
+
+        set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
+                                                            variable_value = True,
+                                                            name = 'A_SetMissionFinalized')
+
+        return Sequence(name="SQ-FinalizeMission",
+                        children=[
+                                  C_HaveCoarseMission(),
+                                  C_StartPlanReceived(),
+                                  C_PlanIsNotChanged(),
+                                  C_PlanCompleted(),
+                                  publish_complete,
+                                  set_finalized
+                        ])
 
     # The root of the tree is here
 
@@ -310,15 +318,24 @@ def const_tree(auv_config):
                                   # they _could_ but not tested.
                                   # const_autonomous_updates(),
                                   const_execute_mission_tree(),
-                                  publish_mission_complete
+                                  const_finalize_mission()
                                ])
 
 
+    # use this to kind of set the tree to 'idle' mode that wont attempt
+    # to control anything and just chills as an observer
+    finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
+                                                 True,
+                                                 "MissionFinalized")
+
     run_tree = Fallback(name="FB-Run",
                         children=[
+                            finalized,
                             planned_mission,
                             #  const_leader_follower()
                         ])
+
+
 
 
     root = Sequence(name='SQ-ROOT',
