@@ -331,7 +331,7 @@ def const_tree(auv_config):
     run_tree = Fallback(name="FB-Run",
                         children=[
                             finalized,
-                            planned_mission,
+                            planned_mission
                             #  const_leader_follower()
                         ])
 
