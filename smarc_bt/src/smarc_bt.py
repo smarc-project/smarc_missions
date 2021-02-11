@@ -57,8 +57,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
-                       A_SetDVLRunning, \
-                       A_ReportMissionComplete
+                       A_SetDVLRunning
 
 
 # globally defined values
@@ -80,6 +79,9 @@ def const_tree(auv_config):
     # just for Neptus vehicle state for now
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.MANEUVER_ACTIONS, [])
+
+    # just for clarity when looking at the bb in the field
+    bb.set(bb_enums.MISSION_FINALIZED, False)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -255,7 +257,6 @@ def const_tree(auv_config):
         # and simply ready the bb to have the waypoint in it
         set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
 
-
         return Sequence(name="SQ_GotMission",
                         children=[
                             have_coarse_mission,
@@ -290,8 +291,23 @@ def const_tree(auv_config):
                         ])
 
 
-    publish_mission_complete = A_SimplePublisher(topic = auv_config.MISSION_COMPLETE_TOPIC,
-                                                 message_object = Empty())
+    def const_finalize_mission():
+        publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
+                                             message_object = Empty())
+
+        set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
+                                                            variable_value = True,
+                                                            name = 'A_SetMissionFinalized')
+
+        return Sequence(name="SQ-FinalizeMission",
+                        children=[
+                                  C_HaveCoarseMission(),
+                                  C_StartPlanReceived(),
+                                  C_PlanIsNotChanged(),
+                                  C_PlanCompleted(),
+                                  publish_complete,
+                                  set_finalized
+                        ])
 
     # The root of the tree is here
 
@@ -302,15 +318,24 @@ def const_tree(auv_config):
                                   # they _could_ but not tested.
                                   # const_autonomous_updates(),
                                   const_execute_mission_tree(),
-                                  publish_mission_complete
+                                  const_finalize_mission()
                                ])
 
 
+    # use this to kind of set the tree to 'idle' mode that wont attempt
+    # to control anything and just chills as an observer
+    finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
+                                                 True,
+                                                 "MissionFinalized")
+
     run_tree = Fallback(name="FB-Run",
                         children=[
-                            planned_mission,
+                            finalized,
+                            planned_mission
                             #  const_leader_follower()
                         ])
+
+
 
 
     root = Sequence(name='SQ-ROOT',
@@ -325,7 +350,20 @@ def const_tree(auv_config):
 
 
 
-def main(config):
+def main():
+
+    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
+
+    config = AUVConfig()
+    launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
+    try:
+        config.generate_launch_file(launch_path)
+    except:
+        print("Did not generate the launch file")
+
+    # read all the fields from rosparams, lowercased and with ~ prepended
+    # this might over-write the defaults, as it should
+    config.read_rosparams()
 
     try:
         rospy.loginfo("Constructing tree")
@@ -334,22 +372,18 @@ def main(config):
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
-        package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-        #last_ran_tree_path = os.path.join(package_path, 'last_ran_tree.txt')
-        last_ran_tree_path = 'last_ran_tree.txt' # this will put it in the ~/.ros folder if run from launch file
+
+        # this will put it in the ~/.ros folder if run from launch file
+        last_ran_tree_path = 'last_ran_tree.txt'
         with open(last_ran_tree_path, 'w+') as f:
             f.write(viz)
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
-        launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
-        try:
-            config.generate_launch_file(launch_path)
-        except:
-            print("Did not generate the launch file")
 
 
 
         if setup_ok:
+            rospy.loginfo(config)
             rospy.loginfo("Ticktocking....")
             rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
@@ -381,13 +415,5 @@ def main(config):
 if __name__ == '__main__':
     # init the node
     rospy.init_node("bt")
-
-    config = AUVConfig()
-
-    # read all the fields from rosparams, lowercased and with ~ prepended
-    print('@@@@@@@@@@@@@')
-    config.read_rosparams()
-    print(config)
-    print('@@@@@@@@@@@@@')
-    main(config)
+    main()
 
