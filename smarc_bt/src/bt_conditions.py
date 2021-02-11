@@ -149,7 +149,7 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
         return FAILURE otherwise
         """
         self.bb = pt.blackboard.Blackboard()
-        super(C_PlanCompleted, self).__init__(name="C_PlanCompleted?")
+        super(C_PlanCompleted, self).__init__(name="C_PlanCompleted")
 
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)

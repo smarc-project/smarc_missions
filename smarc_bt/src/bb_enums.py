@@ -36,3 +36,8 @@ TREE_TIP_STATUS = 'tree_tip_status'
 
 DVL_IS_RUNNING = 'dvl_is_running'
 
+# to set once the BT is 'DONE' done. LIke, it wont want to
+# set new waypoints or anything, and is just there chillin
+# and handling stuff like neptus etc.
+MISSION_FINALIZED = 'mission_finalized'
+
