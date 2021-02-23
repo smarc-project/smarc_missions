@@ -204,8 +204,12 @@ def const_tree(auv_config):
                                A_SetNextPlanAction()
                            ])
 
-        publish_abort = A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
-                                          message_object = Empty())
+        abort = Sequence(name="SQ-ABORT",
+                         children = [
+                            A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
+                                              message_object = Empty()),
+                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                         ])
 
 
 
@@ -213,8 +217,9 @@ def const_tree(auv_config):
                         children = [
                             safety_checks,
                             skip_wp,
-                            publish_abort,
-                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                            abort
+                            #  publish_abort,
+                            #  A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
                         ])
 
 
