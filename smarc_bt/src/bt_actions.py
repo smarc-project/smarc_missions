@@ -185,7 +185,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def __init__(self, do_not_visit=False):
         """
         Sets the current plan action to the next one
-        RUNNING if it can set it to something that is not None
+        SUCCESS if it can set it to something that is not None
         FAILURE otherwise
 
         if do_not_visit=True, then this action will only get the current wp
