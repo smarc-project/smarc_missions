@@ -83,6 +83,26 @@ class MissionPlan:
 
 
     @staticmethod
+    def latlon_to_utm(lat, lon, z):
+        rospy.loginfo("Waiting for latlontoutm service "+str(latlontoutm_service_name))
+        rospy.wait_for_service(latlontoutm_service_name)
+        rospy.loginfo("Got latlontoutm service")
+        try:
+            latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
+                                                     LatLonToUTM)
+            gp = GeoPoint()
+            gp.latitude = np.degrees(lat)
+            gp.longitude = np.degrees(lon)
+            gp.altitude = z
+            res = latlontoutm_service(gp)
+            return (res.utm_point.x, res.utm_point.y)
+        except rospy.service.ServiceException:
+            rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
+            return (None, None)
+
+
+
+    @staticmethod
     def read_plandb(plandb, latlontoutm_service_name):
         """
         planddb message is a bunch of nested objects,
@@ -100,29 +120,18 @@ class MissionPlan:
             maneuver = plan_man.maneuver
             # probably every maneuver has lat lon z in them, but just in case...
             if man_imc_id == imc_enums.MANEUVER_GOTO:
-                rospy.loginfo("Waiting for latlontoutm service "+str(latlontoutm_service_name))
-                rospy.wait_for_service(latlontoutm_service_name)
-                rospy.loginfo("Got latlontoutm service")
-                try:
-                    latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
-                                                             LatLonToUTM)
-                    gp = GeoPoint()
-                    gp.latitude = np.degrees(maneuver.lat)
-                    gp.longitude = np.degrees(maneuver.lon)
-                    gp.altitude = -maneuver.z
-                    res = latlontoutm_service(gp)
-                except rospy.service.ServiceException:
-                    rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
-                    return None, None
-
+                utm_x, utm_y = self.latlon_to_utm(maneuver.lat, maneuver.lon, -maneuver.z)
+                if utm_x is None:
+                    rospy.logwarn("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon)))
+                    continue
 
                 # these are in IMC enums, map to whatever enums the action that will consume
                 # will need when you are publishing it
                 waypoint = Waypoint(
                     maneuver_id = man_id,
                     tf_frame = 'utm',
-                    x = res.utm_point.x,
-                    y = res.utm_point.y,
+                    x = utm_x,
+                    y = utm_y,
                     z = maneuver.z,
                     speed = maneuver.speed,
                     z_unit = maneuver.z_units,
@@ -131,7 +140,7 @@ class MissionPlan:
                 waypoints.append(waypoint)
 
             else:
-                rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
+                rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER: id:{}, name:{}".format(man_imc_id, man_name))
 
         return waypoints
 
