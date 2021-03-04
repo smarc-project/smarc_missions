@@ -205,9 +205,11 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
         if not self.do_not_visit:
             mission_plan.visit_wp()
+
         next_action = mission_plan.get_current_wp()
         if next_action is None:
             self.feedback_message = "Next action was None"
+            rospy.logwarn_throttle(5, "Mission is complete:{}".format(mission_plan.is_complete()))
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))
@@ -284,6 +286,10 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
             return
 
+        if wp.maneuver_id == imc_enums.MANEUVER_SAMPLE:
+            # TODO change this behaviour lol
+            rospy.logwarn(5, "THIS IS A SAMPLE MANEUVER, WE ARE USING SIMPLE GOTO FOR THIS!!!")
+
         # construct the message
         goal = GotoWaypointGoal()
         goal.waypoint_pose.pose.position.x = wp.x
@@ -310,7 +316,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
             rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
 
-        
 
         self.action_goal = goal
 

@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
@@ -322,8 +322,7 @@ def const_tree(auv_config):
                                   # XXX stuff in here are not modified to work with utm-frame-everything
                                   # they _could_ but not tested.
                                   # const_autonomous_updates(),
-                                  const_execute_mission_tree(),
-                                  const_finalize_mission()
+                                  const_execute_mission_tree()
                                ])
 
 
@@ -336,6 +335,7 @@ def const_tree(auv_config):
     run_tree = Fallback(name="FB-Run",
                         children=[
                             finalized,
+                            const_finalize_mission(),
                             planned_mission
                             #  const_leader_follower()
                         ])
