@@ -118,7 +118,7 @@ class MissionPlan:
         plan_spec = plandb.plan_spec
 
         if len(plan_spec.maneuvers) <= 0:
-            print("THERE WERE NO MANEUVERS IN THE PLAN! plan_id:{} (Does this vehicle know of your plan's maneuvers?)".format(plan_id))
+            rospy.logwarn("THERE WERE NO MANEUVERS IN THE PLAN! plan_id:{} (Does this vehicle know of your plan's maneuvers?)".format(plan_id))
 
         for plan_man in plan_spec.maneuvers:
             man_id = plan_man.maneuver_id
@@ -130,7 +130,7 @@ class MissionPlan:
             if man_imc_id == imc_enums.MANEUVER_GOTO or man_imc_id == imc_enums.MANEUVER_SAMPLE:
                 utm_x, utm_y = MissionPlan.latlon_to_utm(maneuver.lat, maneuver.lon, -maneuver.z, latlontoutm_service_name)
                 if utm_x is None:
-                    print("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
+                    rospy.logwarn("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
                     continue
 
                 extra_data = {}
@@ -156,10 +156,10 @@ class MissionPlan:
                 waypoints.append(waypoint)
 
             else:
-                print("SKIPPING UNIMPLEMENTED MANEUVER: id:{}, name:{}".format(man_imc_id, man_name))
+                rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER: id:{}, name:{}".format(man_imc_id, man_name))
 
         if len(waypoints) <= 0:
-            print("NO MANEUVERS IN MISSION PLAN!")
+            rospy.logwarn("NO MANEUVERS IN MISSION PLAN!")
 
         return waypoints
 
