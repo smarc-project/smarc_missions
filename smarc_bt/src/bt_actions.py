@@ -503,12 +503,12 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             self.bb.set(bb_enums.PLAN_IS_GO, True)
             self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
-                rospy.loginfo_throttle_identical(20, "Started plan:"+str(plan_id))
+                rospy.loginfo("Started plan:{}".format(plan_id))
             else:
                 if current_mission_plan is None:
-                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" but we don't have a plan!:")
+                    rospy.logwarn("Start given for plan:{} but we don't have a plan!".format(plan_id))
                 else:
-                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
+                    rospy.logwarn("Start given for plan:{} our plan:{}".format(plan_id, current_mission_plan.plan_id))
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
@@ -521,6 +521,8 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             self.bb.set(bb_enums.ENABLE_AUTONOMY, True)
             rospy.logwarn_throttle_identical(10, "AUTONOMOUS MODE")
 
+        # reset it until next message
+        self.plan_control_msg = None
         return pt.Status.SUCCESS
 
 
