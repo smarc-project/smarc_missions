@@ -133,7 +133,12 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
 
     def update(self):
         plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
-        self.feedback_message = "Plan is go:{}".format(plan_is_go)
+        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if plan is None:
+            self.feedback_message = "No plan"
+            return pt.Status.FAILURE
+
+        self.feedback_message = "Plan is go:{} for plan {}".format(plan_is_go, plan.plan_id)
         if plan_is_go is None or plan_is_go == False:
             rospy.loginfo_throttle_identical(5, "Waiting for start plan")
             return pt.Status.FAILURE
@@ -195,7 +200,8 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             # there is no plan, it can not change
             self.last_known_id = None
             self.last_known_time = 0
-            rospy.loginfo_throttle_identical(10, "There was no plan, plan is not changed")
+            self.feedback_message = "There was no plan, plan is not changed"
+            rospy.loginfo_throttle_identical(10, self.feedback_message)
             return pt.Status.SUCCESS
 
         if self.last_known_id is None:
@@ -203,18 +209,31 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             # record it, and let the tree tick again
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
-            rospy.loginfo_throttle_identical(10, "First time seeing any plan, plan is changed")
+            self.feedback_message = "First time seeing any plan, plan is changed"
+            rospy.loginfo_throttle_identical(10, self.feedback_message)
             return pt.Status.FAILURE
 
         if self.last_known_id == current_plan.plan_id and self.last_known_time < current_plan.creation_time:
             # this is the same plan, but it was sent again, this means a restart
             # so the plan IS changed
-            rospy.loginfo_throttle_identical(10, "Same plan_id, but the current plan is newer, plan is changed")
+            self.feedback_message = "Same plan_id, but the current plan is newer, plan is changed"
+            rospy.loginfo_throttle_identical(10, self.feedback_message)
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
+            self.bb.set(bb_enums.PLAN_IS_GO, False)
             return pt.Status.FAILURE
 
-        rospy.loginfo_throttle_identical(60, "Plan is not changed")
+        if self.last_known_id != current_plan.plan_id:
+            # the plan has been changed completely
+            self.feedback_message = "A new plan is received!"
+            rospy.loginfo_throttle_identical(10, self.feedback_message)
+            self.last_known_id = current_plan.plan_id
+            self.last_known_time = current_plan.creation_time
+            self.bb.set(bb_enums.PLAN_IS_GO, False)
+            return pt.Status.FAILURE
+
+        self.feedback_message = "last_id:{}, current_id:{}".format(self.last_known_id, current_plan.plan_id)
+        rospy.loginfo_throttle_identical(10, self.feedback_message)
         return pt.Status.SUCCESS
 
 
