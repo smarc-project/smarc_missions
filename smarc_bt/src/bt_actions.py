@@ -276,10 +276,16 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
             return
 
-        wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
-        # if this is the first ever action, we need to get it ourselves
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission_plan is None:
+            rospy.logwarn("No mission plan found!")
+            return
+
+        wp = mission_plan.get_current_wp()
+        # wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
+        # # if this is the first ever action, we need to get it ourselves
         if wp is None:
-            rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
+            rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
             return
 
         if wp.tf_frame != self.goal_tf_frame:
@@ -744,7 +750,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
         self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
-        rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
+        self.bb.set(bb_enums.MISSION_FINALIZED, False)
+        rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
 
 
     def handle_plandb_msg(self):

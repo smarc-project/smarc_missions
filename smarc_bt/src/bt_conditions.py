@@ -61,7 +61,7 @@ class C_DepthOK(pt.behaviour.Behaviour):
 
     def update(self):
         depth = self.bb.get(bb_enums.DEPTH)
-        self.feedback_message = "Last read:{}".format(depth)
+        self.feedback_message = "Last read:{}, max:{}".format(depth, self.max_depth)
 
         if depth is None:
             rospy.logwarn_throttle(5, "NO DEPTH READ!")
@@ -99,7 +99,7 @@ class C_AltOK(pt.behaviour.Behaviour):
 
     def update(self):
         alt = self.bb.get(bb_enums.ALTITUDE)
-        self.feedback_message = "Last read:{}".format(alt)
+        self.feedback_message = "Last read:{}, min:{}".format(alt, self.min_alt)
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
             return pt.Status.SUCCESS
@@ -175,6 +175,7 @@ class C_HaveCoarseMission(pt.behaviour.Behaviour):
         if mission_plan is None or mission_plan.waypoints is None or len(mission_plan.waypoints) <= 0:
             return pt.Status.FAILURE
 
+        self.feedback_message = "Current plan:{}".format(mission_plan.plan_id)
         return pt.Status.SUCCESS
 
 class C_PlanIsNotChanged(pt.behaviour.Behaviour):
