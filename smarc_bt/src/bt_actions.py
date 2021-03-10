@@ -772,19 +772,19 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
             self.handle_request_get_state(plandb_msg)
 
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_SET:
-            rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb set")
+            self.feedback_message =  "Got SUCCESS for plandb set"
 
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_GET_INFO:
-            rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb get info")
+            self.feedback_message =  "Got SUCCESS for plandb get info"
 
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_GET_STATE:
-            rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb get state")
+            self.feedback_message =  "Got SUCCESS for plandb get state"
 
         elif op == imc_enums.PLANDB_OP_SET:
             self.handle_set_plan(plandb_msg)
 
         else:
-            rospy.loginfo_throttle_identical(5, "Received some unhandled planDB message:\n"+str(plandb_msg))
+            self.feedback_message = "Got some unhandled planDB message:\n"+str(plandb_msg)
 
 
 
@@ -792,19 +792,21 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def respond_set_success(self):
         current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
-            rospy.logwarn_throttle_identical(30, "No mission plan obj!")
+            self.feedback_message = "No mission plan obj!"
             return
 
         plan_id = current_mission_plan.plan_id
         self.plandb_msg.plan_id = plan_id
         self.plandb_pub.publish(self.plandb_msg)
-        rospy.loginfo_throttle_identical(30, "Answered set success for plan_id:"+str(plan_id))
+        self.feedback_message =  "Answered set success for plan_id:"+str(plan_id)
 
     def update(self):
         # we just want to tell neptus we got the plan all the time
         # this keeps the thingy green
         self.respond_set_success()
         self.handle_plandb_msg()
+        # reset
+        self.latest_plandb_msg = None
         return pt.Status.SUCCESS
 
 

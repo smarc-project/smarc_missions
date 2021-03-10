@@ -32,10 +32,11 @@ PLANDB_OP_GET_STATE = 5
 PLANDB_OP_GET_DSTATE = 6
 PLANDB_OP_BOOT = 7
 
-# TODO eventually implement other types of maneuvers
 # see mission_plan -> read_plandb
 MANEUVER_GOTO = 450
+MANEUVER_GOTO_STR = "goto"
 MANEUVER_SAMPLE = 489
+MANEUVER_SAMPLE_STR = "sample"
 
 
 # Speed units
@@ -63,3 +64,5 @@ EXECUTING_ACTION_NAMES =[
 BLOCKED_ACTION_NAMES =[
     'A_EmergencySurface'
 ]
+
+

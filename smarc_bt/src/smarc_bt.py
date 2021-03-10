@@ -36,7 +36,8 @@ from bt_conditions import C_DepthOK, \
                           C_LeaderFollowerEnabled, \
                           C_LeaderExists, \
                           C_LeaderIsFarEnough, \
-                          C_AtDVLDepth
+                          C_AtDVLDepth, \
+                          C_CheckWaypointType
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -271,20 +272,49 @@ def const_tree(auv_config):
 
 
     def const_execute_mission_tree():
-        gotowp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
-                                goal_tf_frame = auv_config.UTM_LINK)
+        # GOTO
+        goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                     goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+                                     goal_tf_frame = auv_config.UTM_LINK)
+        wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
+        goto_maneuver = Sequence(name="SQ-GotoWaypoint",
+                                 children=[
+                                     wp_is_goto,
+                                     goto_action
+                                 ])
 
 
+        # SAMPLE
+        #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
+        sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                       goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+                                       goal_tf_frame = auv_config.UTM_LINK)
+        wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
+        sample_maneuver = Sequence(name="SQ-SampleWaypoint",
+                                 children=[
+                                     wp_is_sample,
+                                     sample_action
+                                 ])
+
+        # put the known plannable maneuvers in here as each others backups
+        execute_maneuver = Fallback(name="FB-ExecuteManeuver",
+                                    children=[
+                                        goto_maneuver,
+                                        sample_maneuver
+                                    ])
+
+
+        # and then execute them in order
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
                                          C_PlanIsNotChanged(),
-                                         gotowp,
+                                         execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
 
+        # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
@@ -312,14 +342,6 @@ def const_tree(auv_config):
 
     # The root of the tree is here
 
-    # planned_mission = Sequence(name="SQ_PlannedMission",
-                               # children=[
-                                  # const_synch_tree(),
-                                  # XXX stuff in here are not modified to work with utm-frame-everything
-                                  # they _could_ but not tested.
-                                  # const_autonomous_updates(),
-                                  # const_execute_mission_tree()
-                               # ])
 
     planned_mission = const_execute_mission_tree()
 
@@ -327,8 +349,8 @@ def const_tree(auv_config):
     # use this to kind of set the tree to 'idle' mode that wont attempt
     # to control anything and just chills as an observer
     finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
-                                                 True,
-                                                 "MissionFinalized")
+                                             True,
+                                             "MissionFinalized")
 
     run_tree = Fallback(name="FB-Run",
                         children=[
