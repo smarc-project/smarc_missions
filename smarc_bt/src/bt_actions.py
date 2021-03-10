@@ -185,7 +185,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def __init__(self, do_not_visit=False):
         """
         Sets the current plan action to the next one
-        RUNNING if it can set it to something that is not None
+        SUCCESS if it can set it to something that is not None
         FAILURE otherwise
 
         if do_not_visit=True, then this action will only get the current wp
@@ -205,9 +205,11 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
         if not self.do_not_visit:
             mission_plan.visit_wp()
+
         next_action = mission_plan.get_current_wp()
         if next_action is None:
             self.feedback_message = "Next action was None"
+            rospy.logwarn_throttle(5, "Mission is complete:{}".format(mission_plan.is_complete()))
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))
@@ -274,15 +276,25 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
             return
 
-        wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
-        # if this is the first ever action, we need to get it ourselves
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission_plan is None:
+            rospy.logwarn("No mission plan found!")
+            return
+
+        wp = mission_plan.get_current_wp()
+        # wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
+        # # if this is the first ever action, we need to get it ourselves
         if wp is None:
-            rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
+            rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
             return
 
         if wp.tf_frame != self.goal_tf_frame:
             rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
             return
+
+        if wp.maneuver_id == imc_enums.MANEUVER_SAMPLE:
+            # TODO change this behaviour lol
+            rospy.logwarn(5, "THIS IS A SAMPLE MANEUVER, WE ARE USING SIMPLE GOTO FOR THIS!!!")
 
         # construct the message
         goal = GotoWaypointGoal()
@@ -310,7 +322,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
             rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
 
-        
 
         self.action_goal = goal
 
@@ -492,12 +503,12 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             self.bb.set(bb_enums.PLAN_IS_GO, True)
             self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
-                rospy.loginfo_throttle_identical(20, "Started plan:"+str(plan_id))
+                rospy.loginfo("Started plan:{}".format(plan_id))
             else:
                 if current_mission_plan is None:
-                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" but we don't have a plan!:")
+                    rospy.logwarn("Start given for plan:{} but we don't have a plan!".format(plan_id))
                 else:
-                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
+                    rospy.logwarn("Start given for plan:{} our plan:{}".format(plan_id, current_mission_plan.plan_id))
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
@@ -510,6 +521,8 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             self.bb.set(bb_enums.ENABLE_AUTONOMY, True)
             rospy.logwarn_throttle_identical(10, "AUTONOMOUS MODE")
 
+        # reset it until next message
+        self.plan_control_msg = None
         return pt.Status.SUCCESS
 
 
@@ -739,7 +752,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
         self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
-        rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
+        self.bb.set(bb_enums.MISSION_FINALIZED, False)
+        rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
 
 
     def handle_plandb_msg(self):
