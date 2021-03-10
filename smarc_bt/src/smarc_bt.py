@@ -204,8 +204,12 @@ def const_tree(auv_config):
                                A_SetNextPlanAction()
                            ])
 
-        publish_abort = A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
-                                          message_object = Empty())
+        abort = Sequence(name="SQ-ABORT",
+                         children = [
+                            A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
+                                              message_object = Empty()),
+                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                         ])
 
 
 
@@ -213,8 +217,9 @@ def const_tree(auv_config):
                         children = [
                             safety_checks,
                             skip_wp,
-                            publish_abort,
-                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                            abort
+                            #  publish_abort,
+                            #  A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
                         ])
 
 
@@ -266,27 +271,23 @@ def const_tree(auv_config):
 
 
     def const_execute_mission_tree():
-        plan_complete = C_PlanCompleted()
-        # but still wait for operator to tell us to 'go'
-        start_received = C_StartPlanReceived()
         gotowp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                 goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                 goal_tf_frame = auv_config.UTM_LINK)
-        # and this will run after every success of the goto action
-        set_next_plan_action = A_SetNextPlanAction()
-        plan_is_same = C_PlanIsNotChanged()
+
 
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
-                                         start_received,
-                                         plan_is_same,
+                                         C_HaveCoarseMission(),
+                                         C_StartPlanReceived(),
+                                         C_PlanIsNotChanged(),
                                          gotowp,
-                                         set_next_plan_action
+                                         A_SetNextPlanAction()
                                ])
 
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
-                                  plan_complete,
+                                  C_PlanCompleted(),
                                   follow_plan
                         ])
 
@@ -311,15 +312,16 @@ def const_tree(auv_config):
 
     # The root of the tree is here
 
-    planned_mission = Sequence(name="SQ_PlannedMission",
-                               children=[
-                                  const_synch_tree(),
+    # planned_mission = Sequence(name="SQ_PlannedMission",
+                               # children=[
+                                  # const_synch_tree(),
                                   # XXX stuff in here are not modified to work with utm-frame-everything
                                   # they _could_ but not tested.
                                   # const_autonomous_updates(),
-                                  const_execute_mission_tree(),
-                                  const_finalize_mission()
-                               ])
+                                  # const_execute_mission_tree()
+                               # ])
+
+    planned_mission = const_execute_mission_tree()
 
 
     # use this to kind of set the tree to 'idle' mode that wont attempt
@@ -331,6 +333,7 @@ def const_tree(auv_config):
     run_tree = Fallback(name="FB-Run",
                         children=[
                             finalized,
+                            const_finalize_mission(),
                             planned_mission
                             #  const_leader_follower()
                         ])

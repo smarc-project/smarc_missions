@@ -21,15 +21,18 @@ from smarc_msgs.srv import LatLonToUTM
 class Waypoint:
     def __init__(self,
                  maneuver_id,
+                 maneuver_name,
                  x,
                  y,
                  z,
                  z_unit,
                  speed,
                  speed_unit,
-                 tf_frame):
+                 tf_frame,
+                 extra_data):
 
         self.maneuver_id = maneuver_id
+        self.maneuver_name = maneuver_name
         self.x = x
         self.y = y
         self.z = z
@@ -37,9 +40,10 @@ class Waypoint:
         self.speed = speed
         self.speed_unit = speed_unit
         self.tf_frame = tf_frame
+        self.extra_data = extra_data
 
     def __str__(self):
-        s = '{},{},{}'.format(self.x, self.y, self.z)
+        s = '{}:{},{},{}'.format(self.maneuver_name,self.x, self.y, self.z)
         return s
 
 
@@ -68,7 +72,7 @@ class MissionPlan:
 
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints = self.read_plandb(plandb_msg, self.latlontoutm_service_name)
+            self.waypoints = MissionPlan.read_plandb(plandb_msg, self.latlontoutm_service_name)
         else:
             self.waypoints = waypoints
 
@@ -83,6 +87,26 @@ class MissionPlan:
 
 
     @staticmethod
+    def latlon_to_utm(lat, lon, z, latlontoutm_service_name):
+        rospy.loginfo("Waiting for latlontoutm service "+str(latlontoutm_service_name))
+        rospy.wait_for_service(latlontoutm_service_name)
+        rospy.loginfo("Got latlontoutm service")
+        try:
+            latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
+                                                     LatLonToUTM)
+            gp = GeoPoint()
+            gp.latitude = np.degrees(lat)
+            gp.longitude = np.degrees(lon)
+            gp.altitude = z
+            res = latlontoutm_service(gp)
+            return (res.utm_point.x, res.utm_point.y)
+        except rospy.service.ServiceException:
+            rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
+            return (None, None)
+
+
+
+    @staticmethod
     def read_plandb(plandb, latlontoutm_service_name):
         """
         planddb message is a bunch of nested objects,
@@ -93,45 +117,49 @@ class MissionPlan:
         plan_id = plandb.plan_id
         plan_spec = plandb.plan_spec
 
+        if len(plan_spec.maneuvers) <= 0:
+            rospy.logwarn("THERE WERE NO MANEUVERS IN THE PLAN! plan_id:{} (Does this vehicle know of your plan's maneuvers?)".format(plan_id))
+
         for plan_man in plan_spec.maneuvers:
             man_id = plan_man.maneuver_id
             man_name = plan_man.maneuver.maneuver_name
             man_imc_id = plan_man.maneuver.maneuver_imc_id
             maneuver = plan_man.maneuver
             # probably every maneuver has lat lon z in them, but just in case...
-            if man_imc_id == imc_enums.MANEUVER_GOTO:
-                rospy.loginfo("Waiting for latlontoutm service "+str(latlontoutm_service_name))
-                rospy.wait_for_service(latlontoutm_service_name)
-                rospy.loginfo("Got latlontoutm service")
-                try:
-                    latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
-                                                             LatLonToUTM)
-                    gp = GeoPoint()
-                    gp.latitude = np.degrees(maneuver.lat)
-                    gp.longitude = np.degrees(maneuver.lon)
-                    gp.altitude = -maneuver.z
-                    res = latlontoutm_service(gp)
-                except rospy.service.ServiceException:
-                    rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
-                    return None, None
+            # goto and sample are identical, with sample having extra "syringe" booleans...
+            if man_imc_id == imc_enums.MANEUVER_GOTO or man_imc_id == imc_enums.MANEUVER_SAMPLE:
+                utm_x, utm_y = MissionPlan.latlon_to_utm(maneuver.lat, maneuver.lon, -maneuver.z, latlontoutm_service_name)
+                if utm_x is None:
+                    rospy.logwarn("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
+                    continue
 
+                extra_data = {}
+                if man_imc_id == imc_enums.MANEUVER_SAMPLE:
+                    extra_data = {'syringe0':maneuver.syringe0,
+                                  'syringe1':maneuver.syringe1,
+                                  'syringe2':maneuver.syringe2}
 
                 # these are in IMC enums, map to whatever enums the action that will consume
                 # will need when you are publishing it
                 waypoint = Waypoint(
                     maneuver_id = man_id,
+                    maneuver_name= man_name,
                     tf_frame = 'utm',
-                    x = res.utm_point.x,
-                    y = res.utm_point.y,
+                    x = utm_x,
+                    y = utm_y,
                     z = maneuver.z,
                     speed = maneuver.speed,
                     z_unit = maneuver.z_units,
-                    speed_unit = maneuver.speed_units
+                    speed_unit = maneuver.speed_units,
+                    extra_data = extra_data
                 )
                 waypoints.append(waypoint)
 
             else:
-                rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER:", man_imc_id, man_name)
+                rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER: id:{}, name:{}".format(man_imc_id, man_name))
+
+        if len(waypoints) <= 0:
+            rospy.logwarn("NO MANEUVERS IN MISSION PLAN!")
 
         return waypoints
 
@@ -173,9 +201,9 @@ class MissionPlan:
 
 
     def __str__(self):
-        s = ''
+        s = self.plan_id+':\n'
         for wp in self.waypoints:
-            s += str(wp)+'\n'
+            s += '\t'+str(wp)+'\n'
         return s
 
 
