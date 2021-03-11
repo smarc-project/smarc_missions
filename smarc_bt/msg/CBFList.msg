@@ -1,1 +1,0 @@
-CBFItem[] cbf_items

@@ -1,0 +1,67 @@
+<launch>
+
+    <arg name="robot_name" default="sam"/>
+
+	<!-- Hard limits -->
+    <arg name="max_depth" default="20"/>
+    <arg name="min_altitude" default="-1"/>
+    <arg name="emergency_trials_before_giving_up" default="10"/>
+
+	<!-- Frames in tf -->
+	<arg name="base_link" default="/$(arg robot_name)/base_link" />
+	<arg name="poi_detector_link" default="/$(arg robot_name)/camera_down_link" />
+	<arg name="utm_link" default="utm" />
+
+	<!-- Leader follower stuff -->
+	<!-- by default, use sam_1 as leader -->
+	<arg name="leader_link" default="sam_1/base_link" />
+	<arg name="enable_leader_follower" default="True" />
+    <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
+
+	<!-- Bridge related -->
+    <arg name="neptus_addr" default="127.0.0.1"/>
+    <arg name="bridge_addr" default="127.0.0.1"/>
+    <arg name="bridge_port" default="6002"/>
+	<arg name="node_name" default="imc_bridge"/>
+	<!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
+    <arg name="imc_id" default="5"/>
+    <arg name="imc_src" default="$(arg imc_id)"/>
+    <arg name="imc_system_name" default="sam"/>
+
+
+
+	<!-- Waypoint action related -->
+    <arg name="waypoint_tolerance" default="5."/>
+
+	<!-- Leader follower related -->
+    <arg name="min_distance_to_leader" default="5."/>
+
+
+	<!-- Start all actions before the BT -->
+	<include file="$(find smarc_bt)/launch/smarc_bt.launch">
+		<arg name="robot_name" value="$(arg robot_name)"/>
+		<arg name="max_depth" value="$(arg max_depth)"/>
+		<arg name="min_altitude" value="$(arg min_altitude)"/>
+		<arg name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)"/>
+		<arg name="base_link" value="$(arg base_link)"/>
+		<arg name="poi_detector_link" value="$(arg poi_detector_link)"/>
+		<arg name="utm_link" value="$(arg utm_link)"/>
+		<arg name="leader_link" value="$(arg leader_link)"/>
+		<arg name="enable_leader_follower" value="$(arg enable_leader_follower)"/>
+		<arg name="follow_action_namespace" value="$(arg follow_action_namespace)"/>
+		<arg name="waypoint_tolerance" value="$(arg waypoint_tolerance)"/>
+		<arg name="min_distance_to_leader" value="$(arg min_distance_to_leader)"/>
+	</include>
+
+	<include file="$(find imc_ros_bridge)/launch/bridge.launch" ns="$(arg robot_name)">
+		<arg name="neptus_addr" value="$(arg neptus_addr)"/>
+		<arg name="bridge_addr" value="$(arg bridge_addr)"/>
+		<arg name="bridge_port" value="$(arg bridge_port)"/>
+		<arg name="node_name" value="$(arg node_name)"/>
+		<arg name="imc_id" value="$(arg imc_id)"/>
+		<arg name="imc_src" value="$(arg imc_src)"/>
+		<arg name="imc_system_name" value="$(arg imc_system_name)"/>
+	</include>
+
+    
+</launch>
