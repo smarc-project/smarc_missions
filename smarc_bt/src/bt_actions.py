@@ -8,21 +8,18 @@ import py_trees_ros as ptr
 
 import time
 import numpy as np
-from geodesy.utm import fromLatLong, UTMPoint
 
 import rospy
 import tf
 import actionlib
 
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+#  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray
 from nav_msgs.msg import Path
-from sam_msgs.msg import ThrusterRPMs, PercentStamped
 from std_msgs.msg import Float64, Header, Bool, Empty
 
-# path planner service
-from trajectories.srv import trajectory
 from std_srvs.srv import SetBool
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
@@ -81,135 +78,6 @@ class A_SetDVLRunning(pt.behaviour.Behaviour):
         return pt.Status.FAILURE
 
 
-class A_SetUTMFromGPS(pt.behaviour.Behaviour):
-    def __init__(self):
-        """
-        Read GPS fix and set our utm band and zone from it.
-        Warn when there is a change in it.
-
-        Returns RUNNING until a GPS fix is read.
-        Returns SUCCESS afterwards.
-        """
-
-        self.bb = pt.blackboard.Blackboard()
-        super(A_SetUTMFromGPS, self).__init__("A_SetUTMFromGPS")
-
-        self.gps_zone = None
-        self.gps_band = None
-
-        # how many seconds to wait before we complain about bad gps.
-        # exponential backoff happens to this until max is reached.
-        self._spam_period = 1
-        self._max_spam_period = 60
-
-
-    def update(self):
-        data = self.bb.get(bb_enums.GPS_FIX)
-        if(data is None or data.latitude is None or data.latitude == 0.0 or data.longitude is None or data.latitude == 0.0 or data.status.status == -1):
-            rospy.loginfo_throttle_identical(self._spam_period, "GPS lat/lon are 0s or Nones, cant set utm zone/band from these >:( ")
-            # shitty gps
-            self._spam_period = min(self._spam_period*2, self._max_spam_period)
-            return pt.Status.SUCCESS
-
-        self.gps_zone, self.gps_band = fromLatLong(data.latitude, data.longitude).gridZone()
-
-        if self.gps_zone is None or self.gps_band is None:
-            rospy.logwarn_throttle_identical(10, "gps zone and band from fromLatLong was None")
-            return pt.Status.SUCCESS
-
-        # first read the UTMs given by ros params
-        prev_band = self.bb.get(bb_enums.UTM_BAND)
-        prev_zone = self.bb.get(bb_enums.UTM_ZONE)
-
-        if prev_zone != self.gps_zone or prev_band != self.gps_band:
-            rospy.logwarn_once("PREVIOUS UTM AND GPS_FIX UTM ARE DIFFERENT!\n Prev:"+str((prev_zone, prev_band))+" gps:"+str((self.gps_zone, self.gps_band)))
-
-            if common_globals.TRUST_GPS:
-                rospy.logwarn_once("USING GPS UTM!")
-                self.bb.set(bb_enums.UTM_ZONE, self.gps_zone)
-                self.bb.set(bb_enums.UTM_BAND, self.gps_band)
-            else:
-                rospy.logwarn_once("USING PREVIOUS UTM!")
-                self.bb.set(bb_enums.UTM_ZONE, prev_zone)
-                self.bb.set(bb_enums.UTM_BAND, prev_band)
-
-        return pt.Status.SUCCESS
-
-
-class A_EmergencySurfaceByForce(pt.behaviour.Behaviour):
-    def __init__(self,
-                 emergency_topic,
-                 vbs_cmd_topic,
-                 rpm_cmd_topic,
-                 lcg_pid_enable_topic,
-                 vbs_pid_enable_topic,
-                 tcg_pid_enable_topic,
-                 yaw_pid_enable_topic,
-                 depth_pid_enable_topic,
-                 vel_pid_enable_topic):
-        """
-        Instead of using an action server, this action
-        publishes to the relevant topics directly as a last-resort
-        way to do emergency surfacing
-        """
-        super(A_EmergencySurfaceByForce, self).__init__("A_EmergencySurfaceByForce")
-
-        self.emergency_pub = None
-        self.vbs_pub = None
-        self.rpm_pub = None
-        self.lcg_pid_enable = None
-        self.vbs_pid_enable = None
-        self.tcg_pid_enable = None
-        self.yaw_pid_enable = None
-        self.depth_pid_enable = None
-        self.vel_pid_enable = None
-
-        self.emergency_topic = emergency_topic
-        self.vbs_cmd_topic = vbs_cmd_topic
-        self.rpm_cmd_topic = rpm_cmd_topic
-        self.lcg_pid_enable_topic = lcg_pid_enable_topic
-        self.vbs_pid_enable_topic = vbs_pid_enable_topic
-        self.tcg_pid_enable_topic = tcg_pid_enable_topic
-        self.yaw_pid_enable_topic = yaw_pid_enable_topic
-        self.depth_pid_enable_topic = depth_pid_enable_topic
-        self.vel_pid_enable_topic = vel_pid_enable_topic
-
-    def setup(self, timeout):
-        self.emergency_pub = rospy.Publisher(self.emergency_topic, Bool, queue_size=10)
-        self.vbs_pub = rospy.Publisher(self.vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm_pub = rospy.Publisher(self.rpm_cmd_topic, ThrusterRPMs, queue_size=10)
-        self.lcg_pid_enable = rospy.Publisher(self.lcg_pid_enable_topic, Bool, queue_size=10)
-        self.vbs_pid_enable = rospy.Publisher(self.vbs_pid_enable_topic, Bool, queue_size=10)
-        self.tcg_pid_enable = rospy.Publisher(self.tcg_pid_enable_topic, Bool, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher(self.yaw_pid_enable_topic, Bool, queue_size=10)
-        self.depth_pid_enable = rospy.Publisher(self.depth_pid_enable_topic, Bool, queue_size=10)
-        self.vel_pid_enable = rospy.Publisher(self.vel_pid_enable_topic, Bool, queue_size=10)
-        return True
-
-
-    def update(self):
-        rospy.logerr_throttle(5, "FORCING EMERGENCY SURFACING")
-        #Disable controllers
-        self.lcg_pid_enable.publish(False)
-        self.vbs_pid_enable.publish(False)
-        self.tcg_pid_enable.publish(False)
-        self.yaw_pid_enable.publish(False)
-        self.depth_pid_enable.publish(False)
-        self.vel_pid_enable.publish(False)
-
-        #set VBS to 0
-        vbs_level = PercentStamped()
-        vbs_level.value = 0.0;
-        self.vbs_pub.publish(vbs_level)
-
-        # Stop thrusters
-        rpm = ThrusterRPMs()
-        rpm.thruster_1_rpm = 0.0
-        rpm.thruster_2_rpm = 0.0
-        self.rpm_pub.publish(rpm)
-        return pt.Status.RUNNING
-
-
 
 class A_EmergencySurface(ptr.actions.ActionClient):
     def __init__(self, emergency_action_namespace):
@@ -225,7 +93,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         ptr.actions.ActionClient.__init__(
             self,
             name="A_EmergencySurface",
-            action_spec=MoveBaseAction,
+            action_spec=GotoWaypointAction,
             action_goal=None,
             action_namespace= emergency_action_namespace,
             override_feedback_message_on_running="EMERGENCY SURFACING"
@@ -246,6 +114,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if not self.action_client.wait_for_server(rospy.Duration(timeout)):
             self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
             self.action_client = None
+            self.action_server_ok = False
         else:
             self.action_server_ok = True
 
@@ -253,10 +122,11 @@ class A_EmergencySurface(ptr.actions.ActionClient):
 
     def initialise(self):
         if not self.action_server_ok:
+            rospy.logwarn_throttle_identical(5, "No Action Server found for emergency action, will just block the tree!")
             return
         rospy.logwarn("EMERGENCY SURFACING")
         # construct the message
-        self.action_goal = MoveBaseGoal()
+        self.action_goal = GotoWaypointGoal()
         self.sent_goal = False
 
     def update(self):
@@ -309,74 +179,13 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         pass
 
 
-class A_RefineMission(pt.behaviour.Behaviour):
-    def __init__(self, path_planner_service_name, path_topic):
-        """
-        Takes the current mission plan object and run a path planner
-        on its waypoints.
-        """
-        self.bb = pt.blackboard.Blackboard()
-        super(A_RefineMission, self).__init__('A_RefineMission')
-        self.path_planner_service_name = path_planner_service_name
-        self.path_planner = None
-        self.path_pub = None
-        self.path_topic = path_topic
-
-        self.service_ok = False
-
-    def no_service(self):
-        return self.path_planner_service_name is None or self.path_planner_service_name in ['', 'none', 'None', 'null', 'Null', 'NULL']
-
-    def setup(self, timeout):
-        if self.no_service():
-            return True
-
-        self.path_pub = rospy.Publisher(self.path_topic, Path, queue_size=1)
-        try:
-            rospy.wait_for_service(self.path_planner_service_name, timeout)
-            self.path_planner = rospy.ServiceProxy(self.path_planner_service_name,
-                                                   trajectory)
-            self.service_ok = True
-        except:
-            rospy.logwarn_throttle_identical(5, "Can not reach the path planner at:"+self.path_planner_service_name)
-
-        return True
-
-    def update(self):
-        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.is_complete():
-            return pt.Status.FAILURE
-
-        if self.no_service() or not self.service_ok:
-            # there is no path planner, just copy the coarse points to the refined side
-            mission_plan.set_refined_waypoints(mission_plan.waypoints)
-            return pt.Status.SUCCESS
-
-        if len(mission_plan.waypoints) <= 1:
-            # there is literally just one point, cant plan for that apparently
-            mission_plan.set_refined_waypoints(mission_plan.waypoints)
-            return pt.Status.SUCCESS
-
-
-        # give the location of the auv as the first point in the plan
-        # to prevent overshooting the first real waypoint
-        ps = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
-        trajectory_response = self.path_planner(mission_plan.get_pose_array(ps))
-        refined_path = trajectory_response.fine
-        refined_path.header.frame_id = 'map'
-        self.path_pub.publish(refined_path)
-        mission_plan.set_refined_waypoints(mission_plan.path_to_list(refined_path))
-        rospy.loginfo_throttle_identical(10, "Refined waypoints length:"+str(len(mission_plan.refined_waypoints)))
-        return pt.Status.SUCCESS
-
-
 
 
 class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def __init__(self, do_not_visit=False):
         """
         Sets the current plan action to the next one
-        RUNNING if it can set it to something that is not None
+        SUCCESS if it can set it to something that is not None
         FAILURE otherwise
 
         if do_not_visit=True, then this action will only get the current wp
@@ -396,9 +205,11 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
         if not self.do_not_visit:
             mission_plan.visit_wp()
+
         next_action = mission_plan.get_current_wp()
         if next_action is None:
             self.feedback_message = "Next action was None"
+            rospy.logwarn_throttle(5, "Mission is complete:{}".format(mission_plan.is_complete()))
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))
@@ -408,7 +219,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
 
 class A_GotoWaypoint(ptr.actions.ActionClient):
-    def __init__(self, action_namespace):
+    def __init__(self, action_namespace, goal_tolerance, goal_tf_frame):
         """
         Runs an action server that will move the robot to the given waypoint
         """
@@ -426,13 +237,19 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         ptr.actions.ActionClient.__init__(
             self,
             name="A_GotoWaypoint",
-            action_spec=MoveBaseAction,
+            action_spec=GotoWaypointAction,
             action_goal=None,
             action_namespace = action_namespace,
             override_feedback_message_on_running="Moving to waypoint"
         )
 
         self.action_server_ok = False
+
+        assert goal_tolerance >= 1, "Goal tolerance must be >=1!, it is:"+str(goal_tolerance)
+        self.goal_tolerance = goal_tolerance
+
+        self.goal_tf_frame = goal_tf_frame
+
 
     def setup(self, timeout):
         """
@@ -450,26 +267,65 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         else:
             self.action_server_ok = True
 
+
         return True
 
 
     def initialise(self):
         if not self.action_server_ok:
+            rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
             return
 
-        wp, frame = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
-        # if this is the first ever action, we need to get it ourselves
-        if wp is None:
-            rospy.logwarn("No wp found to execute! Was A_SetNextPlanAction called before this?")
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission_plan is None:
+            rospy.logwarn("No mission plan found!")
             return
+
+        wp = mission_plan.get_current_wp()
+        # wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
+        # # if this is the first ever action, we need to get it ourselves
+        if wp is None:
+            rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
+            return
+
+        if wp.tf_frame != self.goal_tf_frame:
+            rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
+            return
+
+        if wp.maneuver_id == imc_enums.MANEUVER_SAMPLE:
+            # TODO change this behaviour lol
+            rospy.logwarn(5, "THIS IS A SAMPLE MANEUVER, WE ARE USING SIMPLE GOTO FOR THIS!!!")
 
         # construct the message
-        self.action_goal = MoveBaseGoal()
-        self.action_goal.target_pose.pose.position.x = wp[0]
-        self.action_goal.target_pose.pose.position.y = wp[1]
-        self.action_goal.target_pose.pose.position.z = wp[2]
-        self.action_goal.target_pose.header.frame_id = frame
-        rospy.loginfo("Goto waypoint action goal initialized")
+        goal = GotoWaypointGoal()
+        goal.waypoint_pose.pose.position.x = wp.x
+        goal.waypoint_pose.pose.position.y = wp.y
+        goal.goal_tolerance = self.goal_tolerance
+
+        # 0=None, 1=Depth, 2=Altitude in the action
+        # thankfully these are the same in IMC and in the Action
+        # but Action doesnt have 'height'
+        if wp.z_unit == imc_enums.Z_HEIGHT:
+            wp.z_unit = imc_enums.Z_NONE
+        goal.z_control_mode = wp.z_unit
+        goal.travel_depth = wp.z
+
+        # 0=None, 1=RPM, 2=speed in the action
+        # 0=speed, 1=rpm, 2=percentage in IMC
+        if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
+            goal.travel_rpm = wp.speed
+        elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+            goal.travel_speed = wp.speed
+        else:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
+            rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
+
+
+        self.action_goal = goal
+
+        rospy.loginfo(">>> Goto waypoint action goal initialized:"+str(goal))
 
         # ensure that we still need to send the goal
         self.sent_goal = False
@@ -517,7 +373,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         result = self.action_client.get_result()
 
         # if the goal was accomplished
-        if result:
+        if result is not None and result.reached_waypoint:
             self.feedback_message = "Completed goal"
             rospy.loginfo(self.feedback_message)
             return pt.Status.SUCCESS
@@ -526,7 +382,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
-        pass
+        fb = str(msg.ETA)
+        self.feedback_message = "ETA:"+fb
+        rospy.loginfo_throttle(5, fb)
 
 
 class A_UpdateTF(pt.behaviour.Behaviour):
@@ -581,41 +439,10 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         ps.point.z = world_trans[2]
         self.bb.set(bb_enums.LOCATION_POINT_STAMPED, ps)
 
-        return pt.Status.SUCCESS
+        # the Z component is UP, so invert to get "depth"
+        self.bb.set(bb_enums.DEPTH, -world_trans[2])
 
 
-class A_UpdateLatLon(pt.behaviour.Behaviour):
-    """
-    We use the tf to update our lat/lon instead of the actual GPS topic because
-    we might not have GPS, but tf is updated by dead-reckoninig and does all
-    kinds of filtering.
-    """
-    def __init__(self):
-        super(A_UpdateLatLon, self).__init__("A_UpdateLatLon")
-        self.bb = pt.blackboard.Blackboard()
-
-    def update(self):
-        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
-
-        # get the utm zone of our current lat,lon
-        utmz = self.bb.get(bb_enums.UTM_ZONE)
-        band = self.bb.get(bb_enums.UTM_BAND)
-
-        if utmz is None or band is None or world_trans is None:
-            reason = "Could not update current lat/lon!"
-            rospy.logwarn_throttle_identical(5, reason)
-            self.feedback_message = reason
-            return pt.Status.FAILURE
-
-
-        # get positional feedback of the p2p goal
-        easting, northing = world_trans[0], world_trans[1]
-        # make utm point
-        pnt = UTMPoint(easting=easting, northing=northing, altitude=0, zone=utmz, band=band)
-        # get lat-lon
-        pnt = pnt.toMsg()
-        self.bb.set(bb_enums.CURRENT_LATITUDE, pnt.latitude)
-        self.bb.set(bb_enums.CURRENT_LONGITUDE, pnt.longitude)
         return pt.Status.SUCCESS
 
 
@@ -676,12 +503,12 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             self.bb.set(bb_enums.PLAN_IS_GO, True)
             self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
-                rospy.loginfo_throttle_identical(20, "Started plan:"+str(plan_id))
+                rospy.loginfo("Started plan:{}".format(plan_id))
             else:
                 if current_mission_plan is None:
-                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" but we don't have a plan!:")
+                    rospy.logwarn("Start given for plan:{} but we don't have a plan!".format(plan_id))
                 else:
-                    rospy.logwarn_throttle_identical(10, "Start given for plan:"+str(plan_id)+" our plan:"+str(current_mission_plan.plan_id))
+                    rospy.logwarn("Start given for plan:{} our plan:{}".format(plan_id, current_mission_plan.plan_id))
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
@@ -694,6 +521,8 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
             self.bb.set(bb_enums.ENABLE_AUTONOMY, True)
             rospy.logwarn_throttle_identical(10, "AUTONOMOUS MODE")
 
+        # reset it until next message
+        self.plan_control_msg = None
         return pt.Status.SUCCESS
 
 
@@ -762,8 +591,11 @@ class A_UpdateNeptusPlanControlState(pt.behaviour.Behaviour):
         msg.man_id = tip_name+'('+tip_status[7]+')'
 
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None or mission_plan.is_complete():
+        if mission_plan is None:
             msg.plan_id = 'No plan'
+            msg.plan_progress = 100.0
+        elif mission_plan.is_complete():
+            msg.plan_id = 'Mission complete'
             msg.plan_progress = 100.0
         else:
             current_wp_index = mission_plan.current_wp_index
@@ -827,12 +659,13 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
 
 
 class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
-    def __init__(self, plandb_topic, utm_link, local_link):
+    def __init__(self, plandb_topic, utm_link, local_link, latlontoutm_service_name):
         super(A_UpdateNeptusPlanDB, self).__init__("A_UpdateNeptusPlanDB")
         self.bb = pt.blackboard.Blackboard()
         # neptus sends lat/lon, which we convert to utm, which we then convert to local
         self.utm_link = utm_link
         self.local_link = local_link
+        self.latlontoutm_service_name = latlontoutm_service_name
 
         # the message body is largely the same, so we can re-use most of it
         self.plandb_msg = PlanDB()
@@ -913,13 +746,14 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def handle_set_plan(self, plandb_msg):
         # there is a plan we can at least look at
         mission_plan = MissionPlan(plan_frame = self.utm_link,
-                                   local_frame = self.local_link,
-                                   plandb_msg = plandb_msg)
+                                   plandb_msg = plandb_msg,
+                                   latlontoutm_service_name = self.latlontoutm_service_name)
 
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
         self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
-        rospy.loginfo_throttle_identical(5, "Set the mission plan to:"+str(mission_plan.waypoints))
+        self.bb.set(bb_enums.MISSION_FINALIZED, False)
+        rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
 
 
     def handle_plandb_msg(self):
@@ -980,36 +814,40 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
     and sets that as the current mission plan.
     always returns SUCCESS
     """
-    def __init__(self, utm_link, local_link, poi_link):
+    def __init__(self, utm_link, poi_link, latlontoutm_service_name):
         super(A_UpdateMissonForPOI, self).__init__(name="A_UpdateMissonForPOI")
         self.bb = pt.blackboard.Blackboard()
         self.utm_link = utm_link
-        self.local_link = local_link
         self.poi_link = poi_link
         self.tf_listener = tf.TransformListener()
+        self.latlontoutm_service_name = latlontoutm_service_name
 
         self.poi_link_available = False
 
 
     def setup(self, timeout):
         try:
-            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.poi_link, self.local_link))
-            self.tf_listener.waitForTransform(self.poi_link, self.local_link, rospy.Time(), rospy.Duration(timeout))
+            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.poi_link, self.utm_link))
+            self.tf_listener.waitForTransform(self.poi_link, self.utm_link, rospy.Time(), rospy.Duration(timeout))
             rospy.loginfo_throttle(3, "...Got it")
             self.poi_link_available = True
         except:
-            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.local_link+" disabling updates")
+            rospy.logerr_throttle(5, "Could not find tf from:"+self.poi_link+" to:"+self.utm_link+" disabling updates")
 
         return True
 
     def update(self):
+        # UNTESTED STUFF HERE, RETURN FAILURE TO KEEP PPL
+        # FROM USING THIS ACTION
+        return pt.Status.FAILURE
+
         if not self.poi_link_available:
             return pt.Status.FAILURE
 
         poi = self.bb.get(bb_enums.POI_POINT_STAMPED)
         if poi is None:
             return pt.Status.SUCCESS
-        poi_local = self.tf_listener.transformPoint(self.local_link, poi)
+        poi_local = self.tf_listener.transformPoint(self.utm_link, poi)
 
         x = poi_local.point.x
         y = poi_local.point.y
@@ -1038,10 +876,10 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
 
         # set it in the tree
         mission_plan = MissionPlan(plan_frame = self.utm_link,
-                                   local_frame = self.local_link,
                                    plandb_msg = pdb,
                                    waypoints = waypoints,
-                                   waypoint_man_ids=waypoint_man_ids)
+                                   waypoint_man_ids=waypoint_man_ids,
+                                   latlontoutm_service_name = self.latlontoutm_service_name)
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
 
@@ -1099,7 +937,7 @@ class A_FollowLeader(ptr.actions.ActionClient):
         ptr.actions.ActionClient.__init__(
             self,
             name="A_FollowLeader",
-            action_spec=MoveBaseAction,
+            action_spec=GotoWaypointAction,
             action_goal=None,
             action_namespace = action_namespace,
             override_feedback_message_on_running="Moving towards"+str(leader_link)
@@ -1128,7 +966,7 @@ class A_FollowLeader(ptr.actions.ActionClient):
 
     def initialise(self):
         # construct the message
-        self.action_goal = MoveBaseGoal()
+        self.action_goal = GotoWaypointGoal()
         # leave 0,0,0 because we want to go to the frame's center
         self.action_goal.target_pose.header.frame_id = self.leader_link
         rospy.loginfo("Follow action goal initialized")

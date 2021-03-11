@@ -9,14 +9,10 @@ LEAK = 'leak'
 
 DEPTH = 'depth'
 ALTITUDE = 'altitude'
-GPS_FIX = 'gps_fix'
 
 MISSION_PLAN_OBJ = 'misison_plan'
 PLAN_IS_GO = 'plan_is_go'
 MANEUVER_ACTIONS = 'maneuver_actions'
-
-UTM_BAND = 'utm_band'
-UTM_ZONE = 'utm_zone'
 
 CURRENT_LATITUDE = 'lat'
 CURRENT_LONGITUDE ='lon'
@@ -39,4 +35,9 @@ TREE_TIP_NAME = 'tree_tip_name'
 TREE_TIP_STATUS = 'tree_tip_status'
 
 DVL_IS_RUNNING = 'dvl_is_running'
+
+# to set once the BT is 'DONE' done. LIke, it wont want to
+# set new waypoints or anything, and is just there chillin
+# and handling stuff like neptus etc.
+MISSION_FINALIZED = 'mission_finalized'
 

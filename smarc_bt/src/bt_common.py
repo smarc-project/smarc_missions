@@ -11,7 +11,6 @@ import rospy
 
 import copy # used in ReadTopic
 
-from smarc_bt.msg import CBFList, CBFItem
 import common_globals
 
 ###############################################################
@@ -33,80 +32,31 @@ class A_RunOnce(pt.behaviour.Behaviour):
             self.ran = True
             return pt.Status.RUNNING
 
-class CBFCondition(object):
+
+
+class A_SimplePublisher(pt.behaviour.Behaviour):
     """
-    An object for creating conditions that are also control barrier
-    functions. This allows us to send a set of CBFs to actions to use.
-    Instanciate this object in your normal ros-y condition nodes.
-    Use the A_ClearCBFs action above at the beginning of your tree if you use any of these.
-    Otherwise your actions might run the SAME cbfs with conflicting limits and just explode.
-
-    And then in the update() method of C_XY, if the update() is about to return success,
-    call the cbf_update method too.
-
-    The system works like this:
-        At the beginning of the tree, a simple action calls cbf_update(reset=True).
-            This publishes an empty cbf_list message.
-        Afterwards, every condition that inherits this object, when they succeed,
-        calls cbf_update().
-            This reads reads the current cbf_bt/active_limits topics, appends
-            its own cbf_item to the list and publishes the new, longer cbf_list.
-        At any point, an action that reads the cbf_list object gets an ordered list
-        of all succeeded conditions that ran before it.
+    Simply publishes the given message when ticked and returns SUCCESS
     """
-    def __init__(self, update_func, limit_type, limit_value, checked_field_topic='', checked_field_name=''):
+    def __init__(self, topic, message_object, queue_size=1):
+        super(A_SimplePublisher, self).__init__("A_SimplePublisher_"+topic)
+        self.topic = topic
+        self.message_object = message_object
+        self.message_type = type(message_object)
+        self.queue_size = queue_size
 
-        self.update_func = update_func
-
-        # the ros message can not have Nones in it.
-        if checked_field_name is None:
-            checked_field_name = ''
-        if checked_field_topic is None:
-            checked_field_topic = ''
-        # this item does not change, so we can cache it
-        self.cbf_item = CBFItem()
-        self.cbf_item.checked_field_topic = checked_field_topic
-        self.cbf_item.checked_field_name = checked_field_name
-        self.cbf_item.limit_type = limit_type
-        self.cbf_item.limit_value = limit_value
-
-        self._latest_list = None
-        self._this_is_first_cond_in_tree = False
-
-        self.cbf_pub = rospy.Publisher(common_globals.CBF_BT_TOPIC, CBFList, queue_size=1)
-        self.cbf_sub = rospy.Subscriber(common_globals.CBF_BT_TOPIC, CBFList, callback=self.cbf_list_cb)
-
-    def cbf_list_cb(self, cbf_list):
-        self._latest_list = cbf_list
-
+    def setup(self, timeout):
+        self.pub = rospy.Publisher(self.topic, self.message_type, queue_size=self.queue_size)
+        return True
 
     def update(self):
-        return_status = self.update_func()
+        try:
+            self.pub.publish(self.message_object)
+            return pt.Status.SUCCESS
+        except:
+            rospy.logwarn_throttle(1, "Couldn't publish into "+self.topic+"!")
+            return pt.Status.FAILURE
 
-        if self._latest_list is None:
-            # the callback was never called, if it was, this would not be None
-            # it would have been at worst an empty message object.
-            # this means this condition is the first ever condition
-            # in the tree to be caled.
-            self._this_is_first_cond_in_tree = True
-
-        # create a new empty list
-        # for sure if we are the first condition
-        if self._this_is_first_cond_in_tree:
-            cbf_list = CBFList()
-        else:
-            cbf_list = self._latest_list
-
-        # if the child condition udpate method is successful, add this cbf to the list
-        if return_status == pt.Status.SUCCESS:
-            cbf_list.cbf_items.append(self.cbf_item)
-        # otherwise leave it as is
-        # this happens when the first condition of the list fails
-        # either way, publish this filled or empty list
-        self.cbf_pub.publish(cbf_list)
-
-        # and return the original update's return
-        return return_status
 
 
 
@@ -143,7 +93,7 @@ class ReadTopic(pt.behaviour.Behaviour):
     def update(self):
         if self.msg is not None:
             self.last_read_value = copy.copy(self.msg)
-            for k,v in self.blackboard_variables.iteritems():
+            for k,v in self.blackboard_variables.items():
                 if v is None:
                     self.bb.set(k, self.msg, overwrite=True)
                 else:
