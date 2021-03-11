@@ -10,7 +10,8 @@
 	
 
     <!-- topics, note the root! -->
-    <arg name="rpm_cmd_topic" default="/$(arg robot_name)/core/thrusters_cmd" />
+    <arg name="rpm1_cmd_topic" default="/$(arg robot_name)/core/thruster1_cmd" />
+    <arg name="rpm2_cmd_topic" default="/$(arg robot_name)/core/thruster2_cmd" />
     <arg name="thrust_vector_cmd_topic" default="/$(arg robot_name)/core/thrust_vector_cmd" />
     <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
     <arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
@@ -26,13 +27,14 @@
     
 
 
-    <node name="wp_depth_action_planner" pkg="auv_simple_motion_planner" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
+    <node name="wp_depth_action_planner" pkg="sam_actions" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
 		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
 		<param name="base_frame" value="$(arg base_frame)"/>
 		<param name="forward_rpm" value="$(arg forward_rpm)"/>
 		
-		<param name="rpm_cmd_topic" value="$(arg rpm_cmd_topic)" />
+		<param name="rpm1_cmd_topic" value="$(arg rpm1_cmd_topic)" />
+                <param name="rpm2_cmd_topic" value="$(arg rpm2_cmd_topic)" />
 		<param name="heading_setpoint_topic" value="$(arg heading_setpoint_topic)" />
 		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
 		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
