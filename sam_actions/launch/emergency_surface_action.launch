@@ -1,0 +1,20 @@
+<launch>
+
+    <!-- Configurable arguments -->
+    <arg name="robot_name" default="sam"/>
+
+	<!-- topics, note the root! -->
+    
+    <node name="emergency_surface_action" pkg="auv_simple_motion_planner" type="emergency_surface_action.py" output="screen" ns="$(arg robot_name)/ctrl">
+	<param name="emergency_topic" value="/$(arg robot_name)/abort" />
+    <param name="vbs_cmd_topic" value="/$(arg robot_name)/core/vbs_cmd" />
+    <param name="rpm_cmd_topic" value="/$(arg robot_name)/core/thrusters_cmd" />
+	<param name="lcg_pid_enable_topic" value="/$(arg robot_name)/ctrl/lcg/pid_enable" />
+    <param name="vbs_pid_enable_topic" value="/$(arg robot_name)/ctrl/vbs/pid_enable" />
+    <param name="tcg_pid_enable_topic" value="/$(arg robot_name)/ctrl/tcg/pid_enable" />
+	<param name="yaw_pid_enable_topic" value="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
+    <param name="depth_pid_enable_topic" value="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
+    <param name="vel_pid_enable_topic" value="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
+	</node>
+
+</launch>
