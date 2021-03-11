@@ -24,7 +24,7 @@ import actionlib
 import rospy
 import tf
 from sam_msgs.msg import ThrusterAngles
-from smarc_msgs.msg import DualThrusterRPM
+from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool
 import math
 
@@ -51,9 +51,10 @@ class LeaderFollower(object):
                 success = False
 
                 # Stop thrusters
-                self.rpm.thruster_front.rpm = 0.
-                self.rpm.thruster.back.rpm = 0.
-                self.rpm_pub.publish(self.rpm)
+                self.rpm1.rpm = 0.
+                self.rpm2.rpm = 0.
+                self.rpm1_pub.publish(self.rpm1)
+                self.rpm2_pub.publish(self.rpm2)
                 self.yaw_pid_enable.publish(False)
                 self.depth_pid_enable.publish(False)
                 self.vel_pid_enable.publish(False)
@@ -122,9 +123,10 @@ class LeaderFollower(object):
                     self.yaw_pid_enable.publish(True)
                     self.yaw_pub.publish(yaw_setpoint)
                     # Thruster forward
-                    self.rpm.thruster_front.rpm = self.forward_rpm
-                    self.rpm.thruster_back.rpm = self.forward_rpm
-                    self.rpm_pub.publish(self.rpm)
+                    self.rpm1.rpm = self.forward_rpm
+                    self.rpm2.rpm = self.forward_rpm
+                    self.rpm1_pub.publish(self.rpm1)
+                    self.rpm2_pub.publish(self.rpm2)
                     #rospy.loginfo("Thrusters forward")
 
             counter += 1
@@ -132,9 +134,10 @@ class LeaderFollower(object):
 
         # Stop thruster
         self.vel_pid_enable.publish(False)
-        self.rpm.thruster_front.rpm = 0.0
-        self.rpm.thruster_back.rpm = 0.0
-        self.rpm_pub.publish(self.rpm)
+        self.rpm1.rpm = 0.0
+        self.rpm2.rpm = 0.0
+        self.rpm1_pub.publish(self.rpm1)
+        self.rpm2_pub.publish(self.rpm2)
 
         #Stop controllers
         self.yaw_pid_enable.publish(False)
@@ -149,7 +152,8 @@ class LeaderFollower(object):
 
     def __init__(self, name):
 
-        self.rpm = DualThrusterRPM()
+        self.rpm1 = ThrusterRPM()
+        self.rpm2 = ThrusterRPM()
 
         """Publish yaw and depth setpoints based on waypoints"""
         self._action_name = name
@@ -158,7 +162,8 @@ class LeaderFollower(object):
         self.follower_odom = rospy.get_param('~follower_odom', '/sam_2/odom')
         #  self.min_dist = rospy.get_param('~min_dist', 5.)
 
-        rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/thrusters_cmd')
+        rpm1_cmd_topic = rospy.get_param('~rpm1_cmd_topic', '/sam/core/thruster1_cmd')
+        rpm2_cmd_topic = rospy.get_param('~rpm2_cmd_topic', '/sam/core/thruster2_cmd')
         heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')
         yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
         depth_setpoint_topic = rospy.get_param('~depth_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
@@ -175,7 +180,8 @@ class LeaderFollower(object):
         vel_pid_enable_topic = rospy.get_param('~vel_pid_enable_topic', '/sam/ctrl/dynamic_velocity/pid_enable')
         self.listener = tf.TransformListener()
 
-        self.rpm_pub= rospy.Publisher(rpm_cmd_topic, DualThrusterRPM, queue_size=10)
+        self.rpm1_pub= rospy.Publisher(rpm1_cmd_topic, ThrusterRPM, queue_size=10)
+        self.rpm2_pub= rospy.Publisher(rpm2_cmd_topic, ThrusterRPM, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.depth_pub = rospy.Publisher(depth_setpoint_topic, Float64, queue_size=10)
         self.vel_pub = rospy.Publisher(vel_setpoint_topic, Float64, queue_size=10)
