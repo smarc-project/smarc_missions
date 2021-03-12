@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#! /usr/bin/env python
 
 # Copyright 2020 Sriharsha Bhat (svbhat@kth.se)
 #
@@ -22,7 +22,9 @@ import tf
 from sam_msgs.msg import PercentStamped
 from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool, Empty
-from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+#from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
+
 import math
 
 class EmergencySurface(object):
@@ -47,7 +49,7 @@ class EmergencySurface(object):
                 self.depth_pid_enable.publish(True)
                 self.vel_pid_enable.publish(True)
                 rospy.loginfo('%s: Preempted' % self._action_name)
-                self._as.set_preempted(MoveBaseResult(), "Preempted EmergencySurface action")
+                self._as.set_preempted(GotoWaypointResult(), "Preempted EmergencySurface action")
                 return
 
             # Publish emergency command
@@ -107,7 +109,7 @@ class EmergencySurface(object):
         self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
         self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
-        self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
+        self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
 
         rospy.loginfo("Announced action server with name: %s", self._action_name)
