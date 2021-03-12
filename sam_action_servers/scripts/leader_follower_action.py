@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#! /usr/bin/env python
 
 # Copyright 2018 Nils Bore, Sriharsha Bhat (nbore@kth.se, svbhat@kth.se)
 #
@@ -19,7 +19,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, PointStamped
-from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+#from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
 import actionlib
 import rospy
 import tf
@@ -31,8 +32,8 @@ import math
 class LeaderFollower(object):
 
     # create messages that are used to publish feedback/result
-    _feedback = MoveBaseFeedback()
-    _result = MoveBaseResult()
+    _feedback = GotoWaypointActionFeedback()
+    _result = GotoWaypointResult()
 
     def execute_cb(self, goal):
 
@@ -190,7 +191,7 @@ class LeaderFollower(object):
         self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
 
-        self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
+        self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
 
