@@ -216,12 +216,12 @@ class WPDepthPlanner(object):
                 self.vel_pub.publish(self.vel_setpoint)
                 self.roll_pub.publish(self.roll_setpoint)
                 #rospy.loginfo("Velocity published")
-
-	        else:
-		        if self.turbo_turn_flag:
+                 
+            else:
+                
+                if self.turbo_turn_flag:
  		        #if turbo turn is included
-		        rospy.loginfo("Yaw error: %f", yaw_error)
-
+                    rospy.loginfo("Yaw error: %f", yaw_error)
                     if abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max:
                         #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
                         self.yaw_pid_enable.publish(False)
@@ -313,7 +313,7 @@ class WPDepthPlanner(object):
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
         # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
-	    rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
+        rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
