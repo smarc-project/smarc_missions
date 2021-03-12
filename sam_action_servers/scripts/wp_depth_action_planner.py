@@ -78,7 +78,7 @@ class WPDepthPlanner(object):
         flip_rate = self.flip_rate
 
         left_turn = True
-	#left turn increases value of yaw angle towards pi, right turn decreases it towards -pi.
+	    #left turn increases value of yaw angle towards pi, right turn decreases it towards -pi.
         if angle_error < 0:
             left_turn = False
             rospy.loginfo('Right turn!')
