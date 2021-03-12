@@ -6,6 +6,10 @@
 import os
 
 import rospy
+from dynamic_reconfigure.server import Server
+from smarc_bt.cfg import smarc_btConfig
+
+
 import py_trees as pt
 import py_trees_ros as ptr
 
@@ -435,10 +439,15 @@ def main():
         rospy.loginfo("ROS Interrupt")
 
 
+def reconfig_cb(config, level):
+    rospy.loginfo("Dynamic reconfig config:{}".format(config))
+    return config
 
 
 if __name__ == '__main__':
     # init the node
     rospy.init_node("bt")
+    # connect to dynamic reconfig
+    drc_srv = Server(smarc_btConfig, reconfig_cb)
     main()
 
