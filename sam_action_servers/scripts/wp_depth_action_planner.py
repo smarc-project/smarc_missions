@@ -68,7 +68,7 @@ class WPDepthPlanner(object):
 
     def angle_wrap(self,angle):
         if(abs(angle)>3.141516):
-            angle= angle - (abs(angle)/angle)*2*3.141516; #Angle wrapping between -pi and pi
+            angle= angle - (abs(angle)/angle)*2*3.141516 #Angle wrapping between -pi and pi
             rospy.loginfo_throttle_identical(20, "Angle Error Wrapped")
         return angle
 
