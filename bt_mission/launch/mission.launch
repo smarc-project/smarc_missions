@@ -15,26 +15,25 @@
 	<!-- Leader follower stuff -->
 	<!-- by default, use sam_1 as leader -->
 	<arg name="leader_link" default="sam_1/base_link" />
-	<arg name="enable_leader_follower" default="True" />
+    <arg name="enable_leader_follower" default="True" />
     <arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
+
+
+	<!-- Leader follower related -->
+    <arg name="min_distance_to_leader" default="5."/>
+
+	<!-- Waypoint action related -->
+    <arg name="waypoint_tolerance" default="5."/>
 
 	<!-- Bridge related -->
     <arg name="neptus_addr" default="127.0.0.1"/>
     <arg name="bridge_addr" default="127.0.0.1"/>
     <arg name="bridge_port" default="6002"/>
-	<arg name="node_name" default="imc_bridge"/>
-	<!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
+    <arg name="node_name" default="imc_bridge"/>	
+    <!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
     <arg name="imc_id" default="5"/>
     <arg name="imc_src" default="$(arg imc_id)"/>
     <arg name="imc_system_name" default="sam"/>
-
-
-
-	<!-- Waypoint action related -->
-    <arg name="waypoint_tolerance" default="5."/>
-
-	<!-- Leader follower related -->
-    <arg name="min_distance_to_leader" default="5."/>
 
 
 	<!-- Start all actions before the BT -->
@@ -61,6 +60,22 @@
 		<arg name="imc_id" value="$(arg imc_id)"/>
 		<arg name="imc_src" value="$(arg imc_src)"/>
 		<arg name="imc_system_name" value="$(arg imc_system_name)"/>
+	</include>
+
+	<!-- WP following action -->
+	<include file="$(find sam_action_servers)/launch/wp_depth_action_planner.launch" ns="$(arg robot_name)">
+    		<arg name="wp_tolerance" default="5."/>
+    		<arg name="depth_tolerance" default="1."/>
+    		<arg name="base_frame" default="$(arg robot_name)/base_link"/>
+    		<arg name="forward_rpm" default="400"/>
+	</include>
+
+	<!-- Emergency surface action -->
+	<include file="$(find sam_action_servers)/launch/emergency_surface_action.launch" ns="$(arg robot_name)">
+	</include>	
+
+        <!-- Leader follower action -->
+	<include file="$(find sam_action_servers)/launch/leader_follower_action.launch" ns="$(arg robot_name)">
 	</include>
 
     
