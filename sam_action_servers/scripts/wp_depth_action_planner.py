@@ -62,7 +62,7 @@ class WPDepthPlanner(object):
         self.marker.color.b = 1.0
 
         self.marker_pub.publish(self.marker)
-    
+
     def yaw_feedback_cb(self,yaw_feedback):
         self.yaw_feedback= yaw_feedback.data
 
@@ -94,7 +94,7 @@ class WPDepthPlanner(object):
         loop_time = 0.
 
         rpm1 = ThrusterRPM()
-        rpm2 = ThrusterRPM()   
+        rpm2 = ThrusterRPM()
 
         while not rospy.is_shutdown() and loop_time < .37/flip_rate:
             rpm1.rpm = rpm
@@ -195,18 +195,18 @@ class WPDepthPlanner(object):
                 yaw_setpoint = math.atan2(ydiff,xdiff)
                 print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
 
-		#compute yaw_error (e.g. for turbo_turn)
-        	yaw_error= -(self.yaw_feedback - yaw_setpoint)
-            yaw_error= self.angle_wrap(yaw_error) #wrap angle error between -pi and pi
+		        #compute yaw_error (e.g. for turbo_turn)
+                yaw_error= -(self.yaw_feedback - yaw_setpoint)
+                yaw_error= self.angle_wrap(yaw_error) #wrap angle error between -pi and pi
 
-            depth_setpoint = self.nav_goal.position.z
+                depth_setpoint = self.nav_goal.position.z
 
-            self.depth_pub.publish(depth_setpoint)
-	        #self.vbs_pid_enable.publish(False)
-            #self.vbs_pub.publish(depth_setpoint)
+                self.depth_pub.publish(depth_setpoint)
+	            #self.vbs_pid_enable.publish(False)
+                #self.vbs_pub.publish(depth_setpoint)
 
-	    if self.vel_ctrl_flag:
-		rospy.loginfo_throttle_identical(5, "vel ctrl, no turbo turn")
+	        if self.vel_ctrl_flag:
+		        rospy.loginfo_throttle_identical(5, "vel ctrl, no turbo turn")
                 #with Velocity control
                 self.yaw_pid_enable.publish(True)
                 self.yaw_pub.publish(yaw_setpoint)
@@ -217,10 +217,10 @@ class WPDepthPlanner(object):
                 self.roll_pub.publish(self.roll_setpoint)
                 #rospy.loginfo("Velocity published")
 
-	    else:
-		if self.turbo_turn_flag:
- 		    #if turbo turn is included
-		    rospy.loginfo("Yaw error: %f", yaw_error)
+	        else:
+		        if self.turbo_turn_flag:
+ 		        #if turbo turn is included
+		        rospy.loginfo("Yaw error: %f", yaw_error)
 
                     if abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max:
                         #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
@@ -270,7 +270,7 @@ class WPDepthPlanner(object):
         # Stop thruster
 	    self.vel_pid_enable.publish(False)
 	    rpm1 = ThrusterRPM()
-        rpm2 = ThrusterRPM() 
+        rpm2 = ThrusterRPM()
         rpm1.rpm = 0.0
         rpm2.rpm = 0.0
         self.rpm1_pub.publish(rpm1)
@@ -313,7 +313,7 @@ class WPDepthPlanner(object):
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
         # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
-	rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
+	    rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached goal!")
             self.nav_goal = None
@@ -365,7 +365,7 @@ class WPDepthPlanner(object):
 
         self.listener = tf.TransformListener()
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)
-        
+
         self.yaw_feedback=0
         rospy.Subscriber(yaw_feedback_topic, Float64, self.yaw_feedback_cb)
 
@@ -383,7 +383,7 @@ class WPDepthPlanner(object):
         self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
         self.vec_pub = rospy.Publisher(thrust_vector_cmd_topic, ThrusterAngles, queue_size=10)
-        
+
         self.marker = Marker()
         self.marker_pub = rospy.Publisher('/sam/viz/wp_marker', Marker, queue_size=1)
 
