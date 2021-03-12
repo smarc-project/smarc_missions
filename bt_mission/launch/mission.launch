@@ -78,5 +78,16 @@
 	<include file="$(find sam_action_servers)/launch/leader_follower_action.launch" ns="$(arg robot_name)">
 	</include>
 
+	<!--Low level controllers: SET either SIM or REAL to true depending on launch in simulation or real test-->
+
+        <include file="$(find sam_basic_controllers)/launch/static_controllers.launch" ns="$(arg robot_name)">
+		<arg name="with_SIM" default="true"/>
+		<arg name="with_REAL" default="false"/>
+	</include>
+
+        <include file="$(find sam_basic_controllers)/launch/dynamic_controllers.launch" ns="$(arg robot_name)">
+		<arg name="with_SIM" default="true"/>
+		<arg name="with_REAL" default="false"/>
+	</include>
     
 </launch>
