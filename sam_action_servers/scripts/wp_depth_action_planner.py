@@ -205,12 +205,12 @@ class WPDepthPlanner(object):
 	            #self.vbs_pid_enable.publish(False)
                 #self.vbs_pub.publish(depth_setpoint)
 
-	        if self.vel_ctrl_flag:
-		        rospy.loginfo_throttle_identical(5, "vel ctrl, no turbo turn")
+            if self.vel_ctrl_flag:
+                rospy.loginfo_throttle_identical(5, "vel ctrl, no turbo turn")
                 #with Velocity control
                 self.yaw_pid_enable.publish(True)
                 self.yaw_pub.publish(yaw_setpoint)
-
+                
                 # Publish to velocity controller
                 self.vel_pid_enable.publish(True)
                 self.vel_pub.publish(self.vel_setpoint)
@@ -268,14 +268,14 @@ class WPDepthPlanner(object):
             r.sleep()
 
         # Stop thruster
-	    self.vel_pid_enable.publish(False)
-	    rpm1 = ThrusterRPM()
+        self.vel_pid_enable.publish(False)
+        rpm1 = ThrusterRPM()
         rpm2 = ThrusterRPM()
         rpm1.rpm = 0.0
         rpm2.rpm = 0.0
         self.rpm1_pub.publish(rpm1)
         self.rpm2_pub.publish(rpm2)
-
+        
         #Stop controllers
         self.yaw_pid_enable.publish(False)
         self.depth_pid_enable.publish(False)
