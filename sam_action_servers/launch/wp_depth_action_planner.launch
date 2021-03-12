@@ -27,7 +27,7 @@
     
 
 
-    <node name="wp_depth_action_planner" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
+    <node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
 		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
 		<param name="base_frame" value="$(arg base_frame)"/>
