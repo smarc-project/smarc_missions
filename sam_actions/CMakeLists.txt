@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(auv_simple_motion_planner)
+project(sam_actions)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -11,7 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
   std_msgs
-  #uuv_gazebo_ros_plugins_msgs
 )
 
 ## System dependencies are found with CMake's conventions
