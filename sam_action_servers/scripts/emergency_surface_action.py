@@ -71,8 +71,8 @@ class EmergencySurface(object):
             # Stop thrusters
             rpm1 = ThrusterRPM()
             rpm2 = ThrusterRPM()
-            rpm1.rpm = 0.0
-            rpm2.rpm = 0.0
+            rpm1.rpm = 0
+            rpm2.rpm = 0
             self.rpm1_pub.publish(rpm1)
             self.rpm2_pub.publish(rpm2)
 

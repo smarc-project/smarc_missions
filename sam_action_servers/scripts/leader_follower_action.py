@@ -52,8 +52,8 @@ class LeaderFollower(object):
                 success = False
 
                 # Stop thrusters
-                self.rpm1.rpm = 0.
-                self.rpm2.rpm = 0.
+                self.rpm1.rpm = 0
+                self.rpm2.rpm = 0
                 self.rpm1_pub.publish(self.rpm1)
                 self.rpm2_pub.publish(self.rpm2)
                 self.yaw_pid_enable.publish(False)
@@ -135,8 +135,8 @@ class LeaderFollower(object):
 
         # Stop thruster
         self.vel_pid_enable.publish(False)
-        self.rpm1.rpm = 0.0
-        self.rpm2.rpm = 0.0
+        self.rpm1.rpm = 0
+        self.rpm2.rpm = 0
         self.rpm1_pub.publish(self.rpm1)
         self.rpm2_pub.publish(self.rpm2)
 
