@@ -1,0 +1,46 @@
+<launch>
+
+    <!-- Configurable arguments -->
+    <arg name="robot_name" default="sam"/>
+
+    <!-- <arg name="min_dist" default="5."/> -->
+    <arg name="follower_frame" default="$(arg robot_name)/base_link"/>
+	<arg name="follower_odom" default="$(arg robot_name)/odom"/>
+    <arg name="forward_rpm" default="1000"/>
+	
+
+    <!-- topics, note the root! -->
+    <arg name="rpm1_cmd_topic" default="/$(arg robot_name)/core/thruster1_cmd" />
+    <arg name="rpm2_cmd_topic" default="/$(arg robot_name)/core/thruster2_cmd" />
+    <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
+    <arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
+    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
+    <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
+    <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/u_setpoint" />
+    <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
+    <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
+
+    <node name="leader_follower_action" pkg="sam_action_servers" type="leader_follower_action.py" output="screen" ns="$(arg robot_name)/ctrl">
+		<!-- <param name="min_dist" value="$(arg min_dist)"/> -->
+		<param name="follower_frame" value="$(arg follower_frame)"/>
+        <param name="follower_odom" value="$(arg follower_odom)"/>
+		<param name="forward_rpm" value="$(arg forward_rpm)"/>
+		
+		<param name="rpm1_cmd_topic" value="$(arg rpm1_cmd_topic)" />
+		<param name="rpm2_cmd_topic" value="$(arg rpm2_cmd_topic)" />
+		<param name="heading_setpoint_topic" value="$(arg heading_setpoint_topic)" />
+		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
+		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
+		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
+		
+		<!--Vel ctrl parameters-->
+  		<param name="vel_ctrl_flag" value="False" />
+		<param name="vel_setpoint" value="0.5" />
+		<param name="roll_setpoint" value="0.0" />
+		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
+		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />
+		<param name="vel_pid_enable_topic" value="$(arg vel_pid_enable_topic)" />
+
+	</node>
+
+</launch>
