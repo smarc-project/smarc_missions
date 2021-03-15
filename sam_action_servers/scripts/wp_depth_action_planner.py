@@ -20,7 +20,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, PointStamped
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
+from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
 import actionlib
 import rospy
 import tf
@@ -36,34 +36,7 @@ class WPDepthPlanner(object):
     # create messages that are used to publish feedback/result
     _feedback = GotoWaypointActionFeedback()
     _result = GotoWaypointResult()
-
-    def create_marker(self, yaw_setpoint, depth_setpoint):
-        self.marker.header.frame_id = "/sam/odom"
-        self.marker.header.stamp = rospy.Time(0)
-        self.marker.ns = "/sam/viz"
-        self.marker.id = 0
-        self.marker.type = 0
-        self.marker.action = 0
-        self.marker.pose.position.x = self._feedback.base_position.pose.position.x
-        self.marker.pose.position.y = self._feedback.base_position.pose.position.y
-        self.marker.pose.position.z = self._feedback.base_position.pose.position.z
-
-        q = quaternion_from_euler(0,0,yaw_setpoint)
-
-        self.marker.pose.orientation.x = q[0]
-        self.marker.pose.orientation.y = q[1]
-        self.marker.pose.orientation.z = q[2]
-        self.marker.pose.orientation.w = q[3]
-        self.marker.scale.x = 1
-        self.marker.scale.y = 0.1
-        self.marker.scale.z = 0.1
-        self.marker.color.a = 1.0 # Dont forget to set the alpha!
-        self.marker.color.r = 1.0
-        self.marker.color.g = 1.0
-        self.marker.color.b = 1.0
-
-        self.marker_pub.publish(self.marker)
-
+    
     def yaw_feedback_cb(self,yaw_feedback):
         self.yaw_feedback= yaw_feedback.data
 
@@ -120,12 +93,12 @@ class WPDepthPlanner(object):
 
         rospy.loginfo("Goal received")
 
-        success = True
-        self.nav_goal = goal.target_pose.pose
-        self.nav_goal_frame = goal.target_pose.header.frame_id
+        #success = True
+        self.nav_goal = goal.waypoint_pose.pose
+        self.nav_goal_frame = goal.waypoint_pose.header.frame_id
         if self.nav_goal_frame is None or self.nav_goal_frame == '':
             rospy.logwarn("Goal has no frame id! Using utm by default")
-            self.nav_goal_frame = 'utm'
+            self.nav_goal_frame = 'utm' #'utm'
 
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
@@ -153,7 +126,7 @@ class WPDepthPlanner(object):
             # Preempted
             if self._as.is_preempt_requested():
                 rospy.loginfo('%s: Preempted' % self._action_name)
-                success = False
+                #success = False
                 self.nav_goal = None
 
                 # Stop thrusters
@@ -185,16 +158,16 @@ class WPDepthPlanner(object):
                 pose_fb.pose.position.x = trans[0]
                 pose_fb.pose.position.y = trans[1]
                 pose_fb.pose.position.z = trans[2]
-                self._feedback.base_position = pose_fb
-                self._feedback.base_position.header.stamp = rospy.get_rostime()
-                self._as.publish_feedback(self._feedback)
+                #self._feedback.feedback.pose = pose_fb
+                #self._feedback.feedback.pose.header.stamp = rospy.get_rostime()
+                #self._as.publish_feedback(self._feedback)
                 #rospy.loginfo("Sending feedback")
 
                 #Compute yaw setpoint.
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
-                yaw_setpoint = math.atan2(ydiff,xdiff)
-                print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
+                yaw_setpoint = 1.57-math.atan2(ydiff,xdiff)
+                #print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
 
 		        #compute yaw_error (e.g. for turbo_turn)
                 yaw_error= -(self.yaw_feedback - yaw_setpoint)
@@ -253,7 +226,6 @@ class WPDepthPlanner(object):
                     rospy.loginfo_throttle_identical(5, "Normal WP following, no turbo turn")
                     self.yaw_pid_enable.publish(True)
                     self.yaw_pub.publish(yaw_setpoint)
-                    self.create_marker(yaw_setpoint,depth_setpoint)
 
                     # Thruster forward
                     rpm1 = ThrusterRPM()
@@ -283,7 +255,8 @@ class WPDepthPlanner(object):
         self.vbs_pid_enable.publish(False)
         self.vel_pid_enable.publish(False)
         rospy.loginfo('%s: Succeeded' % self._action_name)
-        self._as.set_succeeded(self._result)
+        #self._result.reached_waypoint= True
+        self._as.set_succeeded(self._result,"WP Reached")
 
     def timer_callback(self, event):
         if self.nav_goal is None:
@@ -316,8 +289,10 @@ class WPDepthPlanner(object):
         # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
         rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
-            rospy.loginfo("Reached goal!")
+            rospy.loginfo("Reached WP!")
             self.nav_goal = None
+            self._result.reached_waypoint= True
+            #self._as.set_succeeded(self._result, "Reached WP")
 
     def __init__(self, name):
 
@@ -384,9 +359,6 @@ class WPDepthPlanner(object):
         self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
         self.vec_pub = rospy.Publisher(thrust_vector_cmd_topic, ThrusterAngles, queue_size=10)
-
-        self.marker = Marker()
-        self.marker_pub = rospy.Publisher('/sam/viz/wp_marker', Marker, queue_size=1)
 
         self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
