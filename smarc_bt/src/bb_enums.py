@@ -8,7 +8,9 @@ ABORT = 'abort'
 LEAK = 'leak'
 
 DEPTH = 'depth'
+MAX_DEPTH = 'max_depth'
 ALTITUDE = 'altitude'
+MIN_ALTITUDE = 'min_altitude'
 
 MISSION_PLAN_OBJ = 'misison_plan'
 PLAN_IS_GO = 'plan_is_go'

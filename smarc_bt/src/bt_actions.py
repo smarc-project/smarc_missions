@@ -124,7 +124,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if not self.action_server_ok:
             rospy.logwarn_throttle_identical(5, "No Action Server found for emergency action, will just block the tree!")
             return
-        rospy.logwarn("EMERGENCY SURFACING")
+        self.feedback_message = "EMERGENCY SURFACING"
         # construct the message
         self.action_goal = GotoWaypointGoal()
         self.sent_goal = False
