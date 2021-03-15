@@ -74,7 +74,7 @@
 	<!-- Emergency surface action -->
 	<include file="$(find sam_action_servers)/launch/emergency_surface_action.launch" >
 		<arg name="robot_name" value="$(arg robot_name)"/>	
-	</include>	
+	</include>
 
         <!-- Leader follower action -->
 	<include file="$(find sam_action_servers)/launch/leader_follower_action.launch" >

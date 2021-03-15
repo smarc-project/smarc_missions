@@ -148,6 +148,7 @@ class LeaderFollower(object):
             rospy.loginfo('%s: Succeeded' % self._action_name)
         else:
             rospy.logwarn_throttle_identical(3, '%s: Failed' % self._action_name)
+        self._result.reached_waypoint= True
         self._as.set_succeeded(self._result)
 
 
