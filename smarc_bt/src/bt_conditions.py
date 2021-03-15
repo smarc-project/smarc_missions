@@ -94,14 +94,28 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
         else:
             return pt.Status.SUCCESS
 
-class C_DepthOK(pt.behaviour.Behaviour):
-    def __init__(self, max_depth):
+
+class C_LeakOK(pt.behaviour.Behaviour):
+    def __init__(self):
         self.bb = pt.blackboard.Blackboard()
-        self.max_depth = max_depth
+        super(C_LeakOK, self).__init__(name="C_LeakOK")
+
+    def update(self):
+        if self.bb.get(bb_enums.LEAK) == True:
+            return pt.Status.FAILURE
+        else:
+            return pt.Status.SUCCESS
+
+
+class C_DepthOK(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
         super(C_DepthOK, self).__init__(name="C_DepthOK")
 
 
     def update(self):
+        self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
         depth = self.bb.get(bb_enums.DEPTH)
         self.feedback_message = "Last read:{l:.2f}, max:{m:.2f}".format(l=depth, m=self.max_depth)
 
@@ -116,44 +130,21 @@ class C_DepthOK(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
 
-class C_LeakOK(pt.behaviour.Behaviour):
-    def __init__(self):
-        self.bb = pt.blackboard.Blackboard()
-        super(C_LeakOK, self).__init__(name="C_LeakOK")
-
-    def update(self):
-        if self.bb.get(bb_enums.LEAK) == True:
-            return pt.Status.FAILURE
-        else:
-            return pt.Status.SUCCESS
-
-
 
 class C_AltOK(pt.behaviour.Behaviour):
-    def __init__(self, min_alt, absolute_min_alt):
+    def __init__(self):
         self.bb = pt.blackboard.Blackboard()
-        self.min_alt = min_alt
-        self.absolute_min_alt = absolute_min_alt
+        self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
         super(C_AltOK, self).__init__(name="C_AltOK")
 
-
-        self.first_alt = None
-
     def update(self):
+        self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
         alt = self.bb.get(bb_enums.ALTITUDE)
         self.feedback_message = "Last read:{l:.2f}, min:{m:.2f}".format(l=alt, m=self.min_alt)
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
             return pt.Status.SUCCESS
 
-        # we also want to check if the vehicle is started somewhere that is already
-        # too shallow normally
-        if self.first_alt is None:
-            self.first_alt = alt
-
-        if self.first_alt < self.min_alt:
-            rospy.logwarn_throttle(5, "First read altitude is less than the minimum setup altitude, setting min altitude to {}m!".format(self.absolute_min_alt))
-            self.min_alt = self.absolute_min_alt
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS

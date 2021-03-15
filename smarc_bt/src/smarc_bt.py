@@ -6,8 +6,6 @@
 import os
 
 import rospy
-from dynamic_reconfigure.server import Server
-from smarc_bt.cfg import smarc_btConfig
 
 
 import py_trees as pt
@@ -24,6 +22,7 @@ from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
 
 from auv_config import AUVConfig
+from reconfig_server import ReconfigServer
 
 # tree leaves
 
@@ -185,9 +184,8 @@ def const_tree(auv_config):
 
     def const_safety_tree():
         no_abort = C_NoAbortReceived()
-        altOK = C_AltOK(auv_config.MIN_ALTITUDE,
-                        auv_config.ABSOLUTE_MIN_ALTITUDE)
-        depthOK = C_DepthOK(auv_config.MAX_DEPTH)
+        altOK = C_AltOK()
+        depthOK = C_DepthOK()
         leakOK = C_LeakOK()
         # more safety checks will go here
 
@@ -391,8 +389,13 @@ def main():
         print("Did not generate the launch file")
 
     # read all the fields from rosparams, lowercased and with ~ prepended
-    # this might over-write the defaults, as it should
+    # this might over-write the defaults in py, as it should
     config.read_rosparams()
+
+    # create a dynamic reconfig server that defaults to the
+    # configs we already have
+    # this will update stuff in the BB
+    reconfig = ReconfigServer(config)
 
     try:
         rospy.loginfo("Constructing tree")
@@ -409,8 +412,6 @@ def main():
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
 
-
-
         if setup_ok:
             rospy.loginfo(config)
             rospy.loginfo("Ticktocking....")
@@ -419,6 +420,8 @@ def main():
             bb = pt.blackboard.Blackboard()
 
             while not rospy.is_shutdown():
+                # some info _about the tree_ in the BB.
+                # better do this outside the tree
                 tip = tree.tip()
                 if tip is None:
                     bb.set(bb_enums.TREE_TIP_NAME, '')
@@ -427,8 +430,10 @@ def main():
                     bb.set(bb_enums.TREE_TIP_NAME, tip.name)
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
+                # an actual tick, finally.
                 tree.tick()
 
+                # use py-trees-tree-watcher if you can
                 #  pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()
 
@@ -439,15 +444,10 @@ def main():
         rospy.loginfo("ROS Interrupt")
 
 
-def reconfig_cb(config, level):
-    rospy.loginfo("Dynamic reconfig config:{}".format(config))
-    return config
 
 
 if __name__ == '__main__':
     # init the node
     rospy.init_node("bt")
-    # connect to dynamic reconfig
-    drc_srv = Server(smarc_btConfig, reconfig_cb)
     main()
 

@@ -11,11 +11,12 @@ find_package(catkin REQUIRED COMPONENTS
   genmsg
   roscpp
   rospy
-  dynamic_reconfigure
+  #dynamic_reconfigure
   std_msgs
   sensor_msgs
   actionlib_msgs
   imc_ros_bridge
+  ddynamic_reconfigure_python
   #uuv_gazebo_ros_plugins_msgs
 )
 
@@ -91,9 +92,9 @@ find_package(catkin REQUIRED COMPONENTS
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
- generate_dynamic_reconfigure_options(
-   cfg/smarc_bt.cfg
- )
+ #generate_dynamic_reconfigure_options(
+   #cfg/smarc_bt.cfg
+ #)
 
 ###################################
 ## catkin specific configuration ##
@@ -107,7 +108,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES smarc_bt
-#  CATKIN_DEPENDS bee_tea roscpp rospy std_msgs uuv_gazebo_ros_plugins_msgs
+  #CATKIN_DEPENDS dynamic_reconfigure
 #  DEPENDS system_lib
 )
 
@@ -165,6 +166,7 @@ include_directories(
 install(PROGRAMS
   src/auv_config.py src/bb_enums.py src/bt_actions.py src/bt_common.py
   src/bt_conditions.py src/common_globals.py src/imc_enums.py src/mission_plan.py
+  src/reconfig_server.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
