@@ -1,0 +1,3 @@
+[submodule "ddynamic_reconfigure_python"]
+	path = ddynamic_reconfigure_python
+	url = https://github.com/pal-robotics/ddynamic_reconfigure_python
