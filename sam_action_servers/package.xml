@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>auv_simple_motion_planner</name>
+  <name>sam_action_servers</name>
   <version>0.0.0</version>
-  <description>The auv_simple_motion_planner package</description>
+  <description>The sam_action_servers package with action servers for the SAM BT</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
