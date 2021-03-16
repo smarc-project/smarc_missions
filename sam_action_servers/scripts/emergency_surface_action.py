@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#! /usr/bin/env python
 
 # Copyright 2020 Sriharsha Bhat (svbhat@kth.se)
 #
@@ -20,9 +20,11 @@ import actionlib
 import rospy
 import tf
 from sam_msgs.msg import PercentStamped
-from smarc_msgs.msg import DualThrusterRPM
+from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool, Empty
-from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+#from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
+from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
+
 import math
 
 class EmergencySurface(object):
@@ -47,7 +49,7 @@ class EmergencySurface(object):
                 self.depth_pid_enable.publish(True)
                 self.vel_pid_enable.publish(True)
                 rospy.loginfo('%s: Preempted' % self._action_name)
-                self._as.set_preempted(MoveBaseResult(), "Preempted EmergencySurface action")
+                self._as.set_preempted(GotoWaypointResult(), "Preempted EmergencySurface action")
                 return
 
             # Publish emergency command
@@ -63,14 +65,16 @@ class EmergencySurface(object):
 
             #set VBS to 0
             vbs_level = PercentStamped()
-            vbs_level.value = 0.0;
+            vbs_level.value = 0.0
             self.vbs_pub.publish(vbs_level)
 
             # Stop thrusters
-            rpm = DualThrusterRPM()
-            rpm.thruster_front.rpm = 0.0
-            rpm.thruster_back.rpm = 0.0
-            self.rpm_pub.publish(rpm)
+            rpm1 = ThrusterRPM()
+            rpm2 = ThrusterRPM()
+            rpm1.rpm = 0
+            rpm2.rpm = 0
+            self.rpm1_pub.publish(rpm1)
+            self.rpm2_pub.publish(rpm2)
 
             r.sleep()
 
@@ -85,7 +89,8 @@ class EmergencySurface(object):
 
         emergency_topic = rospy.get_param('~emergency_topic', '/sam/abort')
         vbs_cmd_topic = rospy.get_param('~vbs_cmd_topic', '/sam/core/vbs_cmd')
-        rpm_cmd_topic = rospy.get_param('~rpm_cmd_topic', '/sam/core/thrusters_cmd')
+        rpm_cmd_topic_1 = rospy.get_param('~rpm_cmd_topic_1', '/sam/core/thruster1_cmd')
+        rpm_cmd_topic_2 = rospy.get_param('~rpm_cmd_topic_2', '/sam/core/thruster2_cmd')
         lcg_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/lcg/pid_enable')
         vbs_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/vbs/pid_enable')
         tcg_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/tcg/pid_enable')
@@ -96,14 +101,15 @@ class EmergencySurface(object):
         #rospy.Timer(rospy.Duration(2), self.timer_callback)
         self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
         self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm_pub = rospy.Publisher(rpm_cmd_topic, DualThrusterRPM, queue_size=10)
+        self.rpm1_pub = rospy.Publisher(rpm_cmd_topic_1, ThrusterRPM, queue_size=10)
+        self.rpm2_pub = rospy.Publisher(rpm_cmd_topic_2, ThrusterRPM, queue_size=10)
         self.lcg_pid_enable = rospy.Publisher(lcg_pid_enable_topic, Bool, queue_size=10)
         self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
         self.tcg_pid_enable = rospy.Publisher(tcg_pid_enable_topic, Bool, queue_size=10)
         self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
         self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
         self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
-        self._as = actionlib.SimpleActionServer(self._action_name, MoveBaseAction, execute_cb=self.execute_cb, auto_start = False)
+        self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
 
         rospy.loginfo("Announced action server with name: %s", self._action_name)

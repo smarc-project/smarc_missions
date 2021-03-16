@@ -5,10 +5,11 @@
 
 	<!-- topics, note the root! -->
     
-    <node name="emergency_surface_action" pkg="auv_simple_motion_planner" type="emergency_surface_action.py" output="screen" ns="$(arg robot_name)/ctrl">
-	<param name="emergency_topic" value="/$(arg robot_name)/abort" />
+    <node name="emergency_surface_action" pkg="sam_action_servers" type="emergency_surface_action.py" output="screen" ns="$(arg robot_name)/ctrl">
+	<param name="emergency_topic" value="/$(arg robot_name)/core/abort" />
     <param name="vbs_cmd_topic" value="/$(arg robot_name)/core/vbs_cmd" />
-    <param name="rpm_cmd_topic" value="/$(arg robot_name)/core/thrusters_cmd" />
+    <param name="rpm1_cmd_topic" value="/$(arg robot_name)/core/thruster1_cmd" />
+    <param name="rpm2_cmd_topic" value="/$(arg robot_name)/core/thruster2_cmd" />
 	<param name="lcg_pid_enable_topic" value="/$(arg robot_name)/ctrl/lcg/pid_enable" />
     <param name="vbs_pid_enable_topic" value="/$(arg robot_name)/ctrl/vbs/pid_enable" />
     <param name="tcg_pid_enable_topic" value="/$(arg robot_name)/ctrl/tcg/pid_enable" />
