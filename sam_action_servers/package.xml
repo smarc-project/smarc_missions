@@ -75,8 +75,8 @@
   <exec_depend>rospy</exec_depend>
   <exec_depend>actionlib</exec_depend>
   <!-- <exec_depend>uuv_gazebo_ros_plugins_msgs</exec_depend> -->
-  <depend>sam_msgs</depend>
-  <depend>smarc_msgs</depend>
+  <!--depend>sam_msgs</depend>
+  <depend>smarc_msgs</depend-->
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
