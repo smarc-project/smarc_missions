@@ -5,4 +5,4 @@
 - git: {local-name: lolo_common, uri: 'https://github.com/smarc-project/lolo_common.git', version: noetic-devel}
 - git: {local-name: sbg_ros_driver, uri: 'https://github.com/smarc-project/sbg_ros_driver.git', version: master}
 - git: {local-name: geographic_info, uri: 'https://github.com/ros-geographic-info/geographic_info.git', version: master}
-- - git: {local-name: sam_common, uri: 'https://github.com/smarc-project/sam_common.git', version: noetic-devel}
+- git: {local-name: sam_common, uri: 'https://github.com/smarc-project/sam_common.git', version: noetic-devel}
