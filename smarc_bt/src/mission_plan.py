@@ -21,6 +21,7 @@ from smarc_msgs.srv import LatLonToUTM
 class Waypoint:
     def __init__(self,
                  maneuver_id,
+                 maneuver_imc_id,
                  maneuver_name,
                  x,
                  y,
@@ -31,7 +32,9 @@ class Waypoint:
                  tf_frame,
                  extra_data):
 
+
         self.maneuver_id = maneuver_id
+        self.maneuver_imc_id = maneuver_imc_id
         self.maneuver_name = maneuver_name
         self.x = x
         self.y = y
@@ -143,6 +146,7 @@ class MissionPlan:
                 # will need when you are publishing it
                 waypoint = Waypoint(
                     maneuver_id = man_id,
+                    maneuver_imc_id = man_imc_id,
                     maneuver_name= man_name,
                     tf_frame = 'utm',
                     x = utm_x,
