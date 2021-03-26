@@ -84,7 +84,7 @@
   <exec_depend>lolo_description</exec_depend>
   <exec_depend>bt_mission</exec_depend>
 
-  <depend>sam_action_servers</depend>
+  <!--depend>sam_action_servers</depend-->
 
 
   <!-- The export tag contains other, unspecified, tags -->
