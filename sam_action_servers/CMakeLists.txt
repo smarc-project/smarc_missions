@@ -13,6 +13,13 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   smarc_msgs
   sam_msgs
+  tf
+  rospy
+  #numpy
+  #matplotlib
+  #mpl_toolkits
+  actionlib
+  #math
 )
 
 ## System dependencies are found with CMake's conventions
