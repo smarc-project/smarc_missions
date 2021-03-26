@@ -6,6 +6,8 @@
 import os
 
 import rospy
+
+
 import py_trees as pt
 import py_trees_ros as ptr
 
@@ -20,6 +22,7 @@ from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
 
 from auv_config import AUVConfig
+from reconfig_server import ReconfigServer
 
 # tree leaves
 
@@ -36,7 +39,8 @@ from bt_conditions import C_DepthOK, \
                           C_LeaderFollowerEnabled, \
                           C_LeaderExists, \
                           C_LeaderIsFarEnough, \
-                          C_AtDVLDepth
+                          C_AtDVLDepth, \
+                          C_CheckWaypointType
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -180,9 +184,8 @@ def const_tree(auv_config):
 
     def const_safety_tree():
         no_abort = C_NoAbortReceived()
-        altOK = C_AltOK(auv_config.MIN_ALTITUDE,
-                        auv_config.ABSOLUTE_MIN_ALTITUDE)
-        depthOK = C_DepthOK(auv_config.MAX_DEPTH)
+        altOK = C_AltOK()
+        depthOK = C_DepthOK()
         leakOK = C_LeakOK()
         # more safety checks will go here
 
@@ -271,20 +274,49 @@ def const_tree(auv_config):
 
 
     def const_execute_mission_tree():
-        gotowp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
-                                goal_tf_frame = auv_config.UTM_LINK)
+        # GOTO
+        goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                     goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+                                     goal_tf_frame = auv_config.UTM_LINK)
+        wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
+        goto_maneuver = Sequence(name="SQ-GotoWaypoint",
+                                 children=[
+                                     wp_is_goto,
+                                     goto_action
+                                 ])
 
 
+        # SAMPLE
+        #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
+        sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                       goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+                                       goal_tf_frame = auv_config.UTM_LINK)
+        wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
+        sample_maneuver = Sequence(name="SQ-SampleWaypoint",
+                                 children=[
+                                     wp_is_sample,
+                                     sample_action
+                                 ])
+
+        # put the known plannable maneuvers in here as each others backups
+        execute_maneuver = Fallback(name="FB-ExecuteManeuver",
+                                    children=[
+                                        goto_maneuver,
+                                        sample_maneuver
+                                    ])
+
+
+        # and then execute them in order
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
                                          C_PlanIsNotChanged(),
-                                         gotowp,
+                                         execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
 
+        # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
@@ -312,14 +344,6 @@ def const_tree(auv_config):
 
     # The root of the tree is here
 
-    # planned_mission = Sequence(name="SQ_PlannedMission",
-                               # children=[
-                                  # const_synch_tree(),
-                                  # XXX stuff in here are not modified to work with utm-frame-everything
-                                  # they _could_ but not tested.
-                                  # const_autonomous_updates(),
-                                  # const_execute_mission_tree()
-                               # ])
 
     planned_mission = const_execute_mission_tree()
 
@@ -327,8 +351,8 @@ def const_tree(auv_config):
     # use this to kind of set the tree to 'idle' mode that wont attempt
     # to control anything and just chills as an observer
     finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
-                                                 True,
-                                                 "MissionFinalized")
+                                             True,
+                                             "MissionFinalized")
 
     run_tree = Fallback(name="FB-Run",
                         children=[
@@ -365,8 +389,13 @@ def main():
         print("Did not generate the launch file")
 
     # read all the fields from rosparams, lowercased and with ~ prepended
-    # this might over-write the defaults, as it should
+    # this might over-write the defaults in py, as it should
     config.read_rosparams()
+
+    # create a dynamic reconfig server that defaults to the
+    # configs we already have
+    # this will update stuff in the BB
+    reconfig = ReconfigServer(config)
 
     try:
         rospy.loginfo("Constructing tree")
@@ -383,8 +412,6 @@ def main():
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
 
-
-
         if setup_ok:
             rospy.loginfo(config)
             rospy.loginfo("Ticktocking....")
@@ -393,6 +420,8 @@ def main():
             bb = pt.blackboard.Blackboard()
 
             while not rospy.is_shutdown():
+                # some info _about the tree_ in the BB.
+                # better do this outside the tree
                 tip = tree.tip()
                 if tip is None:
                     bb.set(bb_enums.TREE_TIP_NAME, '')
@@ -401,8 +430,10 @@ def main():
                     bb.set(bb_enums.TREE_TIP_NAME, tip.name)
                     bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
+                # an actual tick, finally.
                 tree.tick()
 
+                # use py-trees-tree-watcher if you can
                 #  pt.display.print_ascii_tree(tree.root, show_status=True)
                 rate.sleep()
 

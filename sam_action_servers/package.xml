@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>sam_action_servers</name>
-  <version>0.0.0</version>
+  <version>0.0.1</version>
   <description>The sam_action_servers package with action servers for the SAM BT</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -75,6 +75,8 @@
   <exec_depend>rospy</exec_depend>
   <exec_depend>actionlib</exec_depend>
   <!-- <exec_depend>uuv_gazebo_ros_plugins_msgs</exec_depend> -->
+  <depend>sam_msgs</depend>
+  <depend>smarc_msgs</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

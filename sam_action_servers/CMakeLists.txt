@@ -168,10 +168,10 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/emergency_surface_action.py scripts/leader_follower_action.py scripts/wp_depth_action_planner.py
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(PROGRAMS
+   scripts/emergency_surface_action.py scripts/leader_follower_action.py scripts/wp_depth_action_planner.py
+   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 catkin_install_python(PROGRAMS scripts/emergency_surface_action.py scripts/leader_follower_action.py scripts/wp_depth_action_planner.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
