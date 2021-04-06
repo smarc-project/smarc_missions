@@ -22,7 +22,8 @@
     <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/u_setpoint" />
     <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
     <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
-    <arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/odom_listener/yaw_feedback" />
+    <arg name="yaw_feedback_topic" default="/$(arg robot_name)/dr/odom_listener/yaw" />
+    <!--arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/odom_listener/yaw_feedback" /-->
 
     
 
