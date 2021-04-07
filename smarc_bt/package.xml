@@ -52,7 +52,7 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <!--depend does both build and exec-->
-  <depend>dynamic_reconfigure</depend>
+  <depend>ddynamic_reconfigure_python</depend>
   <depend>roscpp</depend>
   <depend>rospy</depend>
   <depend>std_msgs</depend>
