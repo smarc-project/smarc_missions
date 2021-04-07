@@ -90,6 +90,7 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
     def update(self):
         if self.bb.get(bb_enums.ABORT) or self.aborted:
             self.aborted = True
+            self.feedback_message = 'ABORTED'
             return pt.Status.FAILURE
         else:
             return pt.Status.SUCCESS
@@ -102,6 +103,7 @@ class C_LeakOK(pt.behaviour.Behaviour):
 
     def update(self):
         if self.bb.get(bb_enums.LEAK) == True:
+            self.feedback_message = "\n\n\n!!!! LEAK !!!!\n\n\n"
             return pt.Status.FAILURE
         else:
             return pt.Status.SUCCESS
