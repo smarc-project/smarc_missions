@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>bt_mission</name>
-  <version>0.0.1</version>
+  <version>0.0.2</version>
   <description>The bt_mission package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -13,7 +13,7 @@
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
-  <license>TODO</license>
+  <license>BSD</license>
 
 
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
@@ -52,9 +52,7 @@
   <build_depend>smarc_bt</build_depend>
   <build_export_depend>smarc_bt</build_export_depend>
   <exec_depend>smarc_bt</exec_depend>
-  <exec_depend>sam_action_servers </exec_depend>
-
-
+  <exec_depend>sam_action_servers</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
