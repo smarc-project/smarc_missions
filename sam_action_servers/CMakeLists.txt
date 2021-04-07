@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(auv_simple_motion_planner)
+project(sam_action_servers)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -11,7 +11,15 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
   std_msgs
-  #uuv_gazebo_ros_plugins_msgs
+  smarc_msgs
+  sam_msgs
+  tf
+  rospy
+  #numpy
+  #matplotlib
+  #mpl_toolkits
+  actionlib
+  #math
 )
 
 ## System dependencies are found with CMake's conventions
@@ -160,10 +168,14 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(PROGRAMS
+   scripts/emergency_surface_action.py scripts/leader_follower_action.py scripts/wp_depth_action_planner.py
+   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
+
+catkin_install_python(PROGRAMS scripts/emergency_surface_action.py scripts/leader_follower_action.py scripts/wp_depth_action_planner.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables and/or libraries for installation
 # install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
@@ -185,6 +197,11 @@ include_directories(
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
+
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+  PATTERN ".svn" EXCLUDE
+)
 
 #############
 ## Testing ##
