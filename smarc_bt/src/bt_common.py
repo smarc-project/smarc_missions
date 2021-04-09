@@ -84,11 +84,20 @@ class ReadTopic(pt.behaviour.Behaviour):
 
     mostly copied from the "ToBlackboard" behaviour of ptr
     """
-    def __init__(self, name, topic_name, topic_type, blackboard_variables):
+    def __init__(self,
+                 name,
+                 topic_name,
+                 topic_type,
+                 blackboard_variables,
+                 max_period = None,
+                 allow_silence = True):
         self.bb = pt.blackboard.Blackboard()
         self.blackboard_variables = blackboard_variables
         self.last_read_value = None
         self.last_read_time = None
+
+        self.max_period = max_period
+        self.allow_silence = allow_silence
 
         self.topic_name = topic_name
         self.topic_type = topic_type
@@ -106,13 +115,25 @@ class ReadTopic(pt.behaviour.Behaviour):
         self.msg = msg
 
     def update(self):
+        if self.last_read_time is None and self.msg is None:
+            if not self.allow_silence:
+
         if self.last_read_time is not None:
             time_since = time.time() - self.last_read_time
-            self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+            if self.max_period is None:
+                self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+            else:
+                self.feedback_message = "Last read:{:.2f}s ago, max={} before fail".format(time_since, self.max_period)
+                if time_since > self.max_period:
+                    return pt.Status.FAILURE
 
         if self.msg is None:
             if self.last_read_time is None:
-                self.feedback_message = "No msg received ever"
+                if self.allow_silence:
+                    self.feedback_message = "No msg received ever"
+                else:
+                    self.feedback_message = "No message in topic! Silence not allowed!"
+                    return pt.Status.FAILURE
             return pt.Status.SUCCESS
 
         self.last_read_value = copy.copy(self.msg)

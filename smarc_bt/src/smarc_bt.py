@@ -94,6 +94,13 @@ def const_tree(auv_config):
             variable_name = bb_enums.ABORT
         )
 
+         # ReadTopic
+         # name,
+         # topic_name,
+         # topic_type,
+         # blackboard_variables,
+         # max_period = None,
+         # allow_silence = True
         read_alt = ReadTopic(
             name = "A_ReadAlt",
             topic_name = auv_config.ALTITUDE_TOPIC,
