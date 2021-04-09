@@ -64,6 +64,7 @@ class A_SimplePublisher(pt.behaviour.Behaviour):
         try:
             self.pub.publish(self.message_object)
             self.last_published_time = time.time()
+            self.feedback_message = "Just published!"
             return pt.Status.SUCCESS
         except:
             msg = "Couldn't publish"
@@ -115,9 +116,6 @@ class ReadTopic(pt.behaviour.Behaviour):
         self.msg = msg
 
     def update(self):
-        if self.last_read_time is None and self.msg is None:
-            if not self.allow_silence:
-
         if self.last_read_time is not None:
             time_since = time.time() - self.last_read_time
             if self.max_period is None:

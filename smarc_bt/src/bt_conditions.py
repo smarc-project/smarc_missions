@@ -194,10 +194,14 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None:
-            rospy.loginfo_throttle(5, "No plan received yet")
+            msg = "No plan received yet"
+            self.feedback_message = msg
+            rospy.loginfo_throttle(5, msg)
             return pt.Status.FAILURE
         elif not mission_plan.is_complete():
-            rospy.loginfo_throttle_identical(5, "Plan is not done")
+            msg = "Progress:{}/{} on plan {}".format(mission_plan.current_wp_index, len(mission_plan.waypoints), mission_plan.plan_id)
+            self.feedback_message = msg
+            rospy.loginfo_throttle_identical(5, msg)
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(2, "Plan is complete!")
