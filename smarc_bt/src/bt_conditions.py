@@ -119,11 +119,13 @@ class C_DepthOK(pt.behaviour.Behaviour):
     def update(self):
         self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
         depth = self.bb.get(bb_enums.DEPTH)
-        self.feedback_message = "Last read:{l:.2f}, max:{m:.2f}".format(l=depth, m=self.max_depth)
 
         if depth is None:
-            rospy.logwarn_throttle(5, "NO DEPTH READ!")
+            rospy.logwarn_throttle(5, "NO DEPTH READ! Success anyways")
+            self.feedback_message = "Last read:None, max:{m:.2f}".format(l=depth, m=self.max_depth)
             return pt.Status.SUCCESS
+        else:
+            self.feedback_message = "Last read:{l:.2f}, max:{m:.2f}".format(l=depth, m=self.max_depth)
 
         if depth < self.max_depth:
             return pt.Status.SUCCESS
@@ -142,11 +144,12 @@ class C_AltOK(pt.behaviour.Behaviour):
     def update(self):
         self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
         alt = self.bb.get(bb_enums.ALTITUDE)
-        self.feedback_message = "Last read:{l:.2f}, min:{m:.2f}".format(l=alt, m=self.min_alt)
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
+            self.feedback_message = "Last read:None, min:{m:.2f}".format(m=self.min_alt)
             return pt.Status.SUCCESS
-
+        else:
+            self.feedback_message = "Last read:{l:.2f}, min:{m:.2f}".format(l=alt, m=self.min_alt)
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS
