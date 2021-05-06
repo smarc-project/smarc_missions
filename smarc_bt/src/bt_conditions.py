@@ -90,6 +90,7 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
     def update(self):
         if self.bb.get(bb_enums.ABORT) or self.aborted:
             self.aborted = True
+            self.feedback_message = 'ABORTED'
             return pt.Status.FAILURE
         else:
             return pt.Status.SUCCESS
@@ -102,6 +103,7 @@ class C_LeakOK(pt.behaviour.Behaviour):
 
     def update(self):
         if self.bb.get(bb_enums.LEAK) == True:
+            self.feedback_message = "\n\n\n!!!! LEAK !!!!\n\n\n"
             return pt.Status.FAILURE
         else:
             return pt.Status.SUCCESS
@@ -117,11 +119,13 @@ class C_DepthOK(pt.behaviour.Behaviour):
     def update(self):
         self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
         depth = self.bb.get(bb_enums.DEPTH)
-        self.feedback_message = "Last read:{l:.2f}, max:{m:.2f}".format(l=depth, m=self.max_depth)
 
         if depth is None:
-            rospy.logwarn_throttle(5, "NO DEPTH READ!")
+            rospy.logwarn_throttle(5, "NO DEPTH READ! Success anyways")
+            self.feedback_message = "Last read:None, max:{m:.2f}".format(l=depth, m=self.max_depth)
             return pt.Status.SUCCESS
+        else:
+            self.feedback_message = "Last read:{l:.2f}, max:{m:.2f}".format(l=depth, m=self.max_depth)
 
         if depth < self.max_depth:
             return pt.Status.SUCCESS
@@ -140,11 +144,12 @@ class C_AltOK(pt.behaviour.Behaviour):
     def update(self):
         self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
         alt = self.bb.get(bb_enums.ALTITUDE)
-        self.feedback_message = "Last read:{l:.2f}, min:{m:.2f}".format(l=alt, m=self.min_alt)
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
+            self.feedback_message = "Last read:None, min:{m:.2f}".format(m=self.min_alt)
             return pt.Status.SUCCESS
-
+        else:
+            self.feedback_message = "Last read:{l:.2f}, min:{m:.2f}".format(l=alt, m=self.min_alt)
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS
@@ -192,10 +197,14 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None:
-            rospy.loginfo_throttle(5, "No plan received yet")
+            msg = "No plan received yet"
+            self.feedback_message = msg
+            rospy.loginfo_throttle(5, msg)
             return pt.Status.FAILURE
         elif not mission_plan.is_complete():
-            rospy.loginfo_throttle_identical(5, "Plan is not done")
+            msg = "Progress:{}/{} on plan {}".format(mission_plan.current_wp_index, len(mission_plan.waypoints), mission_plan.plan_id)
+            self.feedback_message = msg
+            rospy.loginfo_throttle_identical(5, msg)
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(2, "Plan is complete!")

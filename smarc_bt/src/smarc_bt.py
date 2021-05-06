@@ -94,6 +94,13 @@ def const_tree(auv_config):
             variable_name = bb_enums.ABORT
         )
 
+         # ReadTopic
+         # name,
+         # topic_name,
+         # topic_type,
+         # blackboard_variables,
+         # max_period = None,
+         # allow_silence = True
         read_alt = ReadTopic(
             name = "A_ReadAlt",
             topic_name = auv_config.ALTITUDE_TOPIC,
@@ -376,9 +383,7 @@ def const_tree(auv_config):
     return ptr.trees.BehaviourTree(root)
 
 
-
 def main():
-
     package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
 
     config = AUVConfig()
@@ -387,6 +392,9 @@ def main():
         config.generate_launch_file(launch_path)
     except:
         print("Did not generate the launch file")
+
+    # init the node
+    rospy.init_node("bt")
 
     # read all the fields from rosparams, lowercased and with ~ prepended
     # this might over-write the defaults in py, as it should
@@ -445,9 +453,6 @@ def main():
 
 
 
-
 if __name__ == '__main__':
-    # init the node
-    rospy.init_node("bt")
     main()
 

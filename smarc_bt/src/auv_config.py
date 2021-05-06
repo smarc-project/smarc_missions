@@ -35,7 +35,7 @@ class AUVConfig(object):
         self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
         self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
 
-        self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/lat_lon_to_utm'
+        self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
 
         # tf frame names
         self.BASE_LINK = self.robot_name+'/base_link'

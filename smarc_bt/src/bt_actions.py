@@ -403,6 +403,8 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         self.listener = tf.TransformListener()
         self.tf_ok = False
 
+        self.last_read_time = None
+
 
     def setup(self, timeout):
         try:
@@ -416,10 +418,17 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         return True
 
     def update(self):
+        if self.last_read_time is not None:
+            time_since = time.time() - self.last_read_time
+            self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "No msg received ever"
+
         try:
             (world_trans, world_rot) = self.listener.lookupTransform(self.utm_link,
                                                                      self.base_link,
                                                                      rospy.Time(0))
+            self.last_read_time = time.time()
         except (tf.LookupException, tf.ConnectivityException):
             rospy.logerr_throttle_identical(5, "Could not get transform between {} and {}".format(self.utm_link, self.base_link))
             return pt.Status.FAILURE
