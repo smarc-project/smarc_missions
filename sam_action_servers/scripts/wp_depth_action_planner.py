@@ -166,7 +166,8 @@ class WPDepthPlanner(object):
                 #Compute yaw setpoint.
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
-                yaw_setpoint = 1.57-math.atan2(ydiff,xdiff)
+                #yaw_setpoint = 1.57-math.atan2(ydiff,xdiff)
+                yaw_setpoint = math.atan2(ydiff,xdiff)
                 #print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
 
 		        #compute yaw_error (e.g. for turbo_turn)
