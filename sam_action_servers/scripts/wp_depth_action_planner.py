@@ -27,6 +27,7 @@ import tf
 from sam_msgs.msg import ThrusterAngles
 from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool
+from std_srvs.srv import SetBool
 import math
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler
@@ -36,6 +37,15 @@ class WPDepthPlanner(object):
     # create messages that are used to publish feedback/result
     _feedback = GotoWaypointActionFeedback()
     _result = GotoWaypointResult()
+    
+    #def toggle_ctrl_client(self, service_name_, enable_):
+    #    rospy.wait_for_service(service_name_)
+    #    try:
+    #        toggle_ctrl = rospy.ServiceProxy(service_name, SetBool)
+    #        toggle_ctrl(enable_)
+    #        #return enable_
+    #    except rospy.ServiceException as e:
+    #        print("Service call failed: %s"%e)
     
     def yaw_feedback_cb(self,yaw_feedback):
         self.yaw_feedback= yaw_feedback.data
@@ -174,8 +184,10 @@ class WPDepthPlanner(object):
                 yaw_error= -(self.yaw_feedback - yaw_setpoint)
                 yaw_error= self.angle_wrap(yaw_error) #wrap angle error between -pi and pi
 
-                depth_setpoint = self.nav_goal.position.z
+                #depth_setpoint = self.nav_goal.position.z
+                depth_setpoint = goal.travel_depth
 
+                #rospy.loginfo("Depth setpoint: %f", depth_setpoint)
                 self.depth_pub.publish(depth_setpoint)
 	            #self.vbs_pid_enable.publish(False)
                 #self.vbs_pub.publish(depth_setpoint)
@@ -288,7 +300,7 @@ class WPDepthPlanner(object):
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
         # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
-        rospy.loginfo("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
+        rospy.loginfo_throttle_identical(5, "diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
         if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
             rospy.loginfo("Reached WP!")
             self.nav_goal = None
