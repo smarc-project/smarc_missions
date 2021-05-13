@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
   std_msgs
+  #std_srvs
   smarc_msgs
   sam_msgs
   tf
