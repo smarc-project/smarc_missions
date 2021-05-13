@@ -110,6 +110,7 @@ class WPDepthPlanner(object):
             rospy.logwarn("Goal has no frame id! Using utm by default")
             self.nav_goal_frame = 'utm' #'utm'
 
+        self.nav_goal.position.z = goal.travel_depth # assign waypoint depth from neptus, goal.z is 0.
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
         goal_point.header.stamp = rospy.Time(0)
