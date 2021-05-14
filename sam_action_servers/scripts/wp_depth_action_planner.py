@@ -179,7 +179,9 @@ class WPDepthPlanner(object):
                 #self._as.publish_feedback(self._feedback)
                 #rospy.loginfo("Sending feedback")
 
-                crosstrack_flag = 0 # set to 1 if we want to include crosstrack error, otherwise it computes a heading based on the next waypoint position
+                crosstrack_flag = 1 # set to 1 if we want to include crosstrack error, otherwise it computes a heading based on the next waypoint position
+                xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
+                ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
 
                 if crosstrack_flag:
                     #considering cross-track error according to Fossen, Page 261 eq 10.73,10.74
@@ -187,27 +189,27 @@ class WPDepthPlanner(object):
                     y_goal = self.nav_goal.position.y
 
                     #checking if there is a previous WP, if there is no previous WP, it considers the current position
-                    if (self.y_prev == 0)&(self.x_prev == 0):
+                    if self.y_prev == 0 and self.x_prev == 0:
                         self.y_prev = pose_fb.pose.position.y
                         self.x_prev = pose_fb.pose.position.x
                 
-                    y_prev = self.y_prev
-                    x_prev = self.x_prev
+                    y_prev = self.y_prev #read previous WP
+                    x_prev = self.x_prev 
 
                     #considering cross-track error according to Fossen, Page 261 eq 10.73,10.74
-                    #err_tang = math.atan2(y_goal-y_prev, x_goal- x_prev) # path tangential vector
-                    err_tang = math.atan2(ydiff, xdiff) # path tangential vector
+                    err_tang = math.atan2(y_goal-y_prev, x_goal- x_prev) # path tangential vector
+                    #err_tang = math.atan2(ydiff, xdiff) # path tangential vector
                     err_crosstrack = -(pose_fb.pose.position.x - x_prev)*math.sin(err_tang)+ (pose_fb.pose.position.y - y_prev)*math.cos(err_tang) # crosstrack error
-                    lookahead = 5 #lookahead distance(m)
+                    lookahead = 3 #lookahead distance(m)
                     err_velpath = math.atan2(-err_crosstrack,lookahead)
 
-                    yaw_setpoint = (err_tang)# + err_velpath)
+                    yaw_setpoint = (err_tang) + (err_velpath)
                     rospy.loginfo_throttle_identical(5, "Using Crosstrack Error, err_tang ="+str(err_tang)+"err_velpath"+str(err_velpath))
                 
                 else:
                     #Compute yaw setpoint based on waypoint position and current position
-                    xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
-                    ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
+                    #xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
+                    #ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
                     #yaw_setpoint = 1.57-math.atan2(ydiff,xdiff)
                     #The original yaw setpoint!
                     yaw_setpoint = math.atan2(ydiff,xdiff)
@@ -225,7 +227,7 @@ class WPDepthPlanner(object):
 	            #self.vbs_pid_enable.publish(False)
                 #self.vbs_pub.publish(depth_setpoint)
             
-            #self.vel_ctrl_flag = 0 #use constant rpm
+            self.vel_ctrl_flag = 0 #use constant rpm
             if self.vel_ctrl_flag:
             # if speed control is activated from neptus
             #if goal.speed_control_mode == 2:
