@@ -212,8 +212,8 @@ class WPDepthPlanner(object):
                 yaw_error= -(self.yaw_feedback - yaw_setpoint)
                 yaw_error= self.angle_wrap(yaw_error) #wrap angle error between -pi and pi
 
-                #depth_setpoint = self.nav_goal.position.z
-                depth_setpoint = goal.travel_depth
+                depth_setpoint = self.nav_goal.position.z
+                #depth_setpoint = goal.travel_depth
 
                 #rospy.loginfo("Depth setpoint: %f", depth_setpoint)
                 self.depth_pub.publish(depth_setpoint)
