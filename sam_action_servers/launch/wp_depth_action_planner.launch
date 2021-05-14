@@ -53,8 +53,8 @@
 		<param name="vbs_setpoint_topic" value="$(arg vbs_setpoint_topic)" />
 		
 		<!--Vel ctrl parameters-->
-  		<param name="vel_ctrl_flag" value="False" />
-		<param name="vel_setpoint" value="0.5" />
+  		<!--param name="vel_ctrl_flag" value="False" />
+		<param name="vel_setpoint" value="0.5" /-->
 		<param name="roll_setpoint" value="0.0" />
 		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
 		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />

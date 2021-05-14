@@ -111,6 +111,11 @@ class WPDepthPlanner(object):
             self.nav_goal_frame = 'utm' #'utm'
 
         self.nav_goal.position.z = goal.travel_depth # assign waypoint depth from neptus, goal.z is 0.
+        if goal.speed_control_mode == 2:
+            self.vel_ctrl_flag = 1 # check if NEPTUS sets a velocity
+        elif goal.speed_control_mode == 1:
+            self.vel_ctrl_flag = 0 # use RPM ctrl
+
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
         goal_point.header.stamp = rospy.Time(0)
@@ -196,7 +201,7 @@ class WPDepthPlanner(object):
                     lookahead = 5 #lookahead distance(m)
                     err_velpath = math.atan2(-err_crosstrack,lookahead)
 
-                    yaw_setpoint = (err_tang + err_velpath)
+                    yaw_setpoint = (err_tang)# + err_velpath)
                     rospy.loginfo_throttle_identical(5, "Using Crosstrack Error, err_tang ="+str(err_tang)+"err_velpath"+str(err_velpath))
                 
                 else:
@@ -219,16 +224,21 @@ class WPDepthPlanner(object):
                 self.depth_pub.publish(depth_setpoint)
 	            #self.vbs_pid_enable.publish(False)
                 #self.vbs_pub.publish(depth_setpoint)
-
+            
+            #self.vel_ctrl_flag = 0 #use constant rpm
             if self.vel_ctrl_flag:
-                rospy.loginfo_throttle_identical(5, "vel ctrl, no turbo turn")
+            # if speed control is activated from neptus
+            #if goal.speed_control_mode == 2:
+                rospy.loginfo_throttle_identical(5, "Neptus vel ctrl, no turbo turn")
                 #with Velocity control
                 self.yaw_pid_enable.publish(True)
                 self.yaw_pub.publish(yaw_setpoint)
                 
                 # Publish to velocity controller
+                travel_speed = goal.travel_speed
                 self.vel_pid_enable.publish(True)
-                self.vel_pub.publish(self.vel_setpoint)
+                #self.vel_pub.publish(self.vel_setpoint)
+                self.vel_pub.publish(travel_speed)
                 self.roll_pub.publish(self.roll_setpoint)
                 #rospy.loginfo("Velocity published")
                  
@@ -283,6 +293,7 @@ class WPDepthPlanner(object):
 
         # Stop thruster
         self.vel_pid_enable.publish(False)
+        self.vel_pub.publish(0.0)
         rpm1 = ThrusterRPM()
         rpm2 = ThrusterRPM()
         rpm1.rpm = 0
@@ -377,8 +388,8 @@ class WPDepthPlanner(object):
 
 
 	    #related to velocity regulation instead of rpm
-        self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
-        self.vel_setpoint = rospy.get_param('~vel_setpoint', 0.5) #velocity setpoint in m/s
+        #self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
+        #self.vel_setpoint = rospy.get_param('~vel_setpoint', 0.5) #velocity setpoint in m/s
         self.roll_setpoint = rospy.get_param('~roll_setpoint', 0)
         vel_setpoint_topic = rospy.get_param('~vel_setpoint_topic', '/sam/ctrl/dynamic_velocity/u_setpoint')
         roll_setpoint_topic = rospy.get_param('~roll_setpoint_topic', '/sam/ctrl/dynamic_velocity/roll_setpoint')
