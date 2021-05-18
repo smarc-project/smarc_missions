@@ -59,14 +59,14 @@ class EmergencySurface(object):
                 # Publish emergency command
                 self.emergency_pub.publish(False)
 
-                #Disable controllers
-                self.toggle_pitch_ctrl.toggle(True)
+                #Enable controllers
+                '''self.toggle_pitch_ctrl.toggle(True)
                 self.toggle_vbs_ctrl.toggle(True)
                 self.toggle_tcg_ctrl.toggle(True)
                 self.toggle_yaw_ctrl.toggle(True)
                 self.toggle_depth_ctrl.toggle(True)
                 self.toggle_speed_ctrl.toggle(True)
-                self.toggle_roll_ctrl.toggle(True)
+                self.toggle_roll_ctrl.toggle(True)'''
                 rospy.loginfo('%s: Preempted' % self._action_name)
                 self._as.set_preempted(GotoWaypointResult(), "Preempted EmergencySurface action")
                 return
