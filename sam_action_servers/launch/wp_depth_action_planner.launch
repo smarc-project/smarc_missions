@@ -14,19 +14,23 @@
     <arg name="rpm2_cmd_topic" default="/$(arg robot_name)/core/thruster2_cmd" />
     <arg name="thrust_vector_cmd_topic" default="/$(arg robot_name)/core/thrust_vector_cmd" />
     <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
-    <arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
     <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
-    <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
-    <arg name="vbs_pid_enable_topic" default="/$(arg robot_name)/ctrl/vbs/pid_enable" />
     <arg name="vbs_setpoint_topic" default="/$(arg robot_name)/ctrl/vbs/setpoint" />
     <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/u_setpoint" />
     <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
-    <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
     <arg name="yaw_feedback_topic" default="/$(arg robot_name)/dr/yaw" />
-    <!--arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/odom_listener/yaw_feedback" /-->
+	<arg name="vel_feedback_topic" default="/$(arg robot_name)/dr/u" />
+	<!--arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/odom_listener/yaw_feedback" /-->
 
+	<!-- Services -->
+	<arg name="toggle_yaw_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_yaw_ctrl" />
+	<arg name="toggle_depth_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_depth_ctrl" />
+    <arg name="toggle_vbs_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_vbs_ctrl" />
+	<arg name="toggle_speed_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_speed_ctrl" />
+	<arg name="toggle_roll_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_roll_ctrl" />
     
 
+    
 
     <node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
@@ -35,11 +39,9 @@
 		<param name="forward_rpm" value="$(arg forward_rpm)"/>
 		
 		<param name="rpm1_cmd_topic" value="$(arg rpm1_cmd_topic)" />
-                <param name="rpm2_cmd_topic" value="$(arg rpm2_cmd_topic)" />
+        <param name="rpm2_cmd_topic" value="$(arg rpm2_cmd_topic)" />
 		<param name="heading_setpoint_topic" value="$(arg heading_setpoint_topic)" />
-		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
 		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
-		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		
 		<!--Turbo turn parameters-->
   		<param name="turbo_turn_flag" value="False" />
@@ -49,7 +51,6 @@
 		<param name="flip_rate" value="0.5" />
 		<param name="rudder_angle" value="0.1" />
 		<param name="turbo_turn_rpm" value="1000" />
-		<param name="vbs_pid_enable_topic" value="$(arg vbs_pid_enable_topic)" />
 		<param name="vbs_setpoint_topic" value="$(arg vbs_setpoint_topic)" />
 		
 		<!--Vel ctrl parameters-->
@@ -58,7 +59,15 @@
 		<param name="roll_setpoint" value="0.0" />
 		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
 		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />
-		<param name="vel_pid_enable_topic" value="$(arg vel_pid_enable_topic)" />
+		<param name="vel_feedback_topic" value="$(arg vel_feedback_topic)" />
+
+		<!--Controller services-->
+		<param name="toggle_yaw_ctrl_service" value="$(arg toggle_yaw_ctrl_service)" />
+		<param name="toggle_depth_ctrl_service" value="$(arg toggle_depth_ctrl_service)" />
+		<param name="toggle_vbs_ctrl_service" value="$(arg toggle_vbs_ctrl_service)" />
+		<param name="toggle_speed_ctrl_service" value="$(arg toggle_speed_ctrl_service)" />
+		<param name="toggle_roll_ctrl_service" value="$(arg toggle_roll_ctrl_service)" />
+
 
 	</node>
 

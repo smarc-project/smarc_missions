@@ -24,8 +24,26 @@ from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool, Empty
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
+from std_srvs.srv import SetBool
 
 import math
+
+class ToggleController(object):
+    '''a class to define a service client to toggle controllers'''
+    def toggle(self, enable_):
+        #function that toggles the service, that can be called from the code
+        ret = self.toggle_ctrl_service(enable_)
+        if ret.success:
+            rospy.loginfo_throttle_identical(5,"Controller toggled")
+
+    def __init__(self, service_name_, enable_):
+        rospy.wait_for_service(service_name_)
+        try:
+            self.toggle_ctrl_service = rospy.ServiceProxy(service_name_, SetBool)
+            self.toggle(enable_)
+
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
 
 class EmergencySurface(object):
 
@@ -42,12 +60,13 @@ class EmergencySurface(object):
                 self.emergency_pub.publish(False)
 
                 #Disable controllers
-                self.lcg_pid_enable.publish(True)
-                self.vbs_pid_enable.publish(True)
-                self.tcg_pid_enable.publish(True)
-                self.yaw_pid_enable.publish(True)
-                self.depth_pid_enable.publish(True)
-                self.vel_pid_enable.publish(True)
+                self.toggle_pitch_ctrl.toggle(True)
+                self.toggle_vbs_ctrl.toggle(True)
+                self.toggle_tcg_ctrl.toggle(True)
+                self.toggle_yaw_ctrl.toggle(True)
+                self.toggle_depth_ctrl.toggle(True)
+                self.toggle_speed_ctrl.toggle(True)
+                self.toggle_roll_ctrl.toggle(True)
                 rospy.loginfo('%s: Preempted' % self._action_name)
                 self._as.set_preempted(GotoWaypointResult(), "Preempted EmergencySurface action")
                 return
@@ -56,12 +75,13 @@ class EmergencySurface(object):
             self.emergency_pub.publish(True)
 
             #Disable controllers
-            self.lcg_pid_enable.publish(False)
-            self.vbs_pid_enable.publish(False)
-            self.tcg_pid_enable.publish(False)
-            self.yaw_pid_enable.publish(False)
-            self.depth_pid_enable.publish(False)
-            self.vel_pid_enable.publish(False)
+            self.toggle_pitch_ctrl.toggle(False)
+            self.toggle_vbs_ctrl.toggle(False)
+            self.toggle_tcg_ctrl.toggle(False)
+            self.toggle_yaw_ctrl.toggle(False)
+            self.toggle_depth_ctrl.toggle(False)
+            self.toggle_speed_ctrl.toggle(False)
+            self.toggle_roll_ctrl.toggle(False)
 
             #set VBS to 0
             vbs_level = PercentStamped()
@@ -91,24 +111,31 @@ class EmergencySurface(object):
         vbs_cmd_topic = rospy.get_param('~vbs_cmd_topic', '/sam/core/vbs_cmd')
         rpm_cmd_topic_1 = rospy.get_param('~rpm_cmd_topic_1', '/sam/core/thruster1_cmd')
         rpm_cmd_topic_2 = rospy.get_param('~rpm_cmd_topic_2', '/sam/core/thruster2_cmd')
-        lcg_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/lcg/pid_enable')
-        vbs_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/vbs/pid_enable')
-        tcg_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/tcg/pid_enable')
-        yaw_pid_enable_topic = rospy.get_param('~yaw_pid_enable_topic', '/sam/ctrl/dynamic_heading/pid_enable')
-        depth_pid_enable_topic = rospy.get_param('~depth_pid_enable_topic', '/sam/ctrl/dynamic_depth/pid_enable')
-        vel_pid_enable_topic = rospy.get_param('~vel_pid_enable_topic', '/sam/ctrl/dynamic_velocity/pid_enable')
+
 
         #rospy.Timer(rospy.Duration(2), self.timer_callback)
         self.emergency_pub = rospy.Publisher(emergency_topic, Bool, queue_size=10)
         self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
         self.rpm1_pub = rospy.Publisher(rpm_cmd_topic_1, ThrusterRPM, queue_size=10)
         self.rpm2_pub = rospy.Publisher(rpm_cmd_topic_2, ThrusterRPM, queue_size=10)
-        self.lcg_pid_enable = rospy.Publisher(lcg_pid_enable_topic, Bool, queue_size=10)
-        self.vbs_pid_enable = rospy.Publisher(vbs_pid_enable_topic, Bool, queue_size=10)
-        self.tcg_pid_enable = rospy.Publisher(tcg_pid_enable_topic, Bool, queue_size=10)
-        self.yaw_pid_enable = rospy.Publisher(yaw_pid_enable_topic, Bool, queue_size=10)
-        self.depth_pid_enable = rospy.Publisher(depth_pid_enable_topic, Bool, queue_size=10)
-        self.vel_pid_enable = rospy.Publisher(vel_pid_enable_topic, Bool, queue_size=10)
+
+        #controller services
+        toggle_yaw_ctrl_service = rospy.get_param('~toggle_yaw_ctrl_service', '/sam/ctrl/toggle_yaw_ctrl')
+        toggle_depth_ctrl_service = rospy.get_param('~toggle_depth_ctrl_service', '/sam/ctrl/toggle_depth_ctrl')
+        toggle_vbs_ctrl_service = rospy.get_param('~toggle_vbs_ctrl_service', '/sam/ctrl/toggle_vbs_ctrl')
+        toggle_speed_ctrl_service = rospy.get_param('~toggle_speed_ctrl_service', '/sam/ctrl/toggle_speed_ctrl')
+        toggle_roll_ctrl_service = rospy.get_param('~toggle_roll_ctrl_service', '/sam/ctrl/toggle_roll_ctrl')
+        toggle_pitch_ctrl_service = rospy.get_param('~toggle_pitch_ctrl_service', '/sam/ctrl/toggle_pitch_ctrl')
+        toggle_tcg_ctrl_service = rospy.get_param('~toggle_tcg_ctrl_service', '/sam/ctrl/toggle_tcg_ctrl')
+
+        self.toggle_yaw_ctrl = ToggleController(toggle_yaw_ctrl_service, False)
+        self.toggle_depth_ctrl = ToggleController(toggle_depth_ctrl_service, False)
+        self.toggle_vbs_ctrl = ToggleController(toggle_vbs_ctrl_service, False)
+        self.toggle_speed_ctrl = ToggleController(toggle_speed_ctrl_service, False)
+        self.toggle_roll_ctrl = ToggleController(toggle_roll_ctrl_service, False)
+        self.toggle_pitch_ctrl = ToggleController(toggle_pitch_ctrl_service, False)
+        self.toggle_tcg_ctrl = ToggleController(toggle_tcg_ctrl_service, False)
+
         self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
 
