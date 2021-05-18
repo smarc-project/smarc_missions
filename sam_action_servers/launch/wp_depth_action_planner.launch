@@ -13,11 +13,11 @@
     <arg name="rpm1_cmd_topic" default="/$(arg robot_name)/core/thruster1_cmd" />
     <arg name="rpm2_cmd_topic" default="/$(arg robot_name)/core/thruster2_cmd" />
     <arg name="thrust_vector_cmd_topic" default="/$(arg robot_name)/core/thrust_vector_cmd" />
-    <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
-    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
-    <arg name="vbs_setpoint_topic" default="/$(arg robot_name)/ctrl/vbs/setpoint" />
-    <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/u_setpoint" />
-    <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
+    <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/yaw_setpoint" />
+    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/depth_setpoint" />
+    <arg name="vbs_setpoint_topic" default="/$(arg robot_name)/ctrl/depth_setpoint" />
+    <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/speed_setpoint" />
+    <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/roll_setpoint" />
     <arg name="yaw_feedback_topic" default="/$(arg robot_name)/dr/yaw" />
 	<arg name="vel_feedback_topic" default="/$(arg robot_name)/dr/u" />
 	<!--arg name="yaw_feedback_topic" default="/$(arg robot_name)/ctrl/odom_listener/yaw_feedback" /-->

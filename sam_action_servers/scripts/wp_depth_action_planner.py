@@ -238,8 +238,9 @@ class WPDepthPlanner(object):
                 #TODO Add logic for depth control with services here!
                 depth_setpoint = self.nav_goal.position.z
                 #depth_setpoint = goal.travel_depth
-
                 #rospy.loginfo("Depth setpoint: %f", depth_setpoint)
+
+                #Diving logic to use VBS at low speeds below 0.5 m/s
                 if np.abs(self.vel_feedback)> 0.5:
                     #rospy.loginfo_throttle_identical(5, "using DDepth")
                     self.toggle_depth_ctrl.toggle(True)
@@ -444,7 +445,6 @@ class WPDepthPlanner(object):
         rospy.Subscriber(yaw_feedback_topic, Float64, self.yaw_feedback_cb)
         self.vel_feedback = 0.0
         rospy.Subscriber(vel_feedback_topic, Float64, self.vel_feedback_cb)
-
 
         self.rpm1_pub = rospy.Publisher(rpm1_cmd_topic, ThrusterRPM, queue_size=10)
         self.rpm2_pub = rospy.Publisher(rpm2_cmd_topic, ThrusterRPM, queue_size=10)
