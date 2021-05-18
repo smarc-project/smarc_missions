@@ -124,7 +124,7 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if not self.action_server_ok:
             rospy.logwarn_throttle_identical(5, "No Action Server found for emergency action, will just block the tree!")
             return
-        rospy.logwarn("EMERGENCY SURFACING")
+        self.feedback_message = "EMERGENCY SURFACING"
         # construct the message
         self.action_goal = GotoWaypointGoal()
         self.sent_goal = False
@@ -403,6 +403,8 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         self.listener = tf.TransformListener()
         self.tf_ok = False
 
+        self.last_read_time = None
+
 
     def setup(self, timeout):
         try:
@@ -416,10 +418,17 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         return True
 
     def update(self):
+        if self.last_read_time is not None:
+            time_since = time.time() - self.last_read_time
+            self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "No msg received ever"
+
         try:
             (world_trans, world_rot) = self.listener.lookupTransform(self.utm_link,
                                                                      self.base_link,
                                                                      rospy.Time(0))
+            self.last_read_time = time.time()
         except (tf.LookupException, tf.ConnectivityException):
             rospy.logerr_throttle_identical(5, "Could not get transform between {} and {}".format(self.utm_link, self.base_link))
             return pt.Status.FAILURE
@@ -772,19 +781,19 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
             self.handle_request_get_state(plandb_msg)
 
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_SET:
-            rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb set")
+            self.feedback_message =  "Got SUCCESS for plandb set"
 
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_GET_INFO:
-            rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb get info")
+            self.feedback_message =  "Got SUCCESS for plandb get info"
 
         elif typee == imc_enums.PLANDB_TYPE_SUCCESS and op == imc_enums.PLANDB_OP_GET_STATE:
-            rospy.loginfo_throttle_identical(20, "Received SUCCESS for plandb get state")
+            self.feedback_message =  "Got SUCCESS for plandb get state"
 
         elif op == imc_enums.PLANDB_OP_SET:
             self.handle_set_plan(plandb_msg)
 
         else:
-            rospy.loginfo_throttle_identical(5, "Received some unhandled planDB message:\n"+str(plandb_msg))
+            self.feedback_message = "Got some unhandled planDB message:\n"+str(plandb_msg)
 
 
 
@@ -792,19 +801,21 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
     def respond_set_success(self):
         current_mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if current_mission_plan is None:
-            rospy.logwarn_throttle_identical(30, "No mission plan obj!")
+            self.feedback_message = "No mission plan obj!"
             return
 
         plan_id = current_mission_plan.plan_id
         self.plandb_msg.plan_id = plan_id
         self.plandb_pub.publish(self.plandb_msg)
-        rospy.loginfo_throttle_identical(30, "Answered set success for plan_id:"+str(plan_id))
+        self.feedback_message =  "Answered set success for plan_id:"+str(plan_id)
 
     def update(self):
         # we just want to tell neptus we got the plan all the time
         # this keeps the thingy green
         self.respond_set_success()
         self.handle_plandb_msg()
+        # reset
+        self.latest_plandb_msg = None
         return pt.Status.SUCCESS
 
 

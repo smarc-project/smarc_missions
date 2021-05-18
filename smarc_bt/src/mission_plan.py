@@ -21,6 +21,7 @@ from smarc_msgs.srv import LatLonToUTM
 class Waypoint:
     def __init__(self,
                  maneuver_id,
+                 maneuver_imc_id,
                  maneuver_name,
                  x,
                  y,
@@ -31,7 +32,9 @@ class Waypoint:
                  tf_frame,
                  extra_data):
 
+
         self.maneuver_id = maneuver_id
+        self.maneuver_imc_id = maneuver_imc_id
         self.maneuver_name = maneuver_name
         self.x = x
         self.y = y
@@ -88,8 +91,13 @@ class MissionPlan:
 
     @staticmethod
     def latlon_to_utm(lat, lon, z, latlontoutm_service_name):
-        rospy.loginfo("Waiting for latlontoutm service "+str(latlontoutm_service_name))
-        rospy.wait_for_service(latlontoutm_service_name)
+        rospy.loginfo("Waiting at most 10s for latlontoutm service "+str(latlontoutm_service_name))
+        try:
+            rospy.wait_for_service(latlontoutm_service_name, timeout=10)
+        except:
+            rospy.logwarn(str(latlontoutm_service_name)+" service could be connected to! No mission received!")
+            return (None, None)
+
         rospy.loginfo("Got latlontoutm service")
         try:
             latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
@@ -130,7 +138,7 @@ class MissionPlan:
             if man_imc_id == imc_enums.MANEUVER_GOTO or man_imc_id == imc_enums.MANEUVER_SAMPLE:
                 utm_x, utm_y = MissionPlan.latlon_to_utm(maneuver.lat, maneuver.lon, -maneuver.z, latlontoutm_service_name)
                 if utm_x is None:
-                    rospy.logwarn("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
+                    rospy.loginfo("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
                     continue
 
                 extra_data = {}
@@ -143,6 +151,7 @@ class MissionPlan:
                 # will need when you are publishing it
                 waypoint = Waypoint(
                     maneuver_id = man_id,
+                    maneuver_imc_id = man_imc_id,
                     maneuver_name= man_name,
                     tf_frame = 'utm',
                     x = utm_x,

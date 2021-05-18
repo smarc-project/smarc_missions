@@ -10,6 +10,7 @@ import py_trees_ros as ptr
 import rospy
 
 import copy # used in ReadTopic
+import time
 
 import common_globals
 
@@ -27,9 +28,11 @@ class A_RunOnce(pt.behaviour.Behaviour):
 
     def update(self):
         if self.ran:
+            self.feedback_message = "Already ran"
             return pt.Status.SUCCESS
         else:
             self.ran = True
+            self.feedback_message = "Running"
             return pt.Status.RUNNING
 
 
@@ -45,16 +48,28 @@ class A_SimplePublisher(pt.behaviour.Behaviour):
         self.message_type = type(message_object)
         self.queue_size = queue_size
 
+        self.last_published_time = None
+
     def setup(self, timeout):
         self.pub = rospy.Publisher(self.topic, self.message_type, queue_size=self.queue_size)
         return True
 
     def update(self):
+        if self.last_published_time is not None:
+            time_since = time.time() - self.last_published_time
+            self.feedback_message = "Last pub'd:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "Never published!"
+
         try:
             self.pub.publish(self.message_object)
+            self.last_published_time = time.time()
+            self.feedback_message = "Just published!"
             return pt.Status.SUCCESS
         except:
-            rospy.logwarn_throttle(1, "Couldn't publish into "+self.topic+"!")
+            msg = "Couldn't publish"
+            rospy.logwarn_throttle(1, msg)
+            self.feedback_message = msg
             return pt.Status.FAILURE
 
 
@@ -70,10 +85,20 @@ class ReadTopic(pt.behaviour.Behaviour):
 
     mostly copied from the "ToBlackboard" behaviour of ptr
     """
-    def __init__(self, name, topic_name, topic_type, blackboard_variables):
+    def __init__(self,
+                 name,
+                 topic_name,
+                 topic_type,
+                 blackboard_variables,
+                 max_period = None,
+                 allow_silence = True):
         self.bb = pt.blackboard.Blackboard()
         self.blackboard_variables = blackboard_variables
         self.last_read_value = None
+        self.last_read_time = None
+
+        self.max_period = max_period
+        self.allow_silence = allow_silence
 
         self.topic_name = topic_name
         self.topic_type = topic_type
@@ -87,23 +112,40 @@ class ReadTopic(pt.behaviour.Behaviour):
         return True
 
     def _cb(self, msg):
-        #  rospy.loginfo("ReadTopic {}, {}".format(self.topic_name, msg))
+        self.last_read_time = time.time()
         self.msg = msg
 
     def update(self):
-        if self.msg is not None:
-            self.last_read_value = copy.copy(self.msg)
-            for k,v in self.blackboard_variables.items():
-                if v is None:
-                    self.bb.set(k, self.msg, overwrite=True)
-                else:
-                    fields = v.split(".")
-                    value = copy.copy(self.msg)
-                    for field in fields:
-                        value = getattr(value, field)
-                        self.bb.set(k, value, overwrite=True)
+        if self.last_read_time is not None:
+            time_since = time.time() - self.last_read_time
+            if self.max_period is None:
+                self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+            else:
+                self.feedback_message = "Last read:{:.2f}s ago, max={} before fail".format(time_since, self.max_period)
+                if time_since > self.max_period:
+                    return pt.Status.FAILURE
 
-        #  self.feedback_message = "Last read:"+str(self.last_read_value)
+        if self.msg is None:
+            if self.last_read_time is None:
+                if self.allow_silence:
+                    self.feedback_message = "No msg received ever"
+                else:
+                    self.feedback_message = "No message in topic! Silence not allowed!"
+                    return pt.Status.FAILURE
+            return pt.Status.SUCCESS
+
+        self.last_read_value = copy.copy(self.msg)
+        for k,v in self.blackboard_variables.items():
+            if v is None:
+                self.bb.set(k, self.msg, overwrite=True)
+            else:
+                fields = v.split(".")
+                value = copy.copy(self.msg)
+                for field in fields:
+                    value = getattr(value, field)
+                    self.bb.set(k, value, overwrite=True)
+
+        self.msg = None
         return pt.Status.SUCCESS
 
 

@@ -13,6 +13,48 @@ import numpy as np
 import imc_enums
 import bb_enums
 
+class C_CheckWaypointType(pt.behaviour.Behaviour):
+    """
+    Checks if the type of the current WP corresponds to the given
+    expected type and returns SUCCESS if they match
+
+    Use the imc_enums.MANEUVER_XXX as the expected wp type
+    """
+    def __init__(self, expected_wp_type):
+        self.bb = pt.blackboard.Blackboard()
+        self.expected_wp_type = expected_wp_type
+        self.expected_wp_type_str = C_CheckWaypointType.imc_id_to_str(self.expected_wp_type)
+
+        super(C_CheckWaypointType, self).__init__(name="C_CheckWaypointType = {}".format(self.expected_wp_type_str))
+
+
+    @staticmethod
+    def imc_id_to_str(imc_id):
+        if imc_id == imc_enums.MANEUVER_GOTO:
+            return imc_enums.MANEUVER_GOTO_STR
+        if imc_id == imc_enums.MANEUVER_SAMPLE:
+            return imc_enums.MANEUVER_SAMPLE_STR
+
+        return str(imc_id)
+
+    def update(self):
+        self.feedback_message = "Got None"
+        mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission is None:
+            return pt.Status.FAILURE
+
+
+        wp = mission.get_current_wp()
+        if wp is None:
+            return pt.Status.FAILURE
+
+        self.feedback_message = "Got:{}".format(C_CheckWaypointType.imc_id_to_str(wp.maneuver_imc_id))
+        if wp.maneuver_imc_id != self.expected_wp_type:
+            return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
 
 class C_AtDVLDepth(pt.behaviour.Behaviour):
     """
@@ -48,30 +90,10 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
     def update(self):
         if self.bb.get(bb_enums.ABORT) or self.aborted:
             self.aborted = True
+            self.feedback_message = 'ABORTED'
             return pt.Status.FAILURE
         else:
             return pt.Status.SUCCESS
-
-class C_DepthOK(pt.behaviour.Behaviour):
-    def __init__(self, max_depth):
-        self.bb = pt.blackboard.Blackboard()
-        self.max_depth = max_depth
-        super(C_DepthOK, self).__init__(name="C_DepthOK")
-
-
-    def update(self):
-        depth = self.bb.get(bb_enums.DEPTH)
-        self.feedback_message = "Last read:{}, max:{}".format(depth, self.max_depth)
-
-        if depth is None:
-            rospy.logwarn_throttle(5, "NO DEPTH READ!")
-            return pt.Status.SUCCESS
-
-        if depth < self.max_depth:
-            return pt.Status.SUCCESS
-        else:
-            rospy.logwarn_throttle(5, "Too deep!"+str(depth))
-            return pt.Status.FAILURE
 
 
 class C_LeakOK(pt.behaviour.Behaviour):
@@ -81,37 +103,53 @@ class C_LeakOK(pt.behaviour.Behaviour):
 
     def update(self):
         if self.bb.get(bb_enums.LEAK) == True:
+            self.feedback_message = "\n\n\n!!!! LEAK !!!!\n\n\n"
             return pt.Status.FAILURE
         else:
             return pt.Status.SUCCESS
 
 
-
-class C_AltOK(pt.behaviour.Behaviour):
-    def __init__(self, min_alt, absolute_min_alt):
+class C_DepthOK(pt.behaviour.Behaviour):
+    def __init__(self):
         self.bb = pt.blackboard.Blackboard()
-        self.min_alt = min_alt
-        self.absolute_min_alt = absolute_min_alt
-        super(C_AltOK, self).__init__(name="C_AltOK")
+        self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
+        super(C_DepthOK, self).__init__(name="C_DepthOK")
 
-
-        self.first_alt = None
 
     def update(self):
+        self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
+        depth = self.bb.get(bb_enums.DEPTH)
+
+        if depth is None:
+            rospy.logwarn_throttle(5, "NO DEPTH READ! Success anyways")
+            self.feedback_message = "Last read:None, max:{m:.2f}".format(l=depth, m=self.max_depth)
+            return pt.Status.SUCCESS
+        else:
+            self.feedback_message = "Last read:{l:.2f}, max:{m:.2f}".format(l=depth, m=self.max_depth)
+
+        if depth < self.max_depth:
+            return pt.Status.SUCCESS
+        else:
+            rospy.logwarn_throttle(5, "Too deep!"+str(depth))
+            return pt.Status.FAILURE
+
+
+
+class C_AltOK(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
+        super(C_AltOK, self).__init__(name="C_AltOK")
+
+    def update(self):
+        self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
         alt = self.bb.get(bb_enums.ALTITUDE)
-        self.feedback_message = "Last read:{}, min:{}".format(alt, self.min_alt)
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
+            self.feedback_message = "Last read:None, min:{m:.2f}".format(m=self.min_alt)
             return pt.Status.SUCCESS
-
-        # we also want to check if the vehicle is started somewhere that is already
-        # too shallow normally
-        if self.first_alt is None:
-            self.first_alt = alt
-
-        if self.first_alt < self.min_alt:
-            rospy.logwarn_throttle(5, "First read altitude is less than the minimum setup altitude, setting min altitude to {}m!".format(self.absolute_min_alt))
-            self.min_alt = self.absolute_min_alt
+        else:
+            self.feedback_message = "Last read:{l:.2f}, min:{m:.2f}".format(l=alt, m=self.min_alt)
 
         if alt > self.min_alt:
             return pt.Status.SUCCESS
@@ -159,10 +197,14 @@ class C_PlanCompleted(pt.behaviour.Behaviour):
     def update(self):
         mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission_plan is None:
-            rospy.loginfo_throttle(5, "No plan received yet")
+            msg = "No plan received yet"
+            self.feedback_message = msg
+            rospy.loginfo_throttle(5, msg)
             return pt.Status.FAILURE
         elif not mission_plan.is_complete():
-            rospy.loginfo_throttle_identical(5, "Plan is not done")
+            msg = "Progress:{}/{} on plan {}".format(mission_plan.current_wp_index, len(mission_plan.waypoints), mission_plan.plan_id)
+            self.feedback_message = msg
+            rospy.loginfo_throttle_identical(5, msg)
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(2, "Plan is complete!")
