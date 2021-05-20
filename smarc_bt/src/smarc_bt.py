@@ -140,7 +140,8 @@ def const_tree(auv_config):
                 A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
                                      auv_config.UTM_LINK,
                                      auv_config.LOCAL_LINK,
-                                     auv_config.LATLONTOUTM_SERVICE),
+                                     auv_config.LATLONTOUTM_SERVICE,
+                                     auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
                 A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
                 A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
                                      ])
