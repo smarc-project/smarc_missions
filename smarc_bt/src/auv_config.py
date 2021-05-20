@@ -36,6 +36,8 @@ class AUVConfig(object):
         self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
+        # in cases where the above service couldnt be found for some reason
+        self.LATLONTOUTM_SERVICE_ALTERNATIVE = '/'+self.robot_name+'/lat_lon_to_utm'
 
         # tf frame names
         self.BASE_LINK = self.robot_name+'/base_link'
