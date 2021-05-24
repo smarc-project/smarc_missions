@@ -12,13 +12,16 @@
     <!-- topics, note the root! -->
     <arg name="rpm1_cmd_topic" default="/$(arg robot_name)/core/thruster1_cmd" />
     <arg name="rpm2_cmd_topic" default="/$(arg robot_name)/core/thruster2_cmd" />
-    <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/setpoint" />
-    <arg name="yaw_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_heading/pid_enable" />
-    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/setpoint" />
-    <arg name="depth_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_depth/pid_enable" />
-    <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/u_setpoint" />
-    <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/roll_setpoint" />
-    <arg name="vel_pid_enable_topic" default="/$(arg robot_name)/ctrl/dynamic_velocity/pid_enable" />
+    <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/yaw_setpoint" />
+    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/depth_setpoint" />
+    <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/speed_setpoint" />
+    <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/roll_setpoint" />
+
+    <!-- services -->
+	<arg name="toggle_yaw_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_yaw_ctrl" />
+	<arg name="toggle_depth_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_depth_ctrl" />
+	<arg name="toggle_speed_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_speed_ctrl" />
+	<arg name="toggle_roll_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_roll_ctrl" />
 
     <node name="leader_follower_action" pkg="sam_action_servers" type="leader_follower_action.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<!-- <param name="min_dist" value="$(arg min_dist)"/> -->
@@ -29,9 +32,7 @@
 		<param name="rpm1_cmd_topic" value="$(arg rpm1_cmd_topic)" />
 		<param name="rpm2_cmd_topic" value="$(arg rpm2_cmd_topic)" />
 		<param name="heading_setpoint_topic" value="$(arg heading_setpoint_topic)" />
-		<param name="yaw_pid_enable_topic" value="$(arg yaw_pid_enable_topic)" />
 		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
-		<param name="depth_pid_enable_topic" value="$(arg depth_pid_enable_topic)" />
 		
 		<!--Vel ctrl parameters-->
   		<param name="vel_ctrl_flag" value="False" />
@@ -39,7 +40,12 @@
 		<param name="roll_setpoint" value="0.0" />
 		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
 		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />
-		<param name="vel_pid_enable_topic" value="$(arg vel_pid_enable_topic)" />
+
+		<!--Controller services-->
+		<param name="toggle_yaw_ctrl_service" value="$(arg toggle_yaw_ctrl_service)" />
+		<param name="toggle_depth_ctrl_service" value="$(arg toggle_depth_ctrl_service)" />
+		<param name="toggle_speed_ctrl_service" value="$(arg toggle_speed_ctrl_service)" />
+		<param name="toggle_roll_ctrl_service" value="$(arg toggle_roll_ctrl_service)" />
 
 	</node>
 
