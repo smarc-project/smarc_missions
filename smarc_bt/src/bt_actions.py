@@ -387,7 +387,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         self.feedback_message = "ETA:"+fb
         rospy.loginfo_throttle(5, fb)
 
-
 class A_UpdateTF(pt.behaviour.Behaviour):
     def __init__(self, utm_link, base_link):
         """

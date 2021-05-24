@@ -1,0 +1,40 @@
+<launch>
+
+    <arg name="robot_name" default="sam"/>
+
+	<!-- Include all action servers in this launch file -->
+
+	<!-- WP following action -->
+	<include file="$(find sam_action_servers)/launch/wp_depth_action_planner.launch" >
+		<arg name="robot_name" value="$(arg robot_name)"/>
+    		<arg name="wp_tolerance" value="5."/>
+    		<arg name="depth_tolerance" value="1."/>
+    		<arg name="base_frame" value="$(arg robot_name)/base_link"/>
+    		<arg name="forward_rpm" value="400"/>
+	</include>
+
+	<!-- Emergency surface action -->
+	<include file="$(find sam_action_servers)/launch/emergency_surface_action.launch" >
+		<arg name="robot_name" value="$(arg robot_name)"/>	
+	</include>
+
+	<!-- Planned surface action -->
+	<include file="$(find sam_action_servers)/launch/planned_surface_action.launch" >
+		<arg name="robot_name" value="$(arg robot_name)"/>	
+	</include>
+
+        <!-- Leader follower action -->
+	<!--include file="$(find sam_action_servers)/launch/leader_follower_action.launch" >
+		<arg name="robot_name" value="$(arg robot_name)"/>
+	</include-->
+
+	<!-- Panoramic Inspection action -->
+	<!--include file="$(find sam_action_servers)/launch/panoramic_inspection_action.launch" >
+		<arg name="robot_name" value="$(arg robot_name)"/>
+    		<arg name="wp_tolerance" value="5."/>
+    		<arg name="depth_tolerance" value="1."/>
+    		<arg name="base_frame" value="$(arg robot_name)/base_link"/>
+    		<arg name="forward_rpm" value="400"/>
+	</include-->
+    
+</launch>

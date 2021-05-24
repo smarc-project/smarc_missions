@@ -284,6 +284,11 @@ def const_tree(auv_config):
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                      goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                      goal_tf_frame = auv_config.UTM_LINK)
+        
+        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
+        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+        #                             goal_tf_frame = auv_config.UTM_LINK)
+        
         wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
                                  children=[
@@ -334,6 +339,8 @@ def const_tree(auv_config):
         publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
                                              message_object = Empty())
 
+
+
         set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
                                                             variable_value = True,
                                                             name = 'A_SetMissionFinalized->True')
@@ -342,14 +349,24 @@ def const_tree(auv_config):
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
+        #surface on plan completion
+        #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
+        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+        #                             goal_tf_frame = auv_config.UTM_LINK)
+
+        #is_submerged = C_AtDVLDepth(0.5)
+
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
+                                  #is_submerged,
+                                  #planned_surface,
                                   publish_complete,
                                   unset_plan_is_go,
                                   set_finalized
+
                         ])
 
     # The root of the tree is here
