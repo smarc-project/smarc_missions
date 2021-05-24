@@ -229,8 +229,6 @@ def const_tree(auv_config):
                             safety_checks,
                             skip_wp,
                             abort
-                            #  publish_abort,
-                            #  A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
                         ])
 
 
@@ -360,7 +358,7 @@ def const_tree(auv_config):
     # to control anything and just chills as an observer
     finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
                                              True,
-                                             "MissionFinalized")
+                                             "C_MissionFinalized")
 
     run_tree = Fallback(name="FB-Run",
                         children=[
