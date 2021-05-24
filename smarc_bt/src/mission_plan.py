@@ -72,8 +72,8 @@ class MissionPlan:
         self.no_service = False
         self.latlontoutm_service_name = latlontoutm_service_name
         try:
-            rospy.loginfo("Waiting (10s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
-            rospy.wait_for_service(self.latlontoutm_service_name, timeout=10)
+            rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
+            rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
         except:
             rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to!")
             self.latlontoutm_service_name = latlontoutm_service_name_alternative
