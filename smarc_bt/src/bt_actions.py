@@ -386,6 +386,271 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         self.feedback_message = "ETA:"+fb
         rospy.loginfo_throttle(5, fb)
 
+class A_PlannedSurface(ptr.actions.ActionClient):
+    def __init__(self, planned_surface_action_namespace):
+        """
+        What to do when a mission is complete. 
+        Like surfacing.
+        """
+        self.bb = pt.blackboard.Blackboard()
+        self.action_goal_handle = None
+
+        ptr.actions.ActionClient.__init__(
+            self,
+            name="A_PlannedSurface",
+            action_spec=GotoWaypointAction,
+            action_goal=None,
+            action_namespace= planned_surface_action_namespace,
+            override_feedback_message_on_running="PLANNED SURFACING"
+        )
+
+        self.action_server_ok = False
+
+    def setup(self, timeout):
+        """
+        Overwriting the normal ptr action setup to stop it from failiing the setup step
+        and instead handling this failure in the tree.
+        """
+        self.logger.debug("%s.setup()" % self.__class__.__name__)
+        self.action_client = actionlib.SimpleActionClient(
+            self.action_namespace,
+            self.action_spec
+        )
+        if not self.action_client.wait_for_server(rospy.Duration(timeout)):
+            self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
+            self.action_client = None
+            self.action_server_ok = False
+        else:
+            self.action_server_ok = True
+
+        return True
+
+    def initialise(self):
+        if not self.action_server_ok:
+            rospy.logwarn_throttle_identical(5, "No Action Server found for planned surface action, will just block the tree!")
+            return
+        self.feedback_message = "PLANNED SURFACING"
+        # construct the message
+        self.action_goal = GotoWaypointGoal()
+        self.sent_goal = False
+
+    def update(self):
+        if not self.action_server_ok:
+            self.feedback_message = "Action Server for surfacing action can not be used!"
+            rospy.logerr_throttle_identical(5,self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if your action client is not valid
+        if not self.action_client:
+            self.feedback_message = "ActionClient for surfacing action is invalid!"
+            rospy.logwarn_throttle_identical(5,self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if the action_goal is invalid
+        if not self.action_goal:
+            self.feedback_message = "No action_goal!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if goal hasn't been sent yet
+        if not self.sent_goal:
+            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+            self.sent_goal = True
+            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
+            self.feedback_message = "Planned Surface goal sent"
+            return pt.Status.RUNNING
+
+
+        # if the goal was aborted or preempted
+        if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
+                                              actionlib_msgs.GoalStatus.PREEMPTED]:
+            self.feedback_message = "Aborted planned surfacing"
+            rospy.loginfo(self.feedback_message)
+            return pt.Status.FAILURE
+
+        result = self.action_client.get_result()
+
+        # if the goal was accomplished
+        if result:
+            self.feedback_message = "Completed planned surfacing"
+            rospy.loginfo(self.feedback_message)
+            return pt.Status.SUCCESS
+
+
+        # if we're still trying to accomplish the goal
+        return pt.Status.RUNNING
+
+    def feedback_cb(self, msg):
+        pass
+
+class A_PanoramicInspection(ptr.actions.ActionClient):
+    def __init__(self, action_namespace, goal_tolerance, goal_tf_frame):
+        """
+        Runs an action server that will move the robot to the given waypoint
+        """
+
+        self.bb = pt.blackboard.Blackboard()
+        list_of_maneuvers = self.bb.get(bb_enums.MANEUVER_ACTIONS)
+        if list_of_maneuvers is None:
+            list_of_maneuvers = ["A_PanoramicInspection"]
+        else:
+            list_of_maneuvers.append("A_PanoramicInspection")
+        self.bb.set(bb_enums.MANEUVER_ACTIONS, list_of_maneuvers)
+        self.action_goal_handle = None
+
+        # become action client
+        ptr.actions.ActionClient.__init__(
+            self,
+            name="A_PanoramicInspection",
+            action_spec=GotoWaypointAction,
+            action_goal=None,
+            action_namespace = action_namespace,
+            override_feedback_message_on_running="Moving to waypoint"
+        )
+
+        self.action_server_ok = False
+
+        assert goal_tolerance >= 1, "Goal tolerance must be >=1!, it is:"+str(goal_tolerance)
+        self.goal_tolerance = goal_tolerance
+
+        self.goal_tf_frame = goal_tf_frame
+
+
+    def setup(self, timeout):
+        """
+        Overwriting the normal ptr action setup to stop it from failiing the setup step
+        and instead handling this failure in the tree.
+        """
+        self.logger.debug("%s.setup()" % self.__class__.__name__)
+        self.action_client = actionlib.SimpleActionClient(
+            self.action_namespace,
+            self.action_spec
+        )
+        if not self.action_client.wait_for_server(rospy.Duration(timeout)):
+            self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
+            self.action_client = None
+        else:
+            self.action_server_ok = True
+
+
+        return True
+
+
+    def initialise(self):
+        if not self.action_server_ok:
+            rospy.logwarn_throttle(5, "No action server found for A_PanoramicInspection!")
+            return
+
+        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mission_plan is None:
+            rospy.logwarn("No mission plan found!")
+            return
+
+        wp = mission_plan.get_current_wp()
+        # wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
+        # # if this is the first ever action, we need to get it ourselves
+        if wp is None:
+            rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
+            return
+
+        if wp.tf_frame != self.goal_tf_frame:
+            rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
+            return
+
+        if wp.maneuver_id == imc_enums.MANEUVER_SAMPLE:
+            # TODO change this behaviour lol
+            rospy.logwarn(5, "THIS IS A SAMPLE MANEUVER, WE ARE USING SIMPLE GOTO FOR THIS!!!")
+
+        # construct the message
+        goal = GotoWaypointGoal()
+        goal.waypoint_pose.pose.position.x = wp.x
+        goal.waypoint_pose.pose.position.y = wp.y
+        goal.goal_tolerance = self.goal_tolerance
+
+        # 0=None, 1=Depth, 2=Altitude in the action
+        # thankfully these are the same in IMC and in the Action
+        # but Action doesnt have 'height'
+        if wp.z_unit == imc_enums.Z_HEIGHT:
+            wp.z_unit = imc_enums.Z_NONE
+        goal.z_control_mode = wp.z_unit
+        goal.travel_depth = wp.z
+
+        # 0=None, 1=RPM, 2=speed in the action
+        # 0=speed, 1=rpm, 2=percentage in IMC
+        if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
+            goal.travel_rpm = wp.speed
+        elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+            goal.travel_speed = wp.speed
+        else:
+            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
+            rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
+
+
+        self.action_goal = goal
+
+        rospy.loginfo(">>> Goto waypoint action goal initialized:"+str(goal))
+
+        # ensure that we still need to send the goal
+        self.sent_goal = False
+
+    def update(self):
+        """
+        Check only to see whether the underlying action server has
+        succeeded, is running, or has cancelled/aborted for some reason and
+        map these to the usual behaviour return states.
+        """
+
+        if not self.action_server_ok:
+            self.feedback_message = "Action Server for PanoramicInspection action can not be used!"
+            rospy.logerr_throttle_identical(5,self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if your action client is not valid
+        if not self.action_client:
+            self.feedback_message = "ActionClient is invalid! Client:"+str(self.action_client)
+            rospy.logerr(self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if the action_goal is invalid
+        if not self.action_goal:
+            self.feedback_message = "No action_goal!"
+            rospy.logwarn(self.feedback_message)
+            return pt.Status.FAILURE
+
+        # if goal hasn't been sent yet
+        if not self.sent_goal:
+            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+            self.sent_goal = True
+            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
+            self.feedback_message = "Goal sent"
+            return pt.Status.RUNNING
+
+
+        # if the goal was aborted or preempted
+        if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
+                                              actionlib_msgs.GoalStatus.PREEMPTED]:
+            self.feedback_message = "Aborted goal"
+            rospy.loginfo(self.feedback_message)
+            return pt.Status.FAILURE
+
+        result = self.action_client.get_result()
+
+        # if the goal was accomplished
+        if result is not None and result.reached_waypoint:
+            self.feedback_message = "Completed goal"
+            rospy.loginfo(self.feedback_message)
+            return pt.Status.SUCCESS
+
+
+        return pt.Status.RUNNING
+
+    def feedback_cb(self, msg):
+        fb = str(msg.ETA)
+        self.feedback_message = "ETA:"+fb
+        rospy.loginfo_throttle(5, fb)
+
 
 class A_UpdateTF(pt.behaviour.Behaviour):
     def __init__(self, utm_link, base_link):

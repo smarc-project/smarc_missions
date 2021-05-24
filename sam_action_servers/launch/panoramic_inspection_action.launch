@@ -33,7 +33,7 @@
 
     
 
-    <node name="goto_waypoint" pkg="sam_action_servers" type="panoramic_inspection_action.py" output="screen" ns="$(arg robot_name)/ctrl">
+    <node name="panoramic_inspection_action" pkg="sam_action_servers" type="panoramic_inspection_action.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
 		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
 		<param name="base_frame" value="$(arg base_frame)"/>

@@ -34,6 +34,8 @@ class AUVConfig(object):
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
         self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
         self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
+        self.INSPECTION_ACTION_NAMESPACE = 'ctrl/panoramic_inspection_action'
+        self.PLANNED_SURFACE_ACTION_NAMESPACE = 'ctrl/planned_surface_action'
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
 
