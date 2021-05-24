@@ -61,9 +61,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
-                       A_SetDVLRunning, \
-                       A_PanoramicInspection, \
-                       A_PlannedSurface
+                       A_SetDVLRunning
 
 
 # globally defined values
@@ -286,8 +284,8 @@ def const_tree(auv_config):
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                      goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                      goal_tf_frame = auv_config.UTM_LINK)
-
-        #goto_action = A_PanoramicInspection(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
+        
+        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
         #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
         #                             goal_tf_frame = auv_config.UTM_LINK)
         
@@ -341,8 +339,7 @@ def const_tree(auv_config):
         publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
                                              message_object = Empty())
 
-        #surface on plan completion
-        planned_surface = A_PlannedSurface(auv_config.PLANNED_SURFACE_ACTION_NAMESPACE)
+
 
         set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
                                                             variable_value = True,
@@ -352,15 +349,24 @@ def const_tree(auv_config):
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
+        #surface on plan completion
+        #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
+        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+        #                             goal_tf_frame = auv_config.UTM_LINK)
+
+        #is_submerged = C_AtDVLDepth(0.5)
+
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
+                                  #is_submerged,
+                                  #planned_surface,
                                   publish_complete,
-                                  planned_surface,
                                   unset_plan_is_go,
                                   set_finalized
+
                         ])
 
     # The root of the tree is here
