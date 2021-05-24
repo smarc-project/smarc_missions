@@ -55,6 +55,7 @@ class MissionPlan:
     def __init__(self,
                  plandb_msg,
                  latlontoutm_service_name,
+                 latlontoutm_service_name_alternative,
                  plan_frame = 'utm',
                  waypoints=None
                  ):
@@ -65,7 +66,25 @@ class MissionPlan:
         self.plan_id = plandb_msg.plan_id
         self.plan_frame = plan_frame
 
+        # test if the service is usable!
+        # if not, test the backup
+        # if that fails too, raise exception
+        self.no_service = False
         self.latlontoutm_service_name = latlontoutm_service_name
+        try:
+            rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
+            rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
+        except:
+            rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to!")
+            self.latlontoutm_service_name = latlontoutm_service_name_alternative
+            rospy.logwarn("Setting the service to the alternative:{}".format(self.latlontoutm_service_name))
+            try:
+                rospy.loginfo("Waiting (10s) lat_lon_to_utm service alternative:{}".format(self.latlontoutm_service_name))
+                rospy.wait_for_service(self.latlontoutm_service_name, timeout=10)
+            except:
+                rospy.logerr("No lat_lon_to_utm service could be reached! The BT can not accept missions in this state!")
+                rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
+                self.no_service = True
 
         self.aborted = False
 
@@ -75,7 +94,7 @@ class MissionPlan:
 
         # if waypoints are given directly, then skip reading the plandb message
         if waypoints is None:
-            self.waypoints = MissionPlan.read_plandb(plandb_msg, self.latlontoutm_service_name)
+            self.waypoints = self.read_plandb(plandb_msg)
         else:
             self.waypoints = waypoints
 
@@ -83,24 +102,27 @@ class MissionPlan:
             self.waypoint_man_ids.append(wp.maneuver_id)
 
         # keep track of which waypoint we are going to
-        self.current_wp_index = 0
+        # start at -1 to indicate that _we are not going to any yet_
+        self.current_wp_index = -1
 
         # used to report when the mission was received
         self.creation_time = time.time()
 
 
-    @staticmethod
-    def latlon_to_utm(lat, lon, z, latlontoutm_service_name):
-        rospy.loginfo("Waiting at most 10s for latlontoutm service "+str(latlontoutm_service_name))
+    def latlon_to_utm(self,
+                      lat,
+                      lon,
+                      z):
+        rospy.loginfo("Waiting at most 1s for latlontoutm service "+str(self.latlontoutm_service_name))
         try:
-            rospy.wait_for_service(latlontoutm_service_name, timeout=10)
+            rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
         except:
-            rospy.logwarn(str(latlontoutm_service_name)+" service could be connected to! No mission received!")
+            rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to! No mission received!")
             return (None, None)
 
         rospy.loginfo("Got latlontoutm service")
         try:
-            latlontoutm_service = rospy.ServiceProxy(latlontoutm_service_name,
+            latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
                                                      LatLonToUTM)
             gp = GeoPoint()
             gp.latitude = np.degrees(lat)
@@ -109,13 +131,12 @@ class MissionPlan:
             res = latlontoutm_service(gp)
             return (res.utm_point.x, res.utm_point.y)
         except rospy.service.ServiceException:
-            rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(latlontoutm_service_name))
+            rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
             return (None, None)
 
 
 
-    @staticmethod
-    def read_plandb(plandb, latlontoutm_service_name):
+    def read_plandb(self, plandb):
         """
         planddb message is a bunch of nested objects,
         we want a list of waypoints in the local frame,
@@ -136,7 +157,13 @@ class MissionPlan:
             # probably every maneuver has lat lon z in them, but just in case...
             # goto and sample are identical, with sample having extra "syringe" booleans...
             if man_imc_id == imc_enums.MANEUVER_GOTO or man_imc_id == imc_enums.MANEUVER_SAMPLE:
-                utm_x, utm_y = MissionPlan.latlon_to_utm(maneuver.lat, maneuver.lon, -maneuver.z, latlontoutm_service_name)
+                if self.no_service:
+                    rospy.logwarn("The BT can not reach the latlon_to_utm service! Can not do waypoints!")
+                    continue
+
+                utm_x, utm_y = self.latlon_to_utm(maneuver.lat,
+                                                  maneuver.lon,
+                                                  -maneuver.z)
                 if utm_x is None:
                     rospy.loginfo("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
                     continue
@@ -168,7 +195,7 @@ class MissionPlan:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER: id:{}, name:{}".format(man_imc_id, man_name))
 
         if len(waypoints) <= 0:
-            rospy.logwarn("NO MANEUVERS IN MISSION PLAN!")
+            rospy.logerr("NO MANEUVERS IN MISSION PLAN!")
 
         return waypoints
 
@@ -225,6 +252,13 @@ class MissionPlan:
 
         return False
 
+    def is_in_progress(self):
+        if self.current_wp_index < len(self.waypoints) and\
+           self.current_wp_index >= 0:
+            return True
+
+        return False
+
 
     def visit_wp(self):
         """ call this when you finish going to the wp"""
@@ -240,6 +274,12 @@ class MissionPlan:
         """
         if self.is_complete():
             return None
+
+        # we havent started yet, this is the first time ever
+        # someone wanted a wp, meaning we _start now_
+        if self.current_wp_index == -1:
+            self.current_wp_index = 0
+
         wp = self.waypoints[self.current_wp_index]
         return wp
 

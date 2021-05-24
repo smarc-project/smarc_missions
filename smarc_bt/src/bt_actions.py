@@ -31,6 +31,7 @@ import common_globals
 from mission_plan import MissionPlan
 
 
+
 class A_SetDVLRunning(pt.behaviour.Behaviour):
     def __init__(self, dvl_on_off_service_name, running, cooldown):
         super(A_SetDVLRunning, self).__init__(name="A_SetDVLRunning")
@@ -933,13 +934,19 @@ class A_UpdateNeptusVehicleState(pt.behaviour.Behaviour):
 
 
 class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
-    def __init__(self, plandb_topic, utm_link, local_link, latlontoutm_service_name):
+    def __init__(self,
+                 plandb_topic,
+                 utm_link,
+                 local_link,
+                 latlontoutm_service_name,
+                 latlontoutm_service_name_alternative):
         super(A_UpdateNeptusPlanDB, self).__init__("A_UpdateNeptusPlanDB")
         self.bb = pt.blackboard.Blackboard()
         # neptus sends lat/lon, which we convert to utm, which we then convert to local
         self.utm_link = utm_link
         self.local_link = local_link
         self.latlontoutm_service_name = latlontoutm_service_name
+        self.latlontoutm_service_name_alternative = latlontoutm_service_name_alternative
 
         # the message body is largely the same, so we can re-use most of it
         self.plandb_msg = PlanDB()
@@ -1021,12 +1028,18 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         # there is a plan we can at least look at
         mission_plan = MissionPlan(plan_frame = self.utm_link,
                                    plandb_msg = plandb_msg,
-                                   latlontoutm_service_name = self.latlontoutm_service_name)
+                                   latlontoutm_service_name = self.latlontoutm_service_name,
+                                   latlontoutm_service_name_alternative = self.latlontoutm_service_name_alternative)
 
+        if mission_plan.no_service:
+            self.feedback_message = "MISSION PLAN HAS NO SERVICE"
+            rospy.logerr(self.feedback_message)
+            return
 
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
         self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
         self.bb.set(bb_enums.MISSION_FINALIZED, False)
+        self.bb.set(bb_enums.PLAN_IS_GO, False)
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
 
 
