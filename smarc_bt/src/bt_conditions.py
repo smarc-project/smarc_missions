@@ -262,7 +262,7 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(10, self.feedback_message)
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
-            self.bb.set(bb_enums.PLAN_IS_GO, False)
+            # self.bb.set(bb_enums.PLAN_IS_GO, False)
             return pt.Status.FAILURE
 
         if self.last_known_id != current_plan.plan_id:

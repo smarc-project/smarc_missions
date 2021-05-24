@@ -72,8 +72,8 @@ class MissionPlan:
         self.no_service = False
         self.latlontoutm_service_name = latlontoutm_service_name
         try:
-            rospy.loginfo("Waiting (10s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
-            rospy.wait_for_service(self.latlontoutm_service_name, timeout=10)
+            rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
+            rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
         except:
             rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to!")
             self.latlontoutm_service_name = latlontoutm_service_name_alternative
@@ -102,7 +102,8 @@ class MissionPlan:
             self.waypoint_man_ids.append(wp.maneuver_id)
 
         # keep track of which waypoint we are going to
-        self.current_wp_index = 0
+        # start at -1 to indicate that _we are not going to any yet_
+        self.current_wp_index = -1
 
         # used to report when the mission was received
         self.creation_time = time.time()
@@ -251,6 +252,13 @@ class MissionPlan:
 
         return False
 
+    def is_in_progress(self):
+        if self.current_wp_index < len(self.waypoints) and\
+           self.current_wp_index >= 0:
+            return True
+
+        return False
+
 
     def visit_wp(self):
         """ call this when you finish going to the wp"""
@@ -266,6 +274,12 @@ class MissionPlan:
         """
         if self.is_complete():
             return None
+
+        # we havent started yet, this is the first time ever
+        # someone wanted a wp, meaning we _start now_
+        if self.current_wp_index == -1:
+            self.current_wp_index = 0
+
         wp = self.waypoints[self.current_wp_index]
         return wp
 

@@ -31,6 +31,7 @@ import common_globals
 from mission_plan import MissionPlan
 
 
+
 class A_SetDVLRunning(pt.behaviour.Behaviour):
     def __init__(self, dvl_on_off_service_name, running, cooldown):
         super(A_SetDVLRunning, self).__init__(name="A_SetDVLRunning")
@@ -773,6 +774,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
         self.bb.set(bb_enums.ENABLE_AUTONOMY, False)
         self.bb.set(bb_enums.MISSION_FINALIZED, False)
+        self.bb.set(bb_enums.PLAN_IS_GO, False)
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
 
 
