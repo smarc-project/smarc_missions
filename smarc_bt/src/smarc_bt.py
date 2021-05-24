@@ -317,7 +317,7 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
-                                         C_PlanIsNotChanged(),
+                                         # C_PlanIsNotChanged(),
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -336,15 +336,19 @@ def const_tree(auv_config):
 
         set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
                                                             variable_value = True,
-                                                            name = 'A_SetMissionFinalized')
+                                                            name = 'A_SetMissionFinalized->True')
+
+        unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
+                                                               variable_value = False,
+                                                               name = 'A_SetPlanIsGo->False')
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
-                                  C_StartPlanReceived(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
                                   publish_complete,
+                                  unset_plan_is_go,
                                   set_finalized
                         ])
 
@@ -356,13 +360,13 @@ def const_tree(auv_config):
 
     # use this to kind of set the tree to 'idle' mode that wont attempt
     # to control anything and just chills as an observer
-    finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
-                                             True,
-                                             "C_MissionFinalized")
+    # finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
+                                             # True,
+                                             # "C_MissionFinalized")
 
     run_tree = Fallback(name="FB-Run",
                         children=[
-                            finalized,
+                            # finalized,
                             const_finalize_mission(),
                             planned_mission
                             #  const_leader_follower()
