@@ -16,9 +16,10 @@ import actionlib
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
-from geometry_msgs.msg import PointStamped, PoseArray
+from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 from nav_msgs.msg import Path
 from std_msgs.msg import Float64, Header, Bool, Empty
+from visualization_msgs.msg import MarkerArray
 
 from std_srvs.srv import SetBool
 
@@ -1056,3 +1057,126 @@ class A_FollowLeader(ptr.actions.ActionClient):
 
     def feedback_cb(self, msg):
         pass
+
+
+class A_ReadBuoys(pt.behaviour.Behaviour):
+
+    '''
+    This action reads the uncertain positions
+    (mean and covariance) of buoys from the rostopic.
+    '''
+
+    def __init__(
+        self,
+        topic_name,
+        buoy_link, 
+        utm_link, 
+        latlon_utm_serv,
+    ):
+
+        # rostopic name and type (e.g. marker array)
+        self.topic_name = topic_name
+
+        # frame IDs for TF
+        self.buoy_link = buoy_link
+        self.utm_link = utm_link
+
+        # lat/lon to utm service
+        self.latlon_utm_serv = latlon_utm_serv
+
+        # blackboard for info
+        self.bb = pt.blackboard.Blackboard()
+
+        # become a behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            name="A_ReadBuoys"
+        )
+
+        # for coordinate frame transformations
+        self.tf_listener = tf.TransformListener()
+
+    def setup(self, timeout):
+
+        # subscribe to buoy positions
+        self.sub = rospy.Subscriber(
+            self.topic_name,
+            MarkerArray,
+            callback=self.cb,
+            queue_size=10
+        )
+
+        # wait for TF transformation
+        try:
+            rospy.loginfo('Waiting for transform from {} to {}.'.format(
+                self.buoy_link,
+                self.utm_link
+            ))
+            self.tf_listener.waitForTransform(
+                self.buoy_link, 
+                self.utm_link,
+                rospy.Time(),
+                rospy.Duration(timeout)
+            )
+        except:
+            rospy.loginfo('Transform from {} to {} not found.'.format(
+                self.buoy_link,
+                self.utm_link
+            ))
+        return True
+
+    def cb(self, msg):
+
+        '''
+        This will read the uncertain buoy positions
+        from the SLAM backend and sensors.
+        But, for now, it just read the simulator buoys.
+        The buoys here are assumed to be in the map frame.
+        '''
+
+        # space for bouy positions
+        self.buoys = list()
+
+        # loop through visualization markers
+        for marker in msg.markers:
+
+            # convert their pose to pose stamped
+            pose = PoseStamped(
+                header=marker.header,
+                pose=marker.pose
+            )
+
+            # # transform it from local to UTM frame
+            # pose = self.tf_listener.transformPose(
+            #     self.utm_link,
+            #     pose
+            # )
+
+            # add it to the list
+            self.buoys.append([
+                pose.pose.position.x, 
+                pose.pose.position.y, 
+                pose.pose.position.z
+            ])
+
+        # make it into a numpy array because why not
+        self.buoys = np.array(self.buoys)
+        self.buoys = self.buoys[np.argsort(self.buoys[:,0])]
+        self.buoys = self.buoys.reshape((-1, 3, 3))
+        self.buoys = np.sort(self.buoys, axis=1)
+        self.buoys = dict(
+            front=self.buoys[:,0,:],
+            left=self.buoys[0,:,:],
+            back=self.buoys[:,-1,:],
+            right=self.buoys[-1,:,:],
+            all=self.buoys
+        )
+
+    def update(self):
+
+        # put the buoy positions in the blackboard
+        try:
+            self.bb.set(bb_enums.BUOYS, self.buoys)
+        except Exception as e:
+            rospy.loginfo(e)
+        return pt.Status.SUCCESS

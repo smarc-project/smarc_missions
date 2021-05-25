@@ -77,6 +77,9 @@ class AUVConfig(object):
         # in meters
         self.WAYPOINT_TOLERANCE = 1.5
 
+        # Algae farm
+        self.BUOY_TOPIC = '/sim/marked_positions'
+
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'
