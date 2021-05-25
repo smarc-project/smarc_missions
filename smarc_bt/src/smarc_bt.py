@@ -284,11 +284,6 @@ def const_tree(auv_config):
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                      goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                      goal_tf_frame = auv_config.UTM_LINK)
-        
-        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
-        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
-        #                             goal_tf_frame = auv_config.UTM_LINK)
-        
         wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
                                  children=[
@@ -309,6 +304,22 @@ def const_tree(auv_config):
                                      sample_action
                                  ])
 
+
+        #############################################################################################
+        # INSPECT
+        #TODO add an inspection maneuver  into bridge and neptus etc.
+        # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
+        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
+        #                                   goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+        #                                   goal_tf_frame = auv_config.UTM_LINK)
+        # inspection_maneuver = Sequence(name="SQ-InspectWP",
+                                       # children=[
+                                           # wp_is_inspect,
+                                           # inspection_action
+                                       # ])
+        #############################################################################################
+
+
         # put the known plannable maneuvers in here as each others backups
         execute_maneuver = Fallback(name="FB-ExecuteManeuver",
                                     children=[
@@ -322,7 +333,6 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
-                                         # C_PlanIsNotChanged(),
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])

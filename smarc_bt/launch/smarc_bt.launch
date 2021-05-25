@@ -16,6 +16,8 @@
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
 	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
 	<arg name="start_stop_dvl_namespace" default="core/toggle_dvl" />
+	<arg name="inspection_action_namespace" default="ctrl/panoramic_inspection_action" />
+	<arg name="planned_surface_action_namespace" default="ctrl/planned_surface_action" />
 	<arg name="latlontoutm_service" default="/$(arg robot_name)/dr/lat_lon_to_utm" />
 	<arg name="latlontoutm_service_alternative" default="/$(arg robot_name)/lat_lon_to_utm" />
 	<arg name="base_link" default="$(arg robot_name)/base_link" />
@@ -55,6 +57,8 @@
 		<param name="emergency_action_namespace" value="$(arg emergency_action_namespace)" />
 		<param name="follow_action_namespace" value="$(arg follow_action_namespace)" />
 		<param name="start_stop_dvl_namespace" value="$(arg start_stop_dvl_namespace)" />
+		<param name="inspection_action_namespace" value="$(arg inspection_action_namespace)" />
+		<param name="planned_surface_action_namespace" value="$(arg planned_surface_action_namespace)" />
 		<param name="latlontoutm_service" value="$(arg latlontoutm_service)" />
 		<param name="latlontoutm_service_alternative" value="$(arg latlontoutm_service_alternative)" />
 		<param name="base_link" value="$(arg base_link)" />
