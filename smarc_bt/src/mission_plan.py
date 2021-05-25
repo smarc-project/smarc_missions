@@ -213,7 +213,8 @@ class MissionPlan:
                 utm_x, utm_y = self.latlon_to_utm(maneuver.lat,
                                                   maneuver.lon,
                                                   -maneuver.z)
-                utm_only_points = [(utm_x, utm_y)]
+
+                utm_poly_points = [(utm_x, utm_y)]
                 # this maneuver has an extra polygon with it
                 # that we want to generate waypoints inside of
                 # generate the waypoints here and add them as goto waypoints

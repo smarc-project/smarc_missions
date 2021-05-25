@@ -154,7 +154,7 @@ class C_AltOK(pt.behaviour.Behaviour):
         if alt > self.min_alt:
             return pt.Status.SUCCESS
         else:
-            rospy.loginfo(5, "Too close to the bottom! "+str(alt))
+            rospy.loginfo_throttle(5, "Too close to the bottom! "+str(alt))
             return pt.Status.FAILURE
 
 

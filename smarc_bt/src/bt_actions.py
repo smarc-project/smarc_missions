@@ -703,9 +703,7 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
                  utm_link,
                  local_link,
                  latlontoutm_service_name,
-                 latlontoutm_service_name_alternative,
-                 swath,
-                 vehicle_localization_error_growth):
+                 latlontoutm_service_name_alternative):
         super(A_UpdateNeptusPlanDB, self).__init__("A_UpdateNeptusPlanDB")
         self.bb = pt.blackboard.Blackboard()
         # neptus sends lat/lon, which we convert to utm, which we then convert to local
@@ -713,8 +711,6 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         self.local_link = local_link
         self.latlontoutm_service_name = latlontoutm_service_name
         self.latlontoutm_service_name_alternative = latlontoutm_service_name_alternative
-        self.swath = swath
-        self.vehicle_localization_error_growth = vehicle_localization_error_growth
 
         # the message body is largely the same, so we can re-use most of it
         self.plandb_msg = PlanDB()
@@ -798,8 +794,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
                                    plandb_msg = plandb_msg,
                                    latlontoutm_service_name = self.latlontoutm_service_name,
                                    latlontoutm_service_name_alternative = self.latlontoutm_service_name_alternative,
-                                   coverage_swath = self.swath,
-                                   vehicle_localization_error_growth = self.vehicle_localization_error_growth)
+                                   coverage_swath = self.bb.get(bb_enums.SWATH),
+                                   vehicle_localization_error_growth = self.bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH))
 
         if mission_plan.no_service:
             self.feedback_message = "MISSION PLAN HAS NO SERVICE"
