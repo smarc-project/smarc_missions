@@ -209,10 +209,15 @@ class MissionPlan:
                     rospy.loginfo("I do not know either the error growth or the swath, so I can not plan for coverage! Skipping the CoverArea maneuver!")
                     continue
 
-                # this maneuver has a extra polygon with it
+                # always go to the point given in map as the first move.
+                utm_x, utm_y = self.latlon_to_utm(maneuver.lat,
+                                                  maneuver.lon,
+                                                  -maneuver.z)
+                utm_only_points = [(utm_x, utm_y)]
+                # this maneuver has an extra polygon with it
                 # that we want to generate waypoints inside of
                 # generate the waypoints here and add them as goto waypoints
-                utm_poly_points = [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
+                utm_poly_points += [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
                 coverage_points = self.generate_coverage_pattern(utm_poly_points)
 
                 for i,point in enumerate(coverage_points):

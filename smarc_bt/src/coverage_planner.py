@@ -7,6 +7,18 @@
 import numpy as np
 from numpy import *
 
+def mirror(pts, axis=0):
+    pts = np.array(pts)
+    mid = np.mean(pts, axis=0)
+    centered = pts - mid
+    mirrored = centered[:,axis]*-1
+    if axis == 0:
+        ret = np.array(list(zip(mirrored+mid[0], pts[:,1])))
+    if axis == 1:
+        ret = np.array(list(zip(pts[:,0], mirrored+mid[1])))
+    return ret
+
+
 def minBoundingRect(hull_points_2d):
     # https://github.com/dbworth/minimum-area-bounding-rectangle/blob/master/python/min_bounding_rect.py
     # Find the minimum-area bounding box of a set of 2D points
@@ -214,6 +226,8 @@ def rotate_vec_vec(v1s, rads):
     return res
 
 
+
+
 def create_coverage_path(polygon, swath, error_growth):
     polygon = np.array(polygon)
     # the poly needs to be closed -> first and last elements need to be identical
@@ -245,7 +259,21 @@ def create_coverage_path(polygon, swath, error_growth):
     coverage_path[:,0] += center[0]
     coverage_path[:,1] += center[1]
 
-    return coverage_path
+    # now we got the shape, we need to flip it around until
+    # the starting point of the path is closest it can be to
+    # the first vertex of the given polygon
+    xm = mirror(coverage_path, axis=0)
+    ym = mirror(coverage_path, axis=1)
+    xym = mirror(xm, axis=1)
+
+    versions = [coverage_path, xm, ym, xym]
+    dists = [np.sum(np.abs(v[0]-polygon[0])) for v in versions]
+
+    closest_version_idx = np.argmin(dists)
+    closest_version = versions[closest_version_idx]
+
+
+    return closest_version
 
 
 
@@ -265,18 +293,23 @@ if __name__ == '__main__':
                [z+w,z+h],
                [z+w,z]]
     polygon = np.array(polygon)
+    polygon = rotate_vec_vec(polygon, np.pi)
+    polygon = rotate_vec_vec(polygon, np.pi/4)
 
-
-    # polygon = rotate_vec_vec(polygon, np.pi/2)
     plt.scatter(polygon[:,0], polygon[:,1])
+    for i,p in enumerate(polygon):
+        plt.text(p[0], p[1], s=str(i))
 
     swath = 5
     error_growth = 0.01
 
     coverage_path = create_coverage_path(polygon, swath, error_growth)
-
     plt.plot(coverage_path[:,0], coverage_path[:,1])
+
+    for i,p in enumerate(coverage_path):
+        plt.text(p[0], p[1], s=str(i))
     plt.axis('equal')
+
 
 
 
