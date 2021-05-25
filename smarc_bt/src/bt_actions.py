@@ -220,28 +220,35 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
 
 class A_GotoWaypoint(ptr.actions.ActionClient):
-    def __init__(self, action_namespace, goal_tolerance, goal_tf_frame):
+    def __init__(self,
+                 action_namespace,
+                 goal_tolerance = 1,
+                 goal_tf_frame = 'utm',
+                 node_name = "A_GotoWaypoint"):
         """
         Runs an action server that will move the robot to the given waypoint
         """
 
         self.bb = pt.blackboard.Blackboard()
+        self.node_name = node_name
+
         list_of_maneuvers = self.bb.get(bb_enums.MANEUVER_ACTIONS)
         if list_of_maneuvers is None:
-            list_of_maneuvers = ["A_GotoWaypoint"]
+            list_of_maneuvers = [self.node_name]
         else:
-            list_of_maneuvers.append("A_GotoWaypoint")
+            list_of_maneuvers.append(self.node_name)
         self.bb.set(bb_enums.MANEUVER_ACTIONS, list_of_maneuvers)
+
         self.action_goal_handle = None
 
         # become action client
         ptr.actions.ActionClient.__init__(
             self,
-            name="A_GotoWaypoint",
-            action_spec=GotoWaypointAction,
-            action_goal=None,
+            name = self.node_name,
+            action_spec = GotoWaypointAction,
+            action_goal = None,
             action_namespace = action_namespace,
-            override_feedback_message_on_running="Moving to waypoint"
+            override_feedback_message_on_running = "Moving to waypoint"
         )
 
         self.action_server_ok = False
@@ -283,8 +290,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             return
 
         wp = mission_plan.get_current_wp()
-        # wp = self.bb.get(bb_enums.CURRENT_PLAN_ACTION)
-        # # if this is the first ever action, we need to get it ourselves
+
         if wp is None:
             rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
             return
@@ -293,9 +299,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
             return
 
-        if wp.maneuver_id == imc_enums.MANEUVER_SAMPLE:
-            # TODO change this behaviour lol
-            rospy.logwarn(5, "THIS IS A SAMPLE MANEUVER, WE ARE USING SIMPLE GOTO FOR THIS!!!")
+        if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
+            rospy.logwarn("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
         # construct the message
         goal = GotoWaypointGoal()
@@ -386,6 +391,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         fb = str(msg.ETA)
         self.feedback_message = "ETA:"+fb
         rospy.loginfo_throttle(5, fb)
+
+
 
 class A_UpdateTF(pt.behaviour.Behaviour):
     def __init__(self, utm_link, base_link):

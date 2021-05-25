@@ -117,7 +117,7 @@ class MissionPlan:
         try:
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
         except:
-            rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to! No mission received!")
+            rospy.logwarn(str(self.latlontoutm_service_name)+" service not found!")
             return (None, None)
 
         rospy.loginfo("Got latlontoutm service")
@@ -141,6 +141,10 @@ class MissionPlan:
         planddb message is a bunch of nested objects,
         we want a list of waypoints in the local frame,
         """
+        if self.no_service:
+            rospy.logerr("The BT can not reach the latlon_to_utm service!")
+            return []
+
         waypoints = []
         request_id = plandb.request_id
         plan_id = plandb.plan_id
@@ -156,11 +160,11 @@ class MissionPlan:
             maneuver = plan_man.maneuver
             # probably every maneuver has lat lon z in them, but just in case...
             # goto and sample are identical, with sample having extra "syringe" booleans...
-            if man_imc_id == imc_enums.MANEUVER_GOTO or man_imc_id == imc_enums.MANEUVER_SAMPLE:
-                if self.no_service:
-                    rospy.logwarn("The BT can not reach the latlon_to_utm service! Can not do waypoints!")
-                    continue
+            # cover_area is also the same, with extra Polygon field, that we can 
+            # straight translate to more goto waypoints
 
+            # GOTO, SAMPLE
+            if man_imc_id in [imc_enums.MANEUVER_GOTO, imc_enums.MANEUVER_SAMPLE]:
                 utm_x, utm_y = self.latlon_to_utm(maneuver.lat,
                                                   maneuver.lon,
                                                   -maneuver.z)
@@ -168,6 +172,7 @@ class MissionPlan:
                     rospy.loginfo("Could not convert LATLON to UTM! Skipping point:{}".format((maneuver.lat, maneuver.lon, man_name)))
                     continue
 
+                # EXTRA STUFF FOR SAMPLE
                 extra_data = {}
                 if man_imc_id == imc_enums.MANEUVER_SAMPLE:
                     extra_data = {'syringe0':maneuver.syringe0,
@@ -191,14 +196,49 @@ class MissionPlan:
                 )
                 waypoints.append(waypoint)
 
+
+            # COVER AREA
+            elif man_imc_id == imc_enums.MANEUVER_COVER_AREA:
+                # this maneuver has a extra polygon with it
+                # that we want to generate waypoints inside of
+                # generate the waypoints here and add them as goto waypoints
+                utm_poly_points = [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
+                coverage_points = self.generate_coverage_pattern(utm_poly_points)
+
+                for i,point in enumerate(coverage_points):
+                    wp = Waypoint(
+                        maneuver_id = man_id,
+                        maneuver_imc_id = imc_enums.MANEUVER_GOTO,
+                        maneuver_name = str(man_name) + "_{}/{}".format(i+1, len(coverage_points)),
+                        tf_frame = 'utm',
+                        x = point[0],
+                        y = point[1],
+                        z = maneuver.z,
+                        speed = maneuver.speed,
+                        z_unit = maneuver.z_units,
+                        speed_unit = maneuver.speed_units,
+                        extra_data = {}
+                    )
+                    waypoints.append(wp)
+
+
+            # UNIMPLEMENTED MANEUVER
             else:
                 rospy.logwarn("SKIPPING UNIMPLEMENTED MANEUVER: id:{}, name:{}".format(man_imc_id, man_name))
 
+
+        # sanity check
         if len(waypoints) <= 0:
             rospy.logerr("NO MANEUVERS IN MISSION PLAN!")
 
         return waypoints
 
+
+
+    def generate_coverage_pattern(self, polygon):
+        #TODO just go the points of the poly as a test of the pipeline for now
+        # return a list of [(x,y)..]
+        return polygon
 
 
     def get_pose_array(self, flip_z=False):
