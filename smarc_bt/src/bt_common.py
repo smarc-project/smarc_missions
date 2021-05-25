@@ -50,6 +50,9 @@ class A_SimplePublisher(pt.behaviour.Behaviour):
 
         self.last_published_time = None
 
+        self.animation_frames = ['*--', '-*-', '--*']
+        self.current_anim_frame = 0
+
     def setup(self, timeout):
         self.pub = rospy.Publisher(self.topic, self.message_type, queue_size=self.queue_size)
         return True
@@ -64,7 +67,8 @@ class A_SimplePublisher(pt.behaviour.Behaviour):
         try:
             self.pub.publish(self.message_object)
             self.last_published_time = time.time()
-            self.feedback_message = "Just published!"
+            self.feedback_message = "Just published:" + self.animation_frames[self.current_anim_frame]
+            self.current_anim_frame = (self.current_anim_frame+1)%len(self.animation_frames)
             return pt.Status.SUCCESS
         except:
             msg = "Couldn't publish"

@@ -16,6 +16,7 @@
     <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/yaw_setpoint" />
     <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/depth_setpoint" />
     <arg name="vbs_setpoint_topic" default="/$(arg robot_name)/ctrl/depth_setpoint" />
+	<arg name="lcg_setpoint_topic" default="/$(arg robot_name)/ctrl/pitch_setpoint" />
     <arg name="vel_setpoint_topic" default="/$(arg robot_name)/ctrl/speed_setpoint" />
     <arg name="roll_setpoint_topic" default="/$(arg robot_name)/ctrl/roll_setpoint" />
     <arg name="yaw_feedback_topic" default="/$(arg robot_name)/dr/yaw" />
@@ -32,7 +33,7 @@
 
     
 
-    <node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen" ns="$(arg robot_name)/ctrl">
+    <node name="panoramic_inspection_action" pkg="sam_action_servers" type="panoramic_inspection_action.py" output="screen" ns="$(arg robot_name)/ctrl">
 		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
 		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
 		<param name="base_frame" value="$(arg base_frame)"/>
@@ -44,14 +45,13 @@
 		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
 		
 		<!--Turbo turn parameters-->
-  		<param name="turbo_turn_flag" value="False" />
 		<param name="thrust_vector_cmd_topic" value="$(arg thrust_vector_cmd_topic)" />
 		<param name="yaw_feedback_topic" value="$(arg yaw_feedback_topic)" />
-		<param name="turbo_angle_min_deg" value="90.0" />		
 		<param name="flip_rate" value="0.5" />
 		<param name="rudder_angle" value="0.1" />
 		<param name="turbo_turn_rpm" value="1000" />
 		<param name="vbs_setpoint_topic" value="$(arg vbs_setpoint_topic)" />
+		<param name="lcg_setpoint_topic" value="$(arg vbs_setpoint_topic)" />
 		
 		<!--Vel ctrl parameters-->
   		<!--param name="vel_ctrl_flag" value="False" />
@@ -59,7 +59,6 @@
 		<param name="roll_setpoint" value="0.0" />
 		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
 		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />
-		<param name="vel_feedback_topic" value="$(arg vel_feedback_topic)" />
 
 		<!--Controller services-->
 		<param name="toggle_yaw_ctrl_service" value="$(arg toggle_yaw_ctrl_service)" />

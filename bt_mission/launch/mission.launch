@@ -2,24 +2,10 @@
 
     <arg name="robot_name" default="sam"/>
 
-	<!-- WP following action -->
-	<include file="$(find sam_action_servers)/launch/wp_depth_action_planner.launch" >
-		<arg name="robot_name" value="$(arg robot_name)"/>
-    		<arg name="wp_tolerance" value="5."/>
-    		<arg name="depth_tolerance" value="1."/>
-    		<arg name="base_frame" value="$(arg robot_name)/base_link"/>
-    		<arg name="forward_rpm" value="400"/>
-	</include>
-
-	<!-- Emergency surface action -->
-	<include file="$(find sam_action_servers)/launch/emergency_surface_action.launch" >
+	<!--  All SAM action servers -->
+	<!--include file="$(find sam_action_servers)/launch/action_servers.launch" >
 		<arg name="robot_name" value="$(arg robot_name)"/>	
-	</include>
-
-        <!-- Leader follower action -->
-	<include file="$(find sam_action_servers)/launch/leader_follower_action.launch" >
-		<arg name="robot_name" value="$(arg robot_name)"/>
-	</include>
+	</include-->
 
 	<!-- Hard limits -->
     	<arg name="max_depth" default="20"/>
@@ -36,7 +22,6 @@
 	<arg name="leader_link" default="sam_1/base_link" />
         <arg name="enable_leader_follower" default="True" />
     	<arg name="follow_action_namespace" default="ctrl/leader_follower_action"/>
-
 
 	<!-- Leader follower related -->
     	<arg name="min_distance_to_leader" default="5."/>
@@ -79,17 +64,5 @@
 		<arg name="imc_src" value="$(arg imc_src)"/>
 		<arg name="imc_system_name" value="$(arg imc_system_name)"/>
 	</include>
-
-	<!--Low level controllers: SET either SIM or REAL to true depending on launch in simulation or real test-->
-
-        <!--include file="$(find sam_basic_controllers)/launch/static_controllers.launch" ns="$(arg robot_name)"-->
-		<!--arg name="with_SIM" default="true"/-->
-		<!--arg name="with_REAL" default="false"/-->
-	<!--/include-->
-
-        <!--include file="$(find sam_basic_controllers)/launch/dynamic_controllers.launch" ns="$(arg robot_name)"-->
-		<!--arg name="with_SIM" default="true"/-->
-		<!--arg name="with_REAL" default="false"/-->
-	<!--/include-->
     
 </launch>

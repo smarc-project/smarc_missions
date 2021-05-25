@@ -146,7 +146,8 @@ def const_tree(auv_config):
                 A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
                                      auv_config.UTM_LINK,
                                      auv_config.LOCAL_LINK,
-                                     auv_config.LATLONTOUTM_SERVICE),
+                                     auv_config.LATLONTOUTM_SERVICE,
+                                     auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
                 A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
                 A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
                                      ])
@@ -234,8 +235,6 @@ def const_tree(auv_config):
                             safety_checks,
                             skip_wp,
                             abort
-                            #  publish_abort,
-                            #  A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
                         ])
 
 
@@ -311,6 +310,22 @@ def const_tree(auv_config):
                                      sample_action
                                  ])
 
+
+        #############################################################################################
+        # INSPECT
+        #TODO add an inspection maneuver  into bridge and neptus etc.
+        # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
+        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
+        #                                   goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+        #                                   goal_tf_frame = auv_config.UTM_LINK)
+        # inspection_maneuver = Sequence(name="SQ-InspectWP",
+                                       # children=[
+                                           # wp_is_inspect,
+                                           # inspection_action
+                                       # ])
+        #############################################################################################
+
+
         # put the known plannable maneuvers in here as each others backups
         execute_maneuver = Fallback(name="FB-ExecuteManeuver",
                                     children=[
@@ -324,7 +339,6 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
-                                         C_PlanIsNotChanged(),
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -341,18 +355,34 @@ def const_tree(auv_config):
         publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
                                              message_object = Empty())
 
+
+
         set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
                                                             variable_value = True,
-                                                            name = 'A_SetMissionFinalized')
+                                                            name = 'A_SetMissionFinalized->True')
+
+        unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
+                                                               variable_value = False,
+                                                               name = 'A_SetPlanIsGo->False')
+
+        #surface on plan completion
+        #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
+        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
+        #                             goal_tf_frame = auv_config.UTM_LINK)
+
+        #is_submerged = C_AtDVLDepth(0.5)
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
-                                  C_StartPlanReceived(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
+                                  #is_submerged,
+                                  #planned_surface,
                                   publish_complete,
+                                  unset_plan_is_go,
                                   set_finalized
+
                         ])
 
     # The root of the tree is here
@@ -363,13 +393,13 @@ def const_tree(auv_config):
 
     # use this to kind of set the tree to 'idle' mode that wont attempt
     # to control anything and just chills as an observer
-    finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
-                                             True,
-                                             "MissionFinalized")
+    # finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
+                                             # True,
+                                             # "C_MissionFinalized")
 
     run_tree = Fallback(name="FB-Run",
                         children=[
-                            finalized,
+                            # finalized,
                             const_finalize_mission(),
                             planned_mission
                             #  const_leader_follower()
