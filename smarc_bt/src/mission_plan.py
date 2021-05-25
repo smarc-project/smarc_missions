@@ -17,6 +17,7 @@ from geometry_msgs.msg import PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
 
+from coverage_planner import create_coverage_path
 
 class Waypoint:
     def __init__(self,
@@ -56,6 +57,8 @@ class MissionPlan:
                  plandb_msg,
                  latlontoutm_service_name,
                  latlontoutm_service_name_alternative,
+                 coverage_swath = None,
+                 vehicle_localization_error_growth = None,
                  plan_frame = 'utm',
                  waypoints=None
                  ):
@@ -65,6 +68,8 @@ class MissionPlan:
         self.plandb_msg = plandb_msg
         self.plan_id = plandb_msg.plan_id
         self.plan_frame = plan_frame
+        self.coverage_swath = coverage_swath
+        self.vehicle_localization_error_growth = vehicle_localization_error_growth
 
         # test if the service is usable!
         # if not, test the backup
@@ -199,6 +204,11 @@ class MissionPlan:
 
             # COVER AREA
             elif man_imc_id == imc_enums.MANEUVER_COVER_AREA:
+                if self.vehicle_localization_error_growth is None or \
+                   self.coverage_swath is None:
+                    rospy.loginfo("I do not know either the error growth or the swath, so I can not plan for coverage! Skipping the CoverArea maneuver!")
+                    continue
+
                 # this maneuver has a extra polygon with it
                 # that we want to generate waypoints inside of
                 # generate the waypoints here and add them as goto waypoints
@@ -236,9 +246,9 @@ class MissionPlan:
 
 
     def generate_coverage_pattern(self, polygon):
-        #TODO just go the points of the poly as a test of the pipeline for now
-        # return a list of [(x,y)..]
-        return polygon
+        return create_coverage_path(polygon,
+                                    self.coverage_swath,
+                                    self.vehicle_localization_error_growth)
 
 
     def get_pose_array(self, flip_z=False):

@@ -293,7 +293,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         wp = mission_plan.get_current_wp()
 
         if wp is None:
-            rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
+            rospy.loginfo("No wp found to execute! Does the plan have any waypoints that we understand?")
             return
 
         if wp.tf_frame != self.goal_tf_frame:
@@ -301,7 +301,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             return
 
         if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
-            rospy.logwarn("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
+            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
         # construct the message
         goal = GotoWaypointGoal()
@@ -703,7 +703,9 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
                  utm_link,
                  local_link,
                  latlontoutm_service_name,
-                 latlontoutm_service_name_alternative):
+                 latlontoutm_service_name_alternative,
+                 swath,
+                 vehicle_localization_error_growth):
         super(A_UpdateNeptusPlanDB, self).__init__("A_UpdateNeptusPlanDB")
         self.bb = pt.blackboard.Blackboard()
         # neptus sends lat/lon, which we convert to utm, which we then convert to local
@@ -711,6 +713,8 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         self.local_link = local_link
         self.latlontoutm_service_name = latlontoutm_service_name
         self.latlontoutm_service_name_alternative = latlontoutm_service_name_alternative
+        self.swath = swath
+        self.vehicle_localization_error_growth = vehicle_localization_error_growth
 
         # the message body is largely the same, so we can re-use most of it
         self.plandb_msg = PlanDB()
@@ -793,7 +797,9 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         mission_plan = MissionPlan(plan_frame = self.utm_link,
                                    plandb_msg = plandb_msg,
                                    latlontoutm_service_name = self.latlontoutm_service_name,
-                                   latlontoutm_service_name_alternative = self.latlontoutm_service_name_alternative)
+                                   latlontoutm_service_name_alternative = self.latlontoutm_service_name_alternative,
+                                   coverage_swath = self.swath,
+                                   vehicle_localization_error_growth = self.vehicle_localization_error_growth)
 
         if mission_plan.no_service:
             self.feedback_message = "MISSION PLAN HAS NO SERVICE"
@@ -890,8 +896,8 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         return True
 
     def update(self):
-        # UNTESTED STUFF HERE, RETURN FAILURE TO KEEP PPL
-        # FROM USING THIS ACTION
+        #XXX UNTESTED STUFF HERE, RETURN FAILURE TO KEEP PPL
+        #XXX FROM USING THIS ACTION
         return pt.Status.FAILURE
 
         if not self.poi_link_available:

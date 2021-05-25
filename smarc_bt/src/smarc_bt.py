@@ -143,7 +143,9 @@ def const_tree(auv_config):
                                      auv_config.UTM_LINK,
                                      auv_config.LOCAL_LINK,
                                      auv_config.LATLONTOUTM_SERVICE,
-                                     auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
+                                     auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE,
+                                     auv_config.SWATH,
+                                     auv_config.LOCALIZATION_ERROR_GROWTH),
                 A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
                 A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
                                      ])
@@ -426,7 +428,7 @@ def main():
         print("Did not generate the launch file")
 
     # init the node
-    rospy.init_node("bt")
+    rospy.init_node("bt", log_level=rospy.ERROR)
 
     # read all the fields from rosparams, lowercased and with ~ prepended
     # this might over-write the defaults in py, as it should

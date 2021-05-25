@@ -79,6 +79,12 @@ class AUVConfig(object):
         # in meters
         self.WAYPOINT_TOLERANCE = 1.5
 
+        # coverage planning variables
+        # total width of sensor footprint, perpendicular to movement
+        self.SWATH = 20
+        # function of distance traveled. 0.01 means 1 meter error per 100m travel
+        self.LOCALIZATION_ERROR_GROWTH = 0.02
+
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'
