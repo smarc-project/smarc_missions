@@ -32,6 +32,8 @@
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="abort_topic" default="imc/abort" />
+	<arg name="gpsfix_topic" default="imc/gps_fix" />
+	<arg name="gps_nav_data_topic" default="imc/gps_nav_data" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="1" />
 	<arg name="absolute_min_altitude" default="-1" />
@@ -73,6 +75,8 @@
 		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
 		<param name="abort_topic" value="$(arg abort_topic)" />
+		<param name="gpsfix_topic" value="$(arg gpsfix_topic)" />
+		<param name="gps_nav_data_topic" value="$(arg gps_nav_data_topic)" />
 		<param name="max_depth" value="$(arg max_depth)" />
 		<param name="min_altitude" value="$(arg min_altitude)" />
 		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />

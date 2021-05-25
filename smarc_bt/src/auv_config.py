@@ -58,6 +58,8 @@ class AUVConfig(object):
         self.PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'
         self.VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
         self.ABORT_TOPIC = 'imc/abort'
+        self.GPSFIX_TOPIC = 'imc/gps_fix'
+        self.GPS_NAV_DATA_TOPIC = 'imc/gps_nav_data'
 
         # hard values
         self.MAX_DEPTH = 20
