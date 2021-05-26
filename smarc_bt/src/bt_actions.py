@@ -20,6 +20,7 @@ from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 from nav_msgs.msg import Path
 from std_msgs.msg import Float64, Header, Bool, Empty
 from visualization_msgs.msg import MarkerArray
+from sensor_msgs.msg import NavSatFix
 
 from std_srvs.srv import SetBool
 
@@ -293,7 +294,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         wp = mission_plan.get_current_wp()
 
         if wp is None:
-            rospy.logwarn("No wp found to execute! Does the plan have any waypoints that we understand?")
+            rospy.loginfo("No wp found to execute! Does the plan have any waypoints that we understand?")
             return
 
         if wp.tf_frame != self.goal_tf_frame:
@@ -301,7 +302,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             return
 
         if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
-            rospy.logwarn("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
+            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
         # construct the message
         goal = GotoWaypointGoal()
@@ -463,6 +464,8 @@ class A_UpdateTF(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
+
+
 class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
     def __init__(self, plan_control_topic):
         super(A_UpdateNeptusPlanControl, self).__init__("A_UpdateNeptusPlanControl")
@@ -545,14 +548,26 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
 
 
 class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
-    def __init__(self, estimated_state_topic):
+    def __init__(self,
+                 estimated_state_topic,
+                 gps_fix_topic,
+                 gps_nav_data_topic):
         super(A_UpdateNeptusEstimatedState, self).__init__("A_UpdateNeptusEstimatedState")
         self.bb = pt.blackboard.Blackboard()
         self.estimated_state_pub = None
         self.estimated_state_topic = estimated_state_topic
+        self.e_state = EstimatedState()
+
+        self.gps_fix_pub = None
+        self.gps_fix_topic = gps_fix_topic
+        self.gps_nav_data_pub = None
+        self.gps_nav_data_topic = gps_nav_data_topic
+        self.gps_fix = NavSatFix()
 
     def setup(self, timeout):
         self.estimated_state_pub = rospy.Publisher(self.estimated_state_topic, EstimatedState, queue_size=1)
+        self.gps_fix_pub = rospy.Publisher(self.gps_fix_topic, NavSatFix, queue_size=1)
+        self.gps_nav_data_pub = rospy.Publisher(self.gps_nav_data_topic, NavSatFix, queue_size=1)
         return True
 
 
@@ -572,15 +587,23 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
             return pt.Status.SUCCESS
 
         # construct message for neptus
-        e_state = EstimatedState()
-        e_state.lat = np.radians(lat)
-        e_state.lon= np.radians(lon)
-        e_state.depth = depth
+        self.e_state.lat = np.radians(lat)
+        self.e_state.lon= np.radians(lon)
+        self.e_state.depth = depth
         roll, pitch, yaw = tf.transformations.euler_from_quaternion(world_rot)
-        e_state.psi = np.pi/2. - yaw
-
+        self.e_state.psi = np.pi/2. - yaw
         # send the message to neptus
-        self.estimated_state_pub.publish(e_state)
+        self.estimated_state_pub.publish(self.e_state)
+
+        # same thing with gps fix
+        # the bridge only looks at lat lon height=altitude
+        self.gps_fix.latitude = lat
+        self.gps_fix.longitude = lon
+        self.gps_fix.altitude = -depth
+        self.gps_fix.header.seq = int(time.time())
+        self.gps_fix_pub.publish(self.gps_fix)
+        self.gps_nav_data_pub.publish(self.gps_fix)
+
         return pt.Status.SUCCESS
 
 
@@ -771,7 +794,9 @@ class A_UpdateNeptusPlanDB(pt.behaviour.Behaviour):
         mission_plan = MissionPlan(plan_frame = self.utm_link,
                                    plandb_msg = plandb_msg,
                                    latlontoutm_service_name = self.latlontoutm_service_name,
-                                   latlontoutm_service_name_alternative = self.latlontoutm_service_name_alternative)
+                                   latlontoutm_service_name_alternative = self.latlontoutm_service_name_alternative,
+                                   coverage_swath = self.bb.get(bb_enums.SWATH),
+                                   vehicle_localization_error_growth = self.bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH))
 
         if mission_plan.no_service:
             self.feedback_message = "MISSION PLAN HAS NO SERVICE"
@@ -868,8 +893,8 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         return True
 
     def update(self):
-        # UNTESTED STUFF HERE, RETURN FAILURE TO KEEP PPL
-        # FROM USING THIS ACTION
+        #XXX UNTESTED STUFF HERE, RETURN FAILURE TO KEEP PPL
+        #XXX FROM USING THIS ACTION
         return pt.Status.FAILURE
 
         if not self.poi_link_available:

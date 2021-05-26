@@ -58,6 +58,8 @@ class AUVConfig(object):
         self.PLAN_CONTROL_STATE_TOPIC = 'imc/plan_control_state'
         self.VEHICLE_STATE_TOPIC = 'imc/vehicle_state'
         self.ABORT_TOPIC = 'imc/abort'
+        self.GPSFIX_TOPIC = 'imc/gps_fix'
+        self.GPS_NAV_DATA_TOPIC = 'imc/gps_nav_data'
 
         # hard values
         self.MAX_DEPTH = 20
@@ -76,6 +78,12 @@ class AUVConfig(object):
 
         # in meters
         self.WAYPOINT_TOLERANCE = 1.5
+
+        # coverage planning variables
+        # total width of sensor footprint, perpendicular to movement
+        self.SWATH = 20
+        # function of distance traveled. 0.01 means 1 meter error per 100m travel
+        self.LOCALIZATION_ERROR_GROWTH = 0.02
 
         # Algae farm
         self.BUOY_TOPIC = '/sim/marked_positions'

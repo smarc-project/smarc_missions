@@ -32,6 +32,8 @@
 	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="abort_topic" default="imc/abort" />
+	<arg name="gpsfix_topic" default="imc/gps_fix" />
+	<arg name="gps_nav_data_topic" default="imc/gps_nav_data" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="1" />
 	<arg name="absolute_min_altitude" default="-1" />
@@ -40,6 +42,8 @@
 	<arg name="dvl_cooldown" default="0.5" />
 	<arg name="dvl_running_depth" default="0.55" />
 	<arg name="waypoint_tolerance" default="1.5" />
+	<arg name="swath" default="20" />
+	<arg name="localization_error_growth" default="0.02" />
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
@@ -73,6 +77,8 @@
 		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
 		<param name="abort_topic" value="$(arg abort_topic)" />
+		<param name="gpsfix_topic" value="$(arg gpsfix_topic)" />
+		<param name="gps_nav_data_topic" value="$(arg gps_nav_data_topic)" />
 		<param name="max_depth" value="$(arg max_depth)" />
 		<param name="min_altitude" value="$(arg min_altitude)" />
 		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />
@@ -81,5 +87,7 @@
 		<param name="dvl_cooldown" value="$(arg dvl_cooldown)" />
 		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
 		<param name="waypoint_tolerance" value="$(arg waypoint_tolerance)" />
+		<param name="swath" value="$(arg swath)" />
+		<param name="localization_error_growth" value="$(arg localization_error_growth)" />
 	</node>
 </launch>

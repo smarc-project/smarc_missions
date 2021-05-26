@@ -43,6 +43,9 @@ DVL_IS_RUNNING = 'dvl_is_running'
 # and handling stuff like neptus etc.
 MISSION_FINALIZED = 'mission_finalized'
 
+# coverage stuffs
+SWATH = 'swath'
+LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 
 # Algae farm
 BUOYS = 'buoys'
