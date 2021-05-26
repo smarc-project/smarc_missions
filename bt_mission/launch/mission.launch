@@ -39,9 +39,6 @@
     	<arg name="imc_src" default="$(arg imc_id)"/>
     	<arg name="imc_system_name" default="sam"/>
 
-	<!-- Buoy Markers -->
-	<node name="buoy_markers" pkg="marked_pos_publisher" type="marked_pos_publisher.py"/>
-
 	<!-- Start all actions before the BT -->
 	<include file="$(find smarc_bt)/launch/smarc_bt.launch">
 		<arg name="robot_name" value="$(arg robot_name)"/>
