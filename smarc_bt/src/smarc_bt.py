@@ -431,8 +431,9 @@ def main():
     launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
     try:
         config.generate_launch_file(launch_path)
-    except:
+    except Exception as e:
         print("Did not generate the launch file")
+        print(e)
 
     # init the node
     rospy.init_node("bt", log_level=rospy.INFO)

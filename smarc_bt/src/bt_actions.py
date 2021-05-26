@@ -1123,16 +1123,15 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
 
     def setup(self, timeout):
 
-        # subscribe to buoy positions
-        self.sub = rospy.Subscriber(
-            self.topic_name,
-            MarkerArray,
-            callback=self.cb,
-            queue_size=10
-        )
-
         # wait for TF transformation
         try:
+            # subscribe to buoy positions
+            self.sub = rospy.Subscriber(
+                self.topic_name,
+                MarkerArray,
+                callback=self.cb,
+                queue_size=10
+            )
             rospy.loginfo('Waiting for transform from {} to {}.'.format(
                 self.buoy_link,
                 self.utm_link
