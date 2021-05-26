@@ -1125,13 +1125,6 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
 
         # wait for TF transformation
         try:
-            # subscribe to buoy positions
-            self.sub = rospy.Subscriber(
-                self.topic_name,
-                MarkerArray,
-                callback=self.cb,
-                queue_size=10
-            )
             rospy.loginfo('Waiting for transform from {} to {}.'.format(
                 self.buoy_link,
                 self.utm_link
@@ -1147,7 +1140,17 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
                 self.buoy_link,
                 self.utm_link
             ))
-        return True
+
+        # subscribe to buoy positions
+        self.sub = rospy.Subscriber(
+            self.topic_name,
+            MarkerArray,
+            callback=self.cb,
+            queue_size=10
+        )
+        # self.bb.set(bb_enums.BUOYS, None)
+        self.buoys = None
+        return True 
 
     def cb(self, msg):
 
@@ -1159,6 +1162,7 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         '''
 
         # space for bouy positions
+        # rospy.loginfo('hello')
         self.buoys = list()
 
         # loop through visualization markers
@@ -1199,8 +1203,5 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
     def update(self):
 
         # put the buoy positions in the blackboard
-        try:
-            self.bb.set(bb_enums.BUOYS, self.buoys)
-        except Exception as e:
-            rospy.loginfo(e)
+        self.bb.set(bb_enums.BUOYS, self.buoys)
         return pt.Status.SUCCESS

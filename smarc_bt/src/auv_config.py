@@ -86,7 +86,7 @@ class AUVConfig(object):
         self.LOCALIZATION_ERROR_GROWTH = 0.02
 
         # Algae farm
-        self.BUOY_TOPIC = '/sim/marked_positions'
+        self.BUOY_TOPIC = 'sim/marked_positions'
 
 
     def __str__(self):
