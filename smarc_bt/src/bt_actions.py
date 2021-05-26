@@ -30,7 +30,7 @@ import bb_enums
 import imc_enums
 import common_globals
 
-from mission_plan import MissionPlan
+from mission_plan import MissionPlan, Waypoint
 
 
 
@@ -1205,3 +1205,342 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         # put the buoy positions in the blackboard
         self.bb.set(bb_enums.BUOYS, self.buoys)
         return pt.Status.SUCCESS
+
+class A_SetWallPlan(pt.behaviour.Behaviour):
+
+    def __init__(
+        self, 
+        name, 
+        row_sep,
+        depth,
+        buoy_link,
+        utm_link,
+        velocity,
+        latlon_utm_serv,
+        latlon_utm_serv_alt,
+        x0_overshoot,
+        x1_overshoot,
+        x0_lineup=None,
+        x1_lineup=None,
+        first_lineup=None,
+        starboard=False):
+
+        # become BT
+        pt.behaviour.Behaviour.__init__(self, name=name)
+
+        # distance between rows and survey depth
+        self.row_sep = row_sep
+        self.depth = depth
+
+        # overshoot distance before and after row ends
+        self.x0_overshoot = x0_overshoot
+        self.x1_overshoot = x1_overshoot
+
+        # distance before and after overshoot for lineup
+        self.x0_lineup = x0_lineup
+        self.x1_lineup = x1_lineup
+
+        # first line up to ensure good clearance
+        self.first_lineup = first_lineup
+
+        # which side of AUV for wall to be on
+        self.starboard = starboard
+
+        # TF frames
+        self.buoy_link = buoy_link
+        self.utm_link = utm_link
+        self.tf_listener = tf.TransformListener()
+
+        # need for waypoint class
+        self.velocity = velocity
+        self.latlon_utm_serv = latlon_utm_serv
+        self.latlon_utm_serv_alt = latlon_utm_serv_alt
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+        # internal counter
+        self.i = 0
+
+    def setup(self, timeout):
+
+        # wait for TF transformation
+        try:
+            rospy.loginfo('Waiting for transform from {} to {}.'.format(
+                self.buoy_link,
+                self.utm_link
+            ))
+            self.tf_listener.waitForTransform(
+                self.buoy_link, 
+                self.utm_link,
+                rospy.Time(),
+                rospy.Duration(timeout)
+            )
+        except:
+            rospy.loginfo('Transform from {} to {} not found.'.format(
+                self.buoy_link,
+                self.utm_link
+            ))
+        return True
+
+    def update(self):
+
+        # if there are no buoys
+        if self.bb.get(bb_enums.BUOYS) is None:
+            self.bb.set(bb_enums.WALL_PLAN_SET, True)
+            # yes, this could be succes,
+            # but running forces you to use a condition
+            # elsewhere in the BT
+            self.feedback_message = 'No buoys'
+            return pt.Status.RUNNING
+
+        # print(self.bb.get(bb_enums.BUOYS) )
+
+        try:
+
+            # buoys sorted into walls in map frame
+            buoys = self.bb.get(bb_enums.BUOYS)['all']
+
+            # current position in local frame
+            point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
+            point = self.tf_listener.transformPoint(
+                self.buoy_link,
+                point
+            )
+            point = np.array([
+                point.point.x,
+                point.point.y,
+                point.point.z
+            ])
+
+            # compute a plan
+            if buoys is not None:
+
+                # waypoints in local frame
+                wps0 = self.full_plan(
+                    point,
+                    buoys,
+                    row_sep=self.row_sep,
+                    x0_overshoot=self.x0_overshoot,
+                    x1_overshoot=self.x0_overshoot,
+                    x0_lineup=self.x0_lineup,
+                    x1_lineup=self.x1_lineup,
+                    first_lineup=self.first_lineup,
+                    starboard=self.starboard,
+                    depth=self.depth
+                )
+                wps1 = self.full_plan(
+                    wps0[-1],
+                    buoys,
+                    row_sep=self.row_sep,
+                    x0_overshoot=self.x0_overshoot,
+                    x1_overshoot=self.x0_overshoot,
+                    x0_lineup=self.x0_lineup,
+                    x1_lineup=self.x1_lineup,
+                    first_lineup=self.first_lineup,
+                    starboard=self.starboard,
+                    depth=self.depth
+                )
+                wps = np.vstack((wps0, wps1))
+
+                # mission waypoints in UTM frame
+                mwps = list()
+
+                # loop through waypoints
+                for i, wp in enumerate(wps):
+
+                    # make pose
+                    pose = PoseStamped()
+                    pose.pose.position.x = wp[0]
+                    pose.pose.position.y = wp[1]
+                    pose.pose.position.z = 1.0 if i == 0 else wp[2]
+                    pose.header = Header(frame_id=self.buoy_link)
+
+                    # transform it from local to UTM frame
+                    pose = self.tf_listener.transformPose(
+                        self.utm_link,
+                        pose
+                    )
+
+                    # real waypoint
+                    wp = Waypoint(
+                        maneuver_id='goto',
+                        maneuver_imc_id=imc_enums.MANEUVER_GOTO,
+                        maneuver_name='wall_following',
+                        x=pose.pose.position.x,
+                        y=pose.pose.position.y,
+                        z=pose.pose.position.z,
+                        z_unit=imc_enums.Z_DEPTH,
+                        speed=self.velocity,
+                        speed_unit=0,
+                        tf_frame=self.utm_link,
+                        extra_data=None
+                    )
+
+                    # add waypoints
+                    mwps.append(wp)
+
+            # plandb message
+            pdb = PlanDB()
+            pdb.request_id = 42
+            pdb.plan_id = "WALLS"
+
+            # construct plan
+            mission_plan = MissionPlan(
+                plandb_msg=pdb,
+                latlontoutm_service_name=self.latlon_utm_serv,
+                latlontoutm_service_name_alternative=self.latlon_utm_serv_alt,
+                plan_frame=self.utm_link,
+                waypoints=mwps
+            )
+
+            # set the plan and cross our fingers :o
+            self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
+            self.bb.set(bb_enums.WALL_PLAN_SET, True)
+            rospy.loginfo('Wall plan set')
+            return pt.Status.RUNNING
+
+        except Exception as e:
+            raise e
+            rospy.loginfo_throttle(60, e)
+            return pt.Status.FAILURE
+
+    @staticmethod
+    def plan(
+        x0, 
+        x1, 
+        n_rows, 
+        row_sep, 
+        x0_overshoot, 
+        x1_overshoot,
+        x0_lineup=None,
+        x1_lineup=None,
+        starboard=False,
+        depth=0.0):
+
+        # sanity
+        if x0_lineup is not None:
+            assert(x0_overshoot < x0_lineup)
+        if x1_lineup is not None:
+            assert(x1_overshoot < x1_lineup)
+
+        # parallel unit vector (x,y)
+        par = x1[:2] - x0[:2]
+        par /= np.linalg.norm(par)
+        
+        # perpendicular unit vector (x,y)
+        perp = np.array([-par[1], par[0]]) if starboard else np.array([par[1], -par[0]])
+            
+        # construct a lawnmower
+        wps = list()
+
+        # i = iteration number, j = row number
+        for i, j in enumerate(reversed(range(n_rows))):
+
+            # i = 0, 2, 4, 6, 8, ...
+            if not i%2:
+
+                # intial lineup
+                if x0_lineup is not None:
+                    wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
+
+                # adjacent to line endpoint
+                wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
+                wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
+
+                # terminal lineup
+                if x1_lineup is not None:
+                    wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
+
+            # i = 1, 3, 5, 7, 9, ...
+            else:
+
+                # initial lineup
+                if x1_lineup is not None:
+                    wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
+
+                # adjacent to line endpoint
+                wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
+                wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
+
+                # terminal lineup
+                if x0_lineup is not None:
+                    wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
+
+        # add depth and return waypoints
+        wps = np.array(wps)
+        wps = np.hstack((wps, np.full((wps.shape[0], 1), depth)))
+        return wps
+
+    @staticmethod
+    def full_plan(
+        pose, 
+        walls,
+        row_sep, 
+        x0_overshoot, 
+        x1_overshoot,
+        x0_lineup=None,
+        x1_lineup=None,
+        first_lineup=None,
+        starboard=False,
+        depth=1.0):
+
+        # distance between each buoy and AUV
+        norms = np.linalg.norm(walls[[0,-1]] - pose, axis=2)
+
+        # index of closest extremal wall
+        i = norms.min(axis=1).argmin(axis=0)
+        i = 0 if i == 0 else -1
+        
+        # index of closest extremal buoy 
+        norms = np.linalg.norm(walls[i, [0,-1]] - pose, axis=1)
+        j = norms.argmin(axis=0)
+        j = 0 if j == 0 else -1
+
+        # order the walls based on (i,j)
+        walls = np.flip(walls, axis=0) if i == -1 else walls
+        walls = np.flip(walls, axis=1) if j == -1 else walls
+
+        # waypoints
+        waypoints = list()
+
+        # construct waypoints
+        for i, wall in enumerate(walls):
+
+            # i = 0, 2, 4, ...
+            if not i%2:
+                wps = A_SetWallPlan.plan(
+                    x0=wall[0], 
+                    x1=wall[-1], 
+                    n_rows=1, 
+                    row_sep=row_sep, 
+                    x0_overshoot=x0_overshoot, 
+                    x1_overshoot=x1_overshoot,
+                    x0_lineup=first_lineup if i==0 else x0_lineup,
+                    x1_lineup=x1_lineup,
+                    starboard=starboard,
+                    depth=depth
+                )
+            
+            # i = 1, 3, 5, ...
+            else:
+                wps = A_SetWallPlan.plan(
+                    x0=wall[-1], 
+                    x1=wall[0], 
+                    n_rows=1, 
+                    row_sep=row_sep, 
+                    x0_overshoot=x0_overshoot, 
+                    x1_overshoot=x1_overshoot,
+                    x0_lineup=x0_lineup,
+                    x1_lineup=x1_lineup,
+                    starboard=starboard,
+                    depth=depth
+                )
+
+            # add waypoint
+            waypoints.append(wps)
+
+        # construct path
+        waypoints = np.vstack(waypoints)
+        # waypoints = np.vstack((pose, waypoints))
+        return waypoints

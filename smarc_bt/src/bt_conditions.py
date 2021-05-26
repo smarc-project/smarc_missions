@@ -430,5 +430,50 @@ class C_LeaderIsFarEnough(pt.behaviour.Behaviour):
         rospy.loginfo_throttle(5, "Leader {} is too close to me {} !".format(self.leader_link, self.base_link))
         return pt.Status.FAILURE
 
+class C_NoNeedToPlanBuoys(pt.behaviour.Behaviour):
 
+    def __init__(self, use):
 
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            name='C_NoNeedToPlanBuoys'
+        )
+
+        # to use or not to use buoys, that is the question
+        self.use = use
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+    def setup(self, timeout):
+        self.bb.set(bb_enums.USE_BUOY_PLAN, self.use)
+        return True
+
+    def update(self):
+
+        # variables of interest
+        buoys = self.bb.get(bb_enums.BUOYS)
+        plan_set = self.bb.get(bb_enums.WALL_PLAN_SET)
+        use = self.bb.get(bb_enums.USE_BUOY_PLAN)
+
+        # if we don't want to plan around buoys :'(
+        if not use:
+            msg = "Don't want to use buoy plan."
+            rospy.loginfo_throttle(60, msg)
+            self.feedback_message = msg 
+            return pt.Status.SUCCESS
+
+        # if we don't have buoys
+        if buoys is None:
+            rospy.loginfo_throttle(60, "No buoys.")
+            self.feedback_message = "No buoys."
+            return pt.Status.SUCCESS
+
+        # if the plan is already set
+        elif plan_set == True:
+            self.feedback_message = "Buoy plan set."
+            return pt.Status.SUCCESS
+
+        else:
+            return pt.Status.FAILURE

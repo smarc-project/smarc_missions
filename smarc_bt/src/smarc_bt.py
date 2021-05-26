@@ -40,7 +40,8 @@ from bt_conditions import C_DepthOK, \
                           C_LeaderExists, \
                           C_LeaderIsFarEnough, \
                           C_AtDVLDepth, \
-                          C_CheckWaypointType
+                          C_CheckWaypointType, \
+                          C_NoNeedToPlanBuoys
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -62,7 +63,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
-                        A_ReadBuoys
+                        A_ReadBuoys, \
+                        A_SetWallPlan
 
 
 # globally defined values
@@ -288,6 +290,31 @@ def const_tree(auv_config):
                             set_next_plan_action
                         ])
 
+    def const_wall_plan_tree():
+
+        tree = Fallback(
+            'FB-WallPlanSet',
+            children=[
+                C_NoNeedToPlanBuoys(auv_config.USE_BUOY_PLAN),
+                A_SetWallPlan(
+                    'A_SetWallPlan',
+                    auv_config.WALL_SURVEY_ROW_SEP,
+                    auv_config.WALL_SURVEY_DEPTH,
+                    auv_config.LOCAL_LINK,
+                    auv_config.UTM_LINK,
+                    auv_config.WALL_SURVEY_VELOCITY,
+                    auv_config.LATLONTOUTM_SERVICE,
+                    auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE,
+                    auv_config.WALL_SURVEY_X0_OVERSHOOT,
+                    auv_config.WALL_SURVEY_X1_OVERSHOOT,
+                    auv_config.WALL_SURVEY_X0_LINEUP,
+                    auv_config.WALL_SURVEY_X1_LINEUP,
+                    auv_config.WALL_SURVEY_FIRST_LINEUP,
+                    auv_config.WALL_SURVEY_STARBOARD
+                )
+            ]
+        )
+        return tree
 
 
     def const_execute_mission_tree():
@@ -417,6 +444,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
+                              const_wall_plan_tree(),
                              # const_dvl_tree(),
                               run_tree
                     ])

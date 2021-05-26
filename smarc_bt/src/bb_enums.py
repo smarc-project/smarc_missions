@@ -49,3 +49,5 @@ LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 
 # Algae farm
 BUOYS = 'buoys'
+WALL_PLAN_SET = 'wall_plan_set'
+USE_BUOY_PLAN = 'use_buoy_plan'

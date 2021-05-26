@@ -77,7 +77,7 @@ class AUVConfig(object):
         self.DVL_RUNNING_DEPTH = 0.55
 
         # in meters
-        self.WAYPOINT_TOLERANCE = 1.5
+        self.WAYPOINT_TOLERANCE = 0.5
 
         # coverage planning variables
         # total width of sensor footprint, perpendicular to movement
@@ -87,6 +87,16 @@ class AUVConfig(object):
 
         # Algae farm
         self.BUOY_TOPIC = 'sim/marked_positions'
+        self.WALL_SURVEY_ROW_SEP = 2.0
+        self.WALL_SURVEY_DEPTH = 4.0
+        self.WALL_SURVEY_VELOCITY = 2.0
+        self.WALL_SURVEY_X0_OVERSHOOT = 1.0
+        self.WALL_SURVEY_X1_OVERSHOOT = 1.0
+        self.WALL_SURVEY_X0_LINEUP = 5.0
+        self.WALL_SURVEY_X1_LINEUP = 5.0
+        self.WALL_SURVEY_FIRST_LINEUP = 20.0
+        self.WALL_SURVEY_STARBOARD = False
+        self.USE_BUOY_PLAN = True
 
 
     def __str__(self):
