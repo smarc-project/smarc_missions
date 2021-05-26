@@ -33,6 +33,14 @@ class ReconfigServer(object):
                                "default:{}".format(config.MAX_DEPTH),
                                config.MAX_DEPTH, 0, 50)
 
+        # coverage stuffs
+        self.ddrc.add_variable(bb_enums.SWATH,
+                               "default:{}".format(config.SWATH),
+                               config.SWATH, 1, 100)
+        self.ddrc.add_variable(bb_enums.LOCALIZATION_ERROR_GROWTH,
+                               "default:{}".format(config.LOCALIZATION_ERROR_GROWTH),
+                               config.LOCALIZATION_ERROR_GROWTH, 0, 0.1)
+
         rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
 
 
