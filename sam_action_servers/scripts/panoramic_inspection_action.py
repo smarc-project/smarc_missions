@@ -15,9 +15,6 @@
 from __future__ import division, print_function
 
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, PointStamped
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
@@ -27,27 +24,10 @@ import tf
 from sam_msgs.msg import ThrusterAngles
 from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool
-from std_srvs.srv import SetBool
 import math
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler
-
-class ToggleController(object):
-    '''a class to define a service client to toggle controllers'''
-    def toggle(self, enable_):
-        #function that toggles the service, that can be called from the code
-        ret = self.toggle_ctrl_service(enable_)
-        if ret.success:
-            rospy.loginfo_throttle_identical(5,"Controller toggled")
-
-    def __init__(self, service_name_, enable_):
-        rospy.wait_for_service(service_name_)
-        try:
-            self.toggle_ctrl_service = rospy.ServiceProxy(service_name_, SetBool)
-            #self.enable = enable_ # a status flag
-            self.toggle(enable_)
-        except rospy.ServiceException as e:
-            print("Service call failed: %s"%e)
+from toggle_controller import ToggleController     
 
      
 class PanoramicInspection(object):

@@ -26,7 +26,8 @@ from std_msgs.msg import Float64, Header, Bool, Empty
 from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
 from std_srvs.srv import SetBool
 
-import math
+from toggle_controller import ToggleController     
+
 
 class ToggleController(object):
     '''a class to define a service client to toggle controllers'''

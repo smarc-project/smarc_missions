@@ -30,24 +30,25 @@ from std_msgs.msg import Float64, Header, Bool
 from std_srvs.srv import SetBool
 import math
 from visualization_msgs.msg import Marker
-from tf.transformations import quaternion_from_euler
+#from tf.transformations import quaternion_from_euler
+from toggle_controller import ToggleController
 
-class ToggleController(object):
-    '''a class to define a service client to toggle controllers'''
-    def toggle(self, enable_):
-        #function that toggles the service, that can be called from the code
-        ret = self.toggle_ctrl_service(enable_)
-        if ret.success:
-            rospy.loginfo_throttle_identical(5,"Controller toggled")
-
-    def __init__(self, service_name_, enable_):
-        rospy.wait_for_service(service_name_)
-        try:
-            self.toggle_ctrl_service = rospy.ServiceProxy(service_name_, SetBool)
-            #self.enable = enable_ # a status flag
-            self.toggle(enable_)
-        except rospy.ServiceException as e:
-            print("Service call failed: %s"%e)
+#class ToggleController(object):
+#    '''a class to define a service client to toggle controllers'''
+#    def toggle(self, enable_):
+#        #function that toggles the service, that can be called from the code
+#        ret = self.toggle_ctrl_service(enable_)
+#        if ret.success:
+#            rospy.loginfo_throttle_identical(5,"Controller toggled")
+#
+#    def __init__(self, service_name_, enable_):
+#        rospy.wait_for_service(service_name_)
+#        try:
+#            self.toggle_ctrl_service = rospy.ServiceProxy(service_name_, SetBool)
+#            #self.enable = enable_ # a status flag
+#            self.toggle(enable_)
+#        except rospy.ServiceException as e:
+#            print("Service call failed: %s"%e)
 
      
 
@@ -248,9 +249,10 @@ class WPDepthPlanner(object):
                     self.depth_pub.publish(depth_setpoint)
                 else:
                     #rospy.loginfo_throttle_identical(5, "using VBS")
-                    self.toggle_depth_ctrl.toggle(False)
+                    self.toggle_depth_ctrl.toggle(True)
                     self.toggle_vbs_ctrl.toggle(True)
-                    self.vbs_pub.publish(depth_setpoint)
+                    #self.vbs_pub.publish(depth_setpoint)
+                    self.depth_pub.publish(depth_setpoint)
             
             #self.vel_ctrl_flag = 0 #use constant rpm
             if self.vel_ctrl_flag:
