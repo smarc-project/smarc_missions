@@ -36,5 +36,11 @@
     		<arg name="base_frame" value="$(arg robot_name)/base_link"/>
     		<arg name="forward_rpm" value="400"/>
 	</include-->
+
+	<!-- VBS depth action -->
+	<!--include file="$(find sam_action_servers)/launch/vbs_depth_action.launch" >
+		<arg name="robot_name" value="$(arg robot_name)"/>
+    		<arg name="depth_tolerance" value="1."/>
+	</include-->
     
 </launch>

@@ -1,0 +1,22 @@
+<launch>
+
+    <!-- Configurable arguments -->
+    <arg name="robot_name" default="sam"/>
+    <arg name="depth_tolerance" default="1."/>
+
+    <!-- topics, note the root! -->
+    <arg name="depth_setpoint_topic" default="/$(arg robot_name)/ctrl/depth_setpoint" />
+	<arg name="depth_feedback_topic" default="/$(arg robot_name)/dr/depth" />
+
+	<!-- Services -->
+    <arg name="toggle_vbs_ctrl_service" default="/$(arg robot_name)/ctrl/toggle_vbs_ctrl" />
+
+    <node name="vbs_depth_action" pkg="sam_action_servers" type="vbs_depth_action.py" output="screen" ns="$(arg robot_name)/ctrl">
+		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
+		<param name="depth_setpoint_topic" value="$(arg depth_setpoint_topic)" />
+		<param name="depth_feedback_topic" value="$(arg depth_feedback_topic)" />
+		<param name="toggle_vbs_ctrl_service" value="$(arg toggle_vbs_ctrl_service)" />
+	</node>
+
+
+</launch>
