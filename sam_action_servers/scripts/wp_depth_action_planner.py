@@ -31,25 +31,7 @@ from std_srvs.srv import SetBool
 import math
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler
-
-class ToggleController(object):
-    '''a class to define a service client to toggle controllers'''
-    def toggle(self, enable_):
-        #function that toggles the service, that can be called from the code
-        ret = self.toggle_ctrl_service(enable_)
-        if ret.success:
-            rospy.loginfo_throttle_identical(5,"Controller toggled")
-
-    def __init__(self, service_name_, enable_):
-        rospy.wait_for_service(service_name_)
-        try:
-            self.toggle_ctrl_service = rospy.ServiceProxy(service_name_, SetBool)
-            #self.enable = enable_ # a status flag
-            self.toggle(enable_)
-        except rospy.ServiceException as e:
-            print("Service call failed: %s"%e)
-
-     
+from toggle_controller import ToggleController     
 
 class WPDepthPlanner(object):
 
@@ -194,7 +176,10 @@ class WPDepthPlanner(object):
                 #self._as.publish_feedback(self._feedback)
                 #rospy.loginfo("Sending feedback")
 
+                # Add a check to disable the crosstrack following if we miss a waypoint
+                
                 crosstrack_flag = 1 # set to 1 if we want to include crosstrack error, otherwise it computes a heading based on the next waypoint position
+                
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
 
@@ -203,8 +188,10 @@ class WPDepthPlanner(object):
                     x_goal = self.nav_goal.position.x
                     y_goal = self.nav_goal.position.y
 
-                    #checking if there is a previous WP, if there is no previous WP, it considers the current position
-                    if self.y_prev == 0 and self.x_prev == 0:
+                    #checking if there is a previous WP, if there is no previous WP, it considers the current position. 
+                    # It also uses this check to see if we overshot the WP and compensates for overshoot
+                    if (self.y_prev == 0 and self.x_prev == 0) or (self.error_gradient > 0):
+                        rospy.loginfo_throttle_identical(5, "Compensating for overshoot!")
                         self.y_prev = pose_fb.pose.position.y
                         self.x_prev = pose_fb.pose.position.x
                 
@@ -228,6 +215,7 @@ class WPDepthPlanner(object):
                     #yaw_setpoint = 1.57-math.atan2(ydiff,xdiff)
                     #The original yaw setpoint!
                     yaw_setpoint = math.atan2(ydiff,xdiff)
+                    rospy.loginfo_throttle_identical(5, "Using normal WP following")
                     #print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
 
 		        #compute yaw_error (e.g. for turbo_turn)
@@ -248,9 +236,10 @@ class WPDepthPlanner(object):
                     self.depth_pub.publish(depth_setpoint)
                 else:
                     #rospy.loginfo_throttle_identical(5, "using VBS")
-                    self.toggle_depth_ctrl.toggle(False)
+                    self.toggle_depth_ctrl.toggle(True)
                     self.toggle_vbs_ctrl.toggle(True)
-                    self.vbs_pub.publish(depth_setpoint)
+                    #self.vbs_pub.publish(depth_setpoint)
+                    self.depth_pub.publish(depth_setpoint)
             
             #self.vel_ctrl_flag = 0 #use constant rpm
             if self.vel_ctrl_flag:
@@ -371,6 +360,10 @@ class WPDepthPlanner(object):
         xydiff = start_pos[:2] - end_pos[:2]
         zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
         xydiff_norm = np.linalg.norm(xydiff)
+
+        #See if error is decreasing or increasing
+        self.error_gradient = xydiff_norm - self.prev_xydiff_norm
+        self.prev_xydiff_norm = xydiff_norm
         # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
         rospy.loginfo_throttle_identical(5, "Using Crosstrack Error")
         rospy.loginfo_throttle_identical(5, "diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
@@ -437,6 +430,8 @@ class WPDepthPlanner(object):
         self.nav_goal = None
         self.x_prev = 0
         self.y_prev = 0
+        self.prev_xydiff_norm = 0
+        self.error_gradient = 0
 
         self.listener = tf.TransformListener()
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)

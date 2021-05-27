@@ -140,7 +140,9 @@ def const_tree(auv_config):
         def const_neptus_tree():
             update_neptus = Sequence(name="SQ-UpdateNeptus",
                                      children=[
-                A_UpdateNeptusEstimatedState(auv_config.ESTIMATED_STATE_TOPIC),
+                A_UpdateNeptusEstimatedState(auv_config.ESTIMATED_STATE_TOPIC,
+                                             auv_config.GPSFIX_TOPIC,
+                                             auv_config.GPS_NAV_DATA_TOPIC),
                 A_UpdateNeptusPlanControlState(auv_config.PLAN_CONTROL_STATE_TOPIC),
                 A_UpdateNeptusVehicleState(auv_config.VEHICLE_STATE_TOPIC),
                 A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
@@ -430,7 +432,7 @@ def main():
         print("Did not generate the launch file")
 
     # init the node
-    rospy.init_node("bt")
+    rospy.init_node("bt", log_level=rospy.INFO)
 
     # read all the fields from rosparams, lowercased and with ~ prepended
     # this might over-write the defaults in py, as it should
