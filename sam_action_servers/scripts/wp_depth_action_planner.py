@@ -178,18 +178,22 @@ class WPDepthPlanner(object):
 
                 # Add a check to disable the crosstrack following if we miss a waypoint
                 
-                crosstrack_flag = 1 # set to 1 if we want to include crosstrack error, otherwise it computes a heading based on the next waypoint position
+                #self.crosstrack_flag = True # set to True if we want to include crosstrack error, otherwise it computes a heading based on the next waypoint position
                 
                 xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
                 ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
 
-                if crosstrack_flag:
+                if self.crosstrack_flag:
                     #considering cross-track error according to Fossen, Page 261 eq 10.73,10.74
                     x_goal = self.nav_goal.position.x
                     y_goal = self.nav_goal.position.y
 
                     #checking if there is a previous WP, if there is no previous WP, it considers the current position. 
                     # It also uses this check to see if we overshot the WP and compensates for overshoot
+                
+                    if not self.wp_overshoot_flag:
+                        self.error_gradient = -1 #Disable overshoot compensation
+                    
                     if (self.y_prev == 0 and self.x_prev == 0) or (self.error_gradient > 0):
                         rospy.loginfo_throttle_identical(5, "Compensating for overshoot!")
                         self.y_prev = pose_fb.pose.position.y
@@ -229,19 +233,22 @@ class WPDepthPlanner(object):
                 #rospy.loginfo("Depth setpoint: %f", depth_setpoint)
 
                 #Diving logic to use VBS at low speeds below 0.5 m/s
-                if np.abs(self.vel_feedback)> 0.5:
-                    #rospy.loginfo_throttle_identical(5, "using DDepth")
-                    self.toggle_depth_ctrl.toggle(True)
-                    self.toggle_vbs_ctrl.toggle(False)
-                    self.depth_pub.publish(depth_setpoint)
-                else:
+                if np.abs(self.vel_feedback)< 0.5 and self.vbs_diving_flag:
                     #rospy.loginfo_throttle_identical(5, "using VBS")
                     self.toggle_depth_ctrl.toggle(True)
                     self.toggle_vbs_ctrl.toggle(True)
                     #self.vbs_pub.publish(depth_setpoint)
                     self.depth_pub.publish(depth_setpoint)
+                else:
+                    #rospy.loginfo_throttle_identical(5, "using DDepth")
+                    self.toggle_depth_ctrl.toggle(True)
+                    self.toggle_vbs_ctrl.toggle(False)
+                    self.depth_pub.publish(depth_setpoint)
+
             
-            #self.vel_ctrl_flag = 0 #use constant rpm
+            if self.use_constant_rpm:
+                self.vel_ctrl_flag = 0 #use constant rpm
+            
             if self.vel_ctrl_flag:
             # if speed control is activated from neptus
             #if goal.speed_control_mode == 2:
@@ -391,8 +398,13 @@ class WPDepthPlanner(object):
         heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')
         depth_setpoint_topic = rospy.get_param('~depth_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
 
+        self.use_constant_rpm =  rospy.get_param('~use_constant_rpm', False)
         self.forward_rpm = int(rospy.get_param('~forward_rpm', 1000))
-
+        
+        #augmentation for vbs diving at low speeds, crosstrack error and waypoint overshoot
+        self.vbs_diving_flag = rospy.get_param('~vbs_diving_flag', True)
+        self.crosstrack_flag = rospy.get_param('~crosstrack_flag', True)
+        self.wp_overshoot_flag =  rospy.get_param('~wp_overshoot_flag', True)
 
         #related to turbo turn
         self.turbo_turn_flag = rospy.get_param('~turbo_turn_flag', False)
