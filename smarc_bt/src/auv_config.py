@@ -85,6 +85,9 @@ class AUVConfig(object):
         # function of distance traveled. 0.01 means 1 meter error per 100m travel
         self.LOCALIZATION_ERROR_GROWTH = 0.02
 
+        # Algae farm
+        self.BUOY_TOPIC = 'sim/marked_positions'
+
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

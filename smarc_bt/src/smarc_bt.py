@@ -61,7 +61,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
-                       A_SetDVLRunning
+                       A_SetDVLRunning, \
+                        A_ReadBuoys
 
 
 # globally defined values
@@ -130,6 +131,13 @@ def const_tree(auv_config):
                                     bb_enums.CURRENT_LONGITUDE : 'longitude'}
         )
 
+        read_buoys = A_ReadBuoys(
+            topic_name=auv_config.BUOY_TOPIC,
+            buoy_link=auv_config.LOCAL_LINK,
+            utm_link=auv_config.UTM_LINK,
+            latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
+        )
+
 
         def const_neptus_tree():
             update_neptus = Sequence(name="SQ-UpdateNeptus",
@@ -165,6 +173,7 @@ def const_tree(auv_config):
                             read_alt,
                             read_detection,
                             read_latlon,
+                            read_buoys,
                             update_tf,
                             neptus_tree,
                             publish_heartbeat
@@ -422,8 +431,9 @@ def main():
     launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
     try:
         config.generate_launch_file(launch_path)
-    except:
+    except Exception as e:
         print("Did not generate the launch file")
+        print(e)
 
     # init the node
     rospy.init_node("bt", log_level=rospy.INFO)
