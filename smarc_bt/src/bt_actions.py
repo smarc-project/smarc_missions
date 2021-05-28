@@ -224,7 +224,6 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
                  action_namespace,
-                 goal_tolerance = 1,
                  goal_tf_frame = 'utm',
                  node_name = "A_GotoWaypoint"):
         """
@@ -254,9 +253,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         )
 
         self.action_server_ok = False
-
-        assert goal_tolerance >= 1, "Goal tolerance must be >=1!, it is:"+str(goal_tolerance)
-        self.goal_tolerance = goal_tolerance
 
         self.goal_tf_frame = goal_tf_frame
 
@@ -304,11 +300,14 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
             rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
+        # get the goal tolerance as a dynamic variable from the bb
+        goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+
         # construct the message
         goal = GotoWaypointGoal()
         goal.waypoint_pose.pose.position.x = wp.x
         goal.waypoint_pose.pose.position.y = wp.y
-        goal.goal_tolerance = self.goal_tolerance
+        goal.goal_tolerance = goal_tolerance
 
         # 0=None, 1=Depth, 2=Altitude in the action
         # thankfully these are the same in IMC and in the Action

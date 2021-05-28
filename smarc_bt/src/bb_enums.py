@@ -49,3 +49,7 @@ LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 
 # Algae farm
 BUOYS = 'buoys'
+
+
+# Goto action
+WAYPOINT_TOLERANCE = 'wp_tolerance'
