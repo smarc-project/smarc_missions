@@ -293,7 +293,6 @@ def const_tree(auv_config):
     def const_execute_mission_tree():
         # GOTO
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                     goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                      goal_tf_frame = auv_config.UTM_LINK)
         wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
@@ -306,7 +305,6 @@ def const_tree(auv_config):
         # SAMPLE
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
         sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                        goal_tf_frame = auv_config.UTM_LINK)
         wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
@@ -321,7 +319,6 @@ def const_tree(auv_config):
         #TODO add an inspection maneuver  into bridge and neptus etc.
         # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
         #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
-        #                                   goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
         #                                   goal_tf_frame = auv_config.UTM_LINK)
         # inspection_maneuver = Sequence(name="SQ-InspectWP",
                                        # children=[
@@ -372,7 +369,6 @@ def const_tree(auv_config):
 
         #surface on plan completion
         #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
-        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
         #                             goal_tf_frame = auv_config.UTM_LINK)
 
         #is_submerged = C_AtDVLDepth(0.5)
