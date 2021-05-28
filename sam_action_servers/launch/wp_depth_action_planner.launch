@@ -60,6 +60,13 @@
 		<param name="vel_setpoint_topic" value="$(arg vel_setpoint_topic)" />
 		<param name="roll_setpoint_topic" value="$(arg roll_setpoint_topic)" />
 		<param name="vel_feedback_topic" value="$(arg vel_feedback_topic)" />
+		<!--Hard override vel ctrl -->
+		<param name="use_constant_rpm" value="False" /> 
+
+		<!--WP following augmentations for using VBS, crosstrack error and WP overshoot handling-->
+  		<param name="vbs_diving_flag" value="True" />
+  		<param name="crosstrack_flag" value="True" />
+  		<param name="wp_overshoot_flag" value="True" />
 
 		<!--Controller services-->
 		<param name="toggle_yaw_ctrl_service" value="$(arg toggle_yaw_ctrl_service)" />
