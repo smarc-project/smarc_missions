@@ -31,6 +31,100 @@ import imc_enums
 import common_globals
 
 from mission_plan import MissionPlan
+from mission_log import MissionLog
+
+
+class A_SaveMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_SaveMissionLog, self).__init__(name="A_SaveMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.num_saved_logs = 0
+
+
+    def update(self):
+        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
+        if log is not None:
+            log.save()
+            self.num_saved_logs += 1
+            self.bb.set(bb_enums.MISSION_LOG_OBJ, None)
+            self.feedback_message = "Saved log #{}!".format(self.num_saved_logs)
+        else:
+            self.feedback_message = "#saved logs:{}".format(self.num_saved_logs)
+
+        return pt.Status.SUCCESS
+
+
+class A_UpdateMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_UpdateMissionLog, self).__init__(name="A_UpdateMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.started_logs = 0
+
+
+    def start_new_log(self, mplan):
+        log = MissionLog(mission_plan = mplan,
+                         save_location = "MissionLogs/")
+        self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
+        rospy.loginfo("Started new mission log")
+        self.started_logs += 1
+        return log
+
+
+    def update(self):
+        # only update if there is an unfinalized mission that has been started
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is None:
+            rospy.loginfo("Mission plan is None, can't make a log of this?")
+            self.feedback_message = "No mission plan!"
+            return pt.Status.FAILURE
+
+
+        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
+        if log is None:
+            log = self.start_new_log(mplan)
+
+        # check if the mission has changed in the meantime
+        # this can happen when the user starts a mission, stops it,
+        # and then starts a different one
+        # we dont wanna log the incomplete one
+        # did it change since we last got called?
+        if log.creation_time != mplan.creation_time:
+            # it changed!
+            # re-start a log
+            log = self.start_new_log(mplan)
+
+
+        # now we got a valid mission plan
+        # first add the auv pose
+        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
+        x,y = world_trans[0], world_trans[1]
+        z = -self.bb.get(bb_enums.DEPTH)
+        log.navigation_trace.append((x,y,z))
+
+        # then add the raw gps
+        gps = self.bb.get(bb_enums.RAW_GPS)
+        if gps is None or gps.status.status == -1: # no fix
+            gps_utm_point = None
+        else:
+            # translate the latlon to utm point using the same service as the mission plan
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            if gps_utm_x is None:
+                gps_utm_point = None
+        log.raw_gps_trace.append(gps_utm_point)
+
+        # then add the tree tip and its status
+        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
+        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
+        log.tree_tip_trace.append((tree_tip, tip_status))
+
+        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
+
+        return pt.Status.SUCCESS
+
+
+
+
+
 
 
 
@@ -1093,8 +1187,8 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
     def __init__(
         self,
         topic_name,
-        buoy_link, 
-        utm_link, 
+        buoy_link,
+        utm_link,
         latlon_utm_serv,
     ):
 
@@ -1129,7 +1223,7 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
                 self.utm_link
             ))
             self.tf_listener.waitForTransform(
-                self.buoy_link, 
+                self.buoy_link,
                 self.utm_link,
                 rospy.Time(),
                 rospy.Duration(timeout)
@@ -1149,7 +1243,7 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         )
         # self.bb.set(bb_enums.BUOYS, None)
         self.buoys = None
-        return True 
+        return True
 
     def cb(self, msg):
 
@@ -1181,8 +1275,8 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
 
             # add it to the list
             self.buoys.append([
-                pose.pose.position.x, 
-                pose.pose.position.y, 
+                pose.pose.position.x,
+                pose.pose.position.y,
                 pose.pose.position.z
             ])
 

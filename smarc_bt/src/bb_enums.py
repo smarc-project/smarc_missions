@@ -8,6 +8,7 @@ ABORT = 'abort'
 LEAK = 'leak'
 
 DEPTH = 'depth'
+RAW_GPS = 'raw_gps'
 MAX_DEPTH = 'max_depth'
 ALTITUDE = 'altitude'
 MIN_ALTITUDE = 'min_altitude'
@@ -53,3 +54,7 @@ BUOYS = 'buoys'
 
 # Goto action
 WAYPOINT_TOLERANCE = 'wp_tolerance'
+
+
+# Mission log object
+MISSION_LOG_OBJ = 'mission_log'
