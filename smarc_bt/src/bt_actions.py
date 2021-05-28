@@ -301,7 +301,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
         # get the goal tolerance as a dynamic variable from the bb
-        goal_tolerance = bb.get(bb_enums.WAYPOINT_TOLERANCE)
+        goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
 
         # construct the message
         goal = GotoWaypointGoal()
