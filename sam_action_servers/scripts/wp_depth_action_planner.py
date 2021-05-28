@@ -194,7 +194,11 @@ class WPDepthPlanner(object):
                     if not self.wp_overshoot_flag:
                         self.error_gradient = -1 #Disable overshoot compensation
                     
-                    if (self.y_prev == 0 and self.x_prev == 0) or (self.error_gradient > 0):
+                    overshot_wp = False
+                    if self.error_gradient > 0:
+                        overshot_wp = True #logic for overshooting waypoint
+
+                    if (self.y_prev == 0 and self.x_prev == 0) or overshot_wp:
                         rospy.loginfo_throttle_identical(5, "Compensating for overshoot!")
                         self.y_prev = pose_fb.pose.position.y
                         self.x_prev = pose_fb.pose.position.x
