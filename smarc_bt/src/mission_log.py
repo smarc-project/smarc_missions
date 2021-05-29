@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
@@ -73,7 +73,33 @@ class MissionLog:
         with open(self.save_location, 'w+') as f:
             json.dump(data, f)
 
+def set_axes_equal(ax):
+    '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc..  This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
+    Input
+      ax: a matplotlib axis, e.g., as output from plt.gca().
+    '''
+
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+
+    # The plot bounding box is a sphere in the sense of the infinity
+    # norm, hence I call half the max range the plot radius.
+    plot_radius = 0.5*max([x_range, y_range, z_range])
+
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
 if __name__ == '__main__':
@@ -97,13 +123,14 @@ if __name__ == '__main__':
     gps_trace = np.array(data['raw_gps_trace'])
     mplan = np.array(data['mission_plan_wps'])
 
+
+
     origin = np.array(list(nav_trace[0]))
     #center on first nav point
     nav_trace -= origin
     mplan -= origin
 
     fig = plt.figure()
-    plt.axis('equal')
     ax = fig.add_subplot(111, projection='3d')
 
 
@@ -115,6 +142,9 @@ if __name__ == '__main__':
     if len(gps_fixes) > 0:
         gps_fixes -= origin
         plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1])
+
+    set_axes_equal(ax)
+
 
     plt.show()
 
