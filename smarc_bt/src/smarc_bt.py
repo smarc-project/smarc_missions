@@ -41,7 +41,9 @@ from bt_conditions import C_DepthOK, \
                           C_LeaderIsFarEnough, \
                           C_AtDVLDepth, \
                           C_CheckWaypointType, \
-                          C_NoNeedToPlanBuoys
+                          C_NoNeedToPlanBuoys, \
+                          C_BuoysLocalised, \
+                            C_BuoyLocalisationPlanSet \
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -64,7 +66,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
                         A_ReadBuoys, \
-                        A_SetWallPlan
+                        A_SetWallPlan, \
+                            A_SetBuoyLocalisationPlan
 
 
 # globally defined values
@@ -134,10 +137,14 @@ def const_tree(auv_config):
         )
 
         read_buoys = A_ReadBuoys(
-            topic_name=auv_config.BUOY_TOPIC,
-            buoy_link=auv_config.LOCAL_LINK,
-            utm_link=auv_config.UTM_LINK,
-            latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
+            read_markers=auv_config.BUOY_READ_MARKERS,
+            read_detection=auv_config.BUOY_READ_DETECTION,
+            marker_topic=auv_config.BUOY_MARKER_TOPIC,
+            detection_topic=auv_config.BUOY_DETECTION_TOPIC,
+            heading=auv_config.BUOY_WALL_HEADING,
+            n_walls=auv_config.BUOY_N_WALLS,
+            atol=auv_config.BUOY_ANGLE_TOLERANCE,
+            dtol=auv_config.BUOY_WALL_INCLUSION_TOLERANCE
         )
 
 
@@ -164,7 +171,6 @@ def const_tree(auv_config):
         neptus_tree = const_neptus_tree()
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
                                               message_object = Empty())
-
 
         return Sequence(name="SQ-DataIngestion",
                         # dont show all the things inside here
@@ -289,6 +295,22 @@ def const_tree(auv_config):
                             have_coarse_mission,
                             set_next_plan_action
                         ])
+
+    def const_buoy_localisation_tree():
+
+        tree = Fallback(
+            'FB-BuoysLocalised',
+            children=[
+                C_BuoysLocalised(),
+                # C_BuoyLocalisationPlanSet(),
+                CheckBlackboardVariableValue(
+                    bb_enums.BUOY_LOCALISATION_PLAN_SET, 
+                    True,
+                    'C_BuoyLocalisationPlanSet'
+                ),
+                A_SetBuoyLocalisationPlan()
+            ]
+        )
 
     def const_wall_plan_tree():
 
@@ -444,7 +466,7 @@ def const_tree(auv_config):
                     children=[
                               const_data_ingestion_tree(),
                               const_safety_tree(),
-                              const_wall_plan_tree(),
+                            #   const_wall_plan_tree(),
                              # const_dvl_tree(),
                               run_tree
                     ])

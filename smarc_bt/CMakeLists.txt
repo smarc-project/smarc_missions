@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   imc_ros_bridge
   ddynamic_reconfigure_python
   visualization_msgs
+  vision_msgs
   #uuv_gazebo_ros_plugins_msgs
 )
 

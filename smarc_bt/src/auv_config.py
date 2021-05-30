@@ -85,8 +85,30 @@ class AUVConfig(object):
         # function of distance traveled. 0.01 means 1 meter error per 100m travel
         self.LOCALIZATION_ERROR_GROWTH = 0.02
 
-        # Algae farm
-        self.BUOY_TOPIC = 'sim/marked_positions'
+        # Algae farm perception (A_ReadBuoys)
+        self.BUOY_READ_MARKERS = True
+        self.BUOY_READ_DETECTION = True
+        self.BUOY_MARKER_TOPIC = 'sim/marked_positions'
+        self.BUOY_DETECTION_TOPIC = 'sim/sidescan/detection_hypothesis'
+
+        # infer lines
+        self.BUOY_WALL_HEADING = 90.0 # for testing
+        self.BUOY_N_WALLS = 2
+        self.BUOY_ANGLE_TOLERANCE = 1e-2
+        self.BUOY_WALL_INCLUSION_TOLERANCE = 1e-2
+
+        # localisation plan (A_SetBuoyLocalisationPlan) in map frame
+        self.BUOY_LOCALISE = True
+        self.BUOY_CENTROID = [0., 9., 0.]
+
+
+
+        # self.BUOY_MIN_PER_WALL = 3 # the narrower this range the faster the algo
+        # self.BUOY_MAX_PER_WALL = 3
+        self.BUOY_N_WALLS = 2 # this can be greater, but the algo will take longer
+        self.BUOY_GROUPING_ETOL = 1e-4
+
+        # Algae farm planning
         self.WALL_SURVEY_ROW_SEP = 2.0
         self.WALL_SURVEY_DEPTH = 4.0
         self.WALL_SURVEY_VELOCITY = 2.0
@@ -96,7 +118,7 @@ class AUVConfig(object):
         self.WALL_SURVEY_X1_LINEUP = 5.0
         self.WALL_SURVEY_FIRST_LINEUP = 20.0
         self.WALL_SURVEY_STARBOARD = False
-        self.USE_BUOY_PLAN = True
+        self.USE_BUOY_PLAN = False
 
 
     def __str__(self):

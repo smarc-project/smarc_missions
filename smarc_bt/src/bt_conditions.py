@@ -447,15 +447,15 @@ class C_NoNeedToPlanBuoys(pt.behaviour.Behaviour):
         self.bb = pt.blackboard.Blackboard()
 
     def setup(self, timeout):
-        self.bb.set(bb_enums.USE_BUOY_PLAN, self.use)
+        self.bb.set(bb_enums.BUOY_USE_PLAN, self.use)
         return True
 
     def update(self):
 
         # variables of interest
-        buoys = self.bb.get(bb_enums.BUOYS)
-        plan_set = self.bb.get(bb_enums.WALL_PLAN_SET)
-        use = self.bb.get(bb_enums.USE_BUOY_PLAN)
+        buoys = self.bb.get(bb_enums.BUOY_MARKERS)
+        plan_set = self.bb.get(bb_enums.BUOY_PLAN_SET)
+        use = self.bb.get(bb_enums.BUOY_PLAN_USE)
 
         # if we don't want to plan around buoys :'(
         if not use:
@@ -475,5 +475,46 @@ class C_NoNeedToPlanBuoys(pt.behaviour.Behaviour):
             self.feedback_message = "Buoy plan set."
             return pt.Status.SUCCESS
 
+        else:
+            return pt.Status.FAILURE
+
+class C_BuoysLocalised(pt.behaviour.Behaviour):
+
+    def __init__(self):
+
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            name=__class__
+        )
+
+    def update(self):
+        return pt.Status.SUCCESS
+
+class C_BuoyLocalisationPlanSet(pt.behaviour.Behaviour):
+
+    def __init__(self):
+
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            name=__class__
+        )
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+    def setup(self, timeout):
+
+        # initialise logical variable
+        self.bb.set(bb_enums.BUOY_LOCALISATION_PLAN_SET, False)
+
+    def update(self):
+
+        # if the plan is set
+        if self.bb.get(bb_enums.BUOY_LOCALISATION_PLAN_SET):
+            return pt.Status.SUCCESS
+        
+        # and, if not...
         else:
             return pt.Status.FAILURE
