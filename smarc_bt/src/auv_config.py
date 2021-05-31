@@ -89,6 +89,8 @@ class AUVConfig(object):
         # Algae farm
         self.BUOY_TOPIC = 'sim/marked_positions'
 
+        # Mission logging file location
+        self.MISSION_LOG_FOLDER = '~/MissionLogs/'
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

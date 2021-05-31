@@ -62,8 +62,9 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
 
 
     def start_new_log(self, mplan):
+        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
         log = MissionLog(mission_plan = mplan,
-                         save_location = "MissionLogs/")
+                         save_location = save_location)
         self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
         rospy.loginfo("Started new mission log")
         self.started_logs += 1

@@ -13,7 +13,7 @@ import time
 class MissionLog:
     def __init__(self,
                  mission_plan,
-                 save_location = "/MissionLogs/"):
+                 save_location = "~/MissionLogs/"):
         """
         A log object to create easy to read and visualize path logs
         for individual missions.
@@ -43,8 +43,18 @@ class MissionLog:
             t.tm_min)
 
         log_filename = "{}_{}.json".format(t_str, mission_plan.plan_id)
-        save_folder = os.path.join(os.path.expanduser("~"), save_location)
-        os.makedirs(save_folder, exist_ok=True)
+        save_folder = os.path.expanduser(save_location)
+        self.disabled = False
+        try:
+            if not os.path.exists(save_folder):
+                os.makedirs(save_folder)
+            else:
+                print("Log folder({}) exists".format(save_folder))
+        except:
+            print("Log folder({}) could not be created!".format(save_folder))
+            self.disabled = True
+            return
+
         self.save_location = os.path.join(save_folder, log_filename)
 
         # used to check if log and mission plan are synched
@@ -64,6 +74,10 @@ class MissionLog:
 
 
     def save(self):
+        if self.disabled:
+            print("Save location was bad before, can not save!")
+            return
+
         # save a json file for now for easy inspection
         data = {'navigation_trace':self.navigation_trace,
                 'raw_gps_trace':self.raw_gps_trace,
@@ -116,6 +130,16 @@ if __name__ == '__main__':
     filename = sys.argv[1]
     filename = os.path.join(os.path.expanduser("~"), "MissionLogs", filename)
 
+    equal_z = False
+    try:
+        if sys.argv[2] == 'equal':
+            equal_z = True
+    except:
+        pass
+
+
+
+
     with open(filename, 'r') as f:
         data = json.load(f)
 
@@ -143,7 +167,8 @@ if __name__ == '__main__':
         gps_fixes -= origin
         plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1])
 
-    set_axes_equal(ax)
+    if equal_z:
+        set_axes_equal(ax)
 
 
     plt.show()
