@@ -485,11 +485,11 @@ class C_BuoysLocalised(pt.behaviour.Behaviour):
         # become behaviour
         pt.behaviour.Behaviour.__init__(
             self,
-            name=__class__
+            name='C_BuoysLocalised'
         )
 
     def update(self):
-        return pt.Status.SUCCESS
+        return pt.Status.FAILURE
 
 class C_BuoyLocalisationPlanSet(pt.behaviour.Behaviour):
 
@@ -498,7 +498,7 @@ class C_BuoyLocalisationPlanSet(pt.behaviour.Behaviour):
         # become behaviour
         pt.behaviour.Behaviour.__init__(
             self,
-            name=__class__
+            name='C_BuoyLocalisationPlanSet'
         )
 
         # blackboard

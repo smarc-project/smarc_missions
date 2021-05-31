@@ -85,6 +85,9 @@ class AUVConfig(object):
         # function of distance traveled. 0.01 means 1 meter error per 100m travel
         self.LOCALIZATION_ERROR_GROWTH = 0.02
 
+        # A_UpdateOdom
+        self.ODOM_TOPIC = 'dr/odom'
+
         # Algae farm perception (A_ReadBuoys)
         self.BUOY_READ_MARKERS = True
         self.BUOY_READ_DETECTION = True
@@ -92,14 +95,16 @@ class AUVConfig(object):
         self.BUOY_DETECTION_TOPIC = 'sim/sidescan/detection_hypothesis'
 
         # infer lines
-        self.BUOY_WALL_HEADING = 90.0 # for testing
+        self.BUOY_WALL_ANGLE = 90.0 # for testing
         self.BUOY_N_WALLS = 2
         self.BUOY_ANGLE_TOLERANCE = 1e-2
         self.BUOY_WALL_INCLUSION_TOLERANCE = 1e-2
 
         # localisation plan (A_SetBuoyLocalisationPlan) in map frame
-        self.BUOY_LOCALISE = True
         self.BUOY_CENTROID = [0., 9., 0.]
+        self.BUOY_LOCALISATION_DISTANCES = [8, 11, 14]
+        self.BUOY_LOCALISATION_VELOCITY = 2.0
+        self.BUOY_LOCALISATION_DEPTH = 3.0
 
 
 

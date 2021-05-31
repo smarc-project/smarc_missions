@@ -67,7 +67,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetDVLRunning, \
                         A_ReadBuoys, \
                         A_SetWallPlan, \
-                            A_SetBuoyLocalisationPlan
+                            A_SetBuoyLocalisationPlan, \
+                                A_UpdateOdom
 
 
 # globally defined values
@@ -136,12 +137,16 @@ def const_tree(auv_config):
                                     bb_enums.CURRENT_LONGITUDE : 'longitude'}
         )
 
+        read_odom = A_UpdateOdom(
+            odom_topic=auv_config.ODOM_TOPIC
+        )
+
         read_buoys = A_ReadBuoys(
             read_markers=auv_config.BUOY_READ_MARKERS,
             read_detection=auv_config.BUOY_READ_DETECTION,
             marker_topic=auv_config.BUOY_MARKER_TOPIC,
             detection_topic=auv_config.BUOY_DETECTION_TOPIC,
-            heading=auv_config.BUOY_WALL_HEADING,
+            heading=auv_config.BUOY_WALL_ANGLE,
             n_walls=auv_config.BUOY_N_WALLS,
             atol=auv_config.BUOY_ANGLE_TOLERANCE,
             dtol=auv_config.BUOY_WALL_INCLUSION_TOLERANCE
@@ -308,9 +313,20 @@ def const_tree(auv_config):
                     True,
                     'C_BuoyLocalisationPlanSet'
                 ),
-                A_SetBuoyLocalisationPlan()
+                A_SetBuoyLocalisationPlan(
+                    centroid=auv_config.BUOY_CENTROID,
+                    frame=auv_config.LOCAL_LINK,
+                    angle=auv_config.BUOY_WALL_ANGLE,
+                    utm_frame=auv_config.UTM_LINK,
+                    latlon_to_utm=auv_config.LATLONTOUTM_SERVICE,
+                    distances=auv_config.BUOY_LOCALISATION_DISTANCES,
+                    velocity=auv_config.BUOY_LOCALISATION_VELOCITY,
+                    depth=auv_config.BUOY_LOCALISATION_DEPTH,
+                    latlon_to_utm_alt=auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
+                )
             ]
         )
+        return tree
 
     def const_wall_plan_tree():
 
@@ -468,6 +484,7 @@ def const_tree(auv_config):
                               const_safety_tree(),
                             #   const_wall_plan_tree(),
                              # const_dvl_tree(),
+                             const_buoy_localisation_tree(),
                               run_tree
                     ])
 

@@ -5,9 +5,10 @@
 
 from logging import makeLogRecord
 from math import dist
-from os import stat
+from os import stat, utime
 import py_trees as pt
 import py_trees_ros as ptr
+from tf import transformations
 
 import time
 import numpy as np
@@ -21,8 +22,8 @@ from sklearn.cluster import KMeans
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
-from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
-from nav_msgs.msg import Path
+from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
+from nav_msgs.msg import Path, Odometry
 from std_msgs.msg import Float64, Header, Bool, Empty
 from tf2_ros import transform_listener
 from visualization_msgs.msg import MarkerArray
@@ -469,6 +470,56 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
 
         return pt.Status.SUCCESS
+
+class A_UpdateOdom(pt.behaviour.Behaviour):
+
+    def __init__(self, odom_topic):
+
+        # topic name
+        self.odom_topic = odom_topic
+
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            'A_UpdateOdom'
+        )
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+    def setup(self, timeout):
+
+        # setup subscribers
+        try:
+
+            # subscribe to DR pose
+            rospy.loginfo_throttle(5, 'Setting up Odometry reader.')
+            self.sub_odom = rospy.Subscriber(
+                name=self.odom_topic,
+                data_class=Odometry,
+                callback=self.get_odom,
+                queue_size=10
+            )
+
+        except:
+            rospy.loginfo_throttle(5, 'Could not set up odometry reader.')
+
+    def get_odom(self, odometry):
+
+        # TF frame
+        frame_id = odometry.header.frame_id
+
+        # pose
+        pose = odometry.pose.pose
+        pose = PoseStamped(
+            pose=pose,
+            header=Header(frame_id)
+        )
+
+        # twist
+        twist = odometry.twist.twist
+        twist = PoseStamped
+
 
 
 
@@ -1506,20 +1557,203 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         # return results
         return mu, sigma, gsigma, labels, model
 
+class A_Frame0toFrame1(pt.behaviour.Behaviour):
 
+    def __init__(self, name, frame0, frame1):
 
-class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour):
+        # frames
+        self.frame0 = frame0
+        self.frame1 = frame1
 
-    def __init__(self):
+        # TF listener
+        self.tf_listener = tf.TransformListener()
 
         # become behaviour
         pt.behaviour.Behaviour.__init__(
             self,
-            name=__class__
+            name=name
+        )
+
+    def setup(self, timeout):
+
+        # try to setup transform between the map and utm frame
+        try:
+            rospy.loginfo_throttle(3, 'Waiting for tranform between {} to {}'.format(
+                self.frame0,
+                self.frame1
+            ))
+            self.tf_listener.waitForTransform(
+                self.frame0,
+                self.frame1,
+                rospy.Time(),
+                rospy.Duration(timeout)
+            )
+            rospy.loginfo_throttle(3, 'Attained {} to {} transformation.'.format(
+                self.frame0,
+                self.frame1
+            ))
+            self.tf_listener.waitForTransform(
+                self.frame1,
+                self.frame0,
+                rospy.Time(),
+                rospy.Duration(timeout)
+            )
+            rospy.loginfo_throttle(3, 'Attained {} to {} transformation.'.format(
+                self.frame1,
+                self.frame0
+            ))
+
+        # if we couldn't setup
+        except:
+            rospy.loginfo_throttle(5, 'Could not setup {} and {} transformations.'.format(
+                self.frame0,
+                self.frame1
+            ))
+
+        return True
+
+    def points_to_mission(self, points, source_frame, target_frame, velocity, latlon_to_target, latlon_to_target_alternative):
+
+        # waypoints
+        wps = list()
+
+        # loop through the points
+        for point in points:
+
+            # construct point in source_frame
+            point = PointStamped(
+                header=Header(
+                    frame_id=source_frame
+                ),
+                point=Point(
+                    x=point[0],
+                    y=point[1],
+                    z=point[2]
+                )
+            )
+
+            # transform point to target frame
+            point = self.tf_listener.transformPoint(
+                target_frame,
+                point
+            )
+
+            # construct waypoint
+            wp = Waypoint(
+                maneuver_id='goto',
+                maneuver_imc_id=imc_enums.MANEUVER_GOTO,
+                maneuver_name=self.name,
+                x=point.point.x,
+                y=point.point.y,
+                z=point.point.z,
+                z_unit=imc_enums.Z_DEPTH,
+                speed=velocity,
+                speed_unit=0,
+                tf_frame=target_frame,
+                extra_data=None
+            )
+
+            # record it
+            wps.append(wp)
+
+        # plandb message
+        pdb = PlanDB()
+        pdb.request_id = 42
+        pdb.plan_id = self.name
+        
+        # construct plan
+        wps = MissionPlan(
+            plandb_msg=pdb,
+            latlontoutm_service_name=latlon_to_target,
+            latlontoutm_service_name_alternative=latlon_to_target_alternative,
+            plan_frame=target_frame,
+            waypoints=wps
+        )
+
+        return wps
+
+
+class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
+
+    def __init__(self, centroid, frame, angle, utm_frame, latlon_to_utm, distances, velocity, depth, latlon_to_utm_alt):
+
+        # centroid of farm and its frame
+        self.centroid = centroid
+        self.frame = frame
+
+        # angle of algae walls
+        self.angle = angle
+
+        # UTM frame
+        self.utm_frame = utm_frame
+
+        # Lat-lon UTM service
+        self.latlon_to_utm = latlon_to_utm
+        self.latlon_to_utm_alt = latlon_to_utm_alt
+
+        # distances of spiral path
+        self.distances = distances
+
+        # path velocity and depth
+        self.velocity = velocity
+        self.depth = depth
+
+        # become behaviour
+        A_Frame0toFrame1.__init__(
+            self,
+            name='A_SetBuoyLocalisationPlan',
+            frame0=self.frame,
+            frame1=self.utm_frame
         )
 
         # blackboard
         self.bb = pt.blackboard.Blackboard()
+
+    def update(self):
+
+        # get current position and its frame
+        point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
+        point = self.tf_listener.transformPoint(self.frame, point)
+        point = point.point
+        point = np.array([
+            point.x,
+            point.y,
+            point.z
+        ])
+
+        # compute perimeter plan
+        path = self.perimeter_plan(
+            point,
+            self.centroid,
+            angle=self.angle,
+            distances=self.distances
+        )
+
+        # add a depth
+        path = np.hstack((
+            path, 
+            np.full(
+                (path.shape[0], 1),
+                self.depth
+            )
+        ))
+        
+        # construct waypoints in UTM frame
+        path = self.points_to_mission(
+            points=path, 
+            source_frame=self.frame, 
+            target_frame=self.utm_frame,
+            velocity=self.velocity,
+            latlon_to_target=self.latlon_to_utm, 
+            latlon_to_target_alternative=self.latlon_to_utm_alt
+        )
+
+        # set the plan and the logical variable
+        self.bb.set(bb_enums.MISSION_PLAN_OBJ, path)
+        self.bb.set(bb_enums.BUOY_LOCALISATION_PLAN_SET, True)
+
+        return pt.Status.FAILURE
+
 
     @staticmethod
     def perimeter_plan(point, origin, angle, distances, direction=None):
@@ -1536,7 +1770,7 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour):
 
         # distance from point to line centroids
         d = np.mean(lines, axis=1)
-        d -= point
+        d -= point[:2]
         d = np.linalg.norm(d, axis=1)
         
         # closest line and its index
@@ -1578,8 +1812,8 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour):
         else:
 
             # get closest point in line
-            d = line - point
-            d = np.linalg.norm(axis=1)
+            d = line - point[:2]
+            d = np.linalg.norm(d, axis=1)
 
             # ordered line
             side = np.argmin(d)
@@ -1633,17 +1867,6 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour):
         # return path
         return np.array(path)
 
-
-
-
-
-
-
-
-
-
-        
-        
 
     @staticmethod
     def perimeter_line(centroid, angle, distance, face, side):
