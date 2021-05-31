@@ -16,8 +16,8 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty
-from smarc_msgs.msg import Leak
-from smarc_msgs.msg import DVL
+from smarc_msgs.msg import Leak, DVL
+from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
 
@@ -62,7 +62,9 @@ from bt_actions import A_GotoWaypoint, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
-                        A_ReadBuoys
+                       A_ReadBuoys, \
+                       A_UpdateMissionLog, \
+                       A_SaveMissionLog
 
 
 # globally defined values
@@ -137,6 +139,14 @@ def const_tree(auv_config):
             utm_link=auv_config.UTM_LINK,
             latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
         )
+
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.RAW_GPS:None},
+        )
+
 
 
         def const_neptus_tree():
@@ -341,6 +351,7 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
+                                         A_UpdateMissionLog(),
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -373,6 +384,7 @@ def const_tree(auv_config):
 
         #is_submerged = C_AtDVLDepth(0.5)
 
+
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
@@ -382,8 +394,8 @@ def const_tree(auv_config):
                                   #planned_surface,
                                   publish_complete,
                                   unset_plan_is_go,
-                                  set_finalized
-
+                                  set_finalized,
+                                  A_SaveMissionLog()
                         ])
 
     # The root of the tree is here

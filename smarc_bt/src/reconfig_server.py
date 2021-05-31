@@ -45,6 +45,11 @@ class ReconfigServer(object):
                                "default:{}".format(config.LOCALIZATION_ERROR_GROWTH),
                                config.LOCALIZATION_ERROR_GROWTH, 0, 0.1)
 
+        self.ddrc.add_variable(bb_enums.MISSION_LOG_FOLDER,
+                               "default:{}".format(config.MISSION_LOG_FOLDER),
+                               config.MISSION_LOG_FOLDER)
+
+
         rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
 
 
