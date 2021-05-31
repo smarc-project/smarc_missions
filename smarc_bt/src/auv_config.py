@@ -24,6 +24,7 @@ class AUVConfig(object):
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
+        self.GPS_TOPIC = 'core/gps'
 
         self.EMERGENCY_TOPIC = 'core/abort'
         self.HEARTBEAT_TOPIC = 'core/heartbeat'
@@ -88,6 +89,8 @@ class AUVConfig(object):
         # Algae farm
         self.BUOY_TOPIC = 'sim/marked_positions'
 
+        # Mission logging file location
+        self.MISSION_LOG_FOLDER = '~/MissionLogs/'
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'
