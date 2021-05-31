@@ -1371,7 +1371,8 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         samples=None,
         means=None,
         sample_lines=None,
-        ref_point=None, 
+        ref_point=None,
+        path=None,
         c=None,
         ax=None):
 
@@ -1432,6 +1433,10 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         # plot reference points
         if ref_point is not None:
             ax.plot(ref_point[0], ref_point[1], 'ko', label='AUV')
+
+        # plot path
+        if path is not None:
+            ax.plot(path[:,0], path[:,1], 'k.--', label='Path', alpha=0.5)
 
         # formatting and return
         ax.set_aspect('equal')
@@ -1517,68 +1522,128 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour):
         self.bb = pt.blackboard.Blackboard()
 
     @staticmethod
-    def closest_side(point, origin, angle):
+    def perimeter_plan(point, origin, angle, distances, direction=None):
 
-        '''
-        Gets the angle of point about origin
-        with y axis at angle about universal origin.
-        '''
+        # lines at first distance
+        lines = [A_SetBuoyLocalisationPlan.perimeter_line(
+            centroid=origin,
+            angle=angle,
+            distance=distances[0],
+            face=i,
+            side=0
+        ) for i in range(4)]
+        lines = np.array(lines)
 
-        # distance to origin
-        dist = point - origin
-        dist = np.linalg.norm(dist)
+        # distance from point to line centroids
+        d = np.mean(lines, axis=1)
+        d -= point
+        d = np.linalg.norm(d, axis=1)
         
-        # perimeter lines at that distance
-        lines = np.array([
-            A_SetBuoyLocalisationPlan.perimeter_line(
-                origin, angle, dist, i, 0
-            )
-            for i in range(4)
-        ])
-
-        print(lines)
-
-        return lines
-        
-        # distance from point to line endpoints
-        d = lines - point[:2]
-        d = np.linalg.norm(d, axis=2)
-
-        # closest side
-        i = np.argmin(np.min(d, axis=1))
+        # closest line and its index
+        i = np.argmin(d)
         line = lines[i]
-        print(line)
-        
-        # if starboard is better
-        if np.argmin(d[i]):
-            line = np.flip(line)
-        
-        # if portside is fine
+
+        # if CCW 0 (port) or CW 1 (starboard)
+        if direction in [0, 1]:
+            side = direction
+            line = np.flip(line, axis=0) if direction else line
+
+        # if direction is a vector
+        elif np.array(direction).shape == (2,):
+
+            # make unit vector
+            direction /= np.linalg.norm(direction)
+
+            # direction of nominal line
+            vline = line[1] - line[0]
+            vline /= np.linalg.norm(vline)
+
+            # are they in the same direction
+            if vline.dot(direction) > 0:
+
+                # continue to the next CCW line
+                side = 0
+                i = (i+1)%4
+                line = lines[i]
+
+            # if they have opposing directions
+            else:
+
+                # continue to the next CW line
+                side = 1
+                i = (i-1)%4
+                line = np.flip(lines[i], axis=0)
+
+        # otherwise, just start with the closest point
         else:
-            pass
 
-        return line
+            # get closest point in line
+            d = line - point
+            d = np.linalg.norm(axis=1)
+
+            # ordered line
+            side = np.argmin(d)
+            line = np.flip(line, axis=0) if side else line
+
+        # intialise path and distance
+        path = [line[0]]
+
+        # cycle steps
+        j = 0
+
+        # distance counter
+        k = 0
+        nk = len(distances)
+
+        # make spiral path
+        while True:
+
+            # next face
+            i = (i-1)%4 if side else (i+1)%4
+
+            # compute next line
+            line = A_SetBuoyLocalisationPlan.perimeter_line(
+                centroid=origin,
+                angle=angle,
+                distance=distances[k],
+                face=i,
+                side=side
+            )
+
+            # add first point to path
+            path.append(line[0])
+
+            # increment cycle step
+            j = (j+1)%4
+
+            # increment distance
+            if j == 0:
+                k += 1
+                
+            # termination
+            if k == nk:
+
+                # add second point
+                if nk > 1:
+                    path.append(line[1])
+
+                # terminate
+                break
+
+        # return path
+        return np.array(path)
 
 
 
 
-        # # right, top, left, bottom
-        # vs = np.array([
-        #     [np.sin(angle), -np.cos(angle)],
-        #     [np.cos(angle), np.sin(angle)],
-        #     [-np.sin(angle), np.cos(angle)],
-        #     [-np.cos(angle), -np.sin(angle)],
-        # ])
 
-        # # unit vector from origin to point
-        # vpoint = point - origin
-        # vpoint /= np.linalg.norm(vpoint)
 
-        # # dot product with all directions
-        # v = [vpoint[:2].dot(_) for _ in vs]
+
+
+
+
         
-
-
+        
 
     @staticmethod
     def perimeter_line(centroid, angle, distance, face, side):
