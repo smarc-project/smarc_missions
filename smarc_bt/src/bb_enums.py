@@ -58,4 +58,4 @@ WAYPOINT_TOLERANCE = 'wp_tolerance'
 
 # Mission log object
 MISSION_LOG_OBJ = 'mission_log'
-MISSION_LOG_FOLDER = '~/MissionLogs/'
+MISSION_LOG_FOLDER = 'mission_logs_folder'
