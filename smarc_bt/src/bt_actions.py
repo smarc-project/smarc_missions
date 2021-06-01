@@ -34,6 +34,45 @@ from mission_plan import MissionPlan
 from mission_log import MissionLog
 
 
+class A_PublishFinalize(pt.behaviour.Behaviour):
+    def __init__(self, topic):
+        super(A_PublishFinalize, self).__init__(name="A_PublishFinalize")
+        self.bb = pt.blackboard.Blackboard()
+        self.topic = topic
+
+        self.last_published_time = None
+
+
+    def setup(self, timeout):
+        self.pub = rospy.Publisher(self.topic, Empty, queue_size=1)
+        return True
+
+
+    def update(self):
+        if self.last_published_time is not None:
+            time_since = time.time() - self.last_published_time
+            self.feedback_message = "Last pub'd:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "Never published!"
+
+        finalized = self.bb.get(bb_enums.MISSION_FINALIZED)
+        if not finalized:
+            try:
+                self.pub.publish(self.message_object)
+                self.last_published_time = time.time()
+                self.feedback_message = "Just published"
+                self.bb.set(bb_enums.MISSION_FINALIZED, True)
+                return pt.Status.SUCCESS
+            except:
+                msg = "Couldn't publish"
+                rospy.logwarn_throttle(1, msg)
+                self.feedback_message = msg
+                return pt.Status.FAILURE
+
+
+
+
+
 class A_ManualMissionLog(pt.behaviour.Behaviour):
     def __init__(self):
         super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
