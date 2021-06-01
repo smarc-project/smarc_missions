@@ -59,3 +59,5 @@ WAYPOINT_TOLERANCE = 'wp_tolerance'
 # Mission log object
 MISSION_LOG_OBJ = 'mission_log'
 MISSION_LOG_FOLDER = 'mission_logs_folder'
+ENABLE_MANUAL_MISSION_LOG = 'enable_manual_mission_log'
+MANUAL_MISSION_LOG_OBJ = 'manual_mission_log'
