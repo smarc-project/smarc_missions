@@ -135,6 +135,24 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.CURRENT_LATITUDE : 'latitude',
                                     bb_enums.CURRENT_LONGITUDE : 'longitude'}
         )
+        read_roll = ReadTopic(
+            name = "A_ReadRoll",
+            topic_name = auv_config.ROLL_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.ROLL : 'data'}
+        )
+        read_pitch = ReadTopic(
+            name = "A_ReadPitch",
+            topic_name = auv_config.PITCH_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.PITCH : 'data'}
+        )
+        read_yaw = ReadTopic(
+            name = "A_ReadYaw",
+            topic_name = auv_config.YAW_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.YAW : 'data'}
+        )
 
         read_buoys = A_ReadBuoys(
             topic_name=auv_config.BUOY_TOPIC,
@@ -186,6 +204,9 @@ def const_tree(auv_config):
                             read_alt,
                             read_detection,
                             read_latlon,
+                            read_roll,
+                            read_pitch,
+                            read_yaw,
                             read_buoys,
                             update_tf,
                             neptus_tree,
@@ -408,12 +429,14 @@ def const_tree(auv_config):
                             #  const_leader_follower()
                         ])
 
+    manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
+                                        latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE)
 
 
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
-                              A_ManualMissionLog(),
+                              manual_logging,
                               const_safety_tree(),
                              # const_dvl_tree(),
                               run_tree

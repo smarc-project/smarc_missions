@@ -25,6 +25,9 @@ class AUVConfig(object):
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
         self.GPS_TOPIC = 'core/gps'
+        self.ROLL_TOPIC = '/'+self.robot_name+'/dr/roll'
+        self.PITCH_TOPIC = '/'+self.robot_name+'/dr/pitch'
+        self.YAW_TOPIC = '/'+self.robot_name+'/dr/yaw'
 
         self.EMERGENCY_TOPIC = 'core/abort'
         self.HEARTBEAT_TOPIC = 'core/heartbeat'

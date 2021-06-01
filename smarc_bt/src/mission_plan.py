@@ -66,7 +66,10 @@ class MissionPlan:
         A container object to keep things related to the mission plan.
         """
         self.plandb_msg = plandb_msg
-        self.plan_id = plandb_msg.plan_id
+        if plandb_msg is not None:
+            self.plan_id = plandb_msg.plan_id
+        else:
+            self.plan_id = 'NOPLAN'
         self.plan_frame = plan_frame
         self.coverage_swath = coverage_swath
         self.vehicle_localization_error_growth = vehicle_localization_error_growth

@@ -5,6 +5,7 @@
 
 
 import imc_enums
+import bb_enums
 import numpy as np
 import os
 import json
@@ -26,12 +27,17 @@ class MissionLog:
         # filtered/corrected trace of auv pose
         # x,y,z, yaw,pitch,roll
         self.navigation_trace = []
+        # distance from bottom
+        self.altitude_trace = []
         # raw gps fixes
         self.raw_gps_trace = []
         # leaf nodes with name and status
         self.tree_tip_trace = []
         # the waypoints of the mission this log belongs to
         self.mission_plan_wps = []
+
+        self.time_trace = []
+
 
         if mission_plan is not None:
             # used to check if log and mission plan are synched
@@ -78,6 +84,40 @@ class MissionLog:
 
 
 
+    def log(self, bb, mplan, t=None):
+        # first add the auv pose
+        world_trans = bb.get(bb_enums.WORLD_TRANS)
+        x,y = world_trans[0], world_trans[1]
+        z = -bb.get(bb_enums.DEPTH)
+        roll = bb.get(bb_enums.ROLL)
+        pitch = bb.get(bb_enums.PITCH)
+        yaw = bb.get(bb_enums.YAW)
+        self.navigation_trace.append((x,y,z, roll,pitch,yaw))
+
+        # then add the raw gps
+        gps = bb.get(bb_enums.RAW_GPS)
+        if gps is None or gps.status.status == -1: # no fix
+            gps_utm_point = None
+        else:
+            # translate the latlon to utm point using the same service as the mission plan
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            if gps_utm_x is None or gps_utm_y is None:
+                gps_utm_point = None
+        self.raw_gps_trace.append(gps_utm_point)
+
+        # then add the tree tip and its status
+        tree_tip = bb.get(bb_enums.TREE_TIP_NAME)
+        tip_status = bb.get(bb_enums.TREE_TIP_STATUS)
+        self.tree_tip_trace.append((tree_tip, tip_status))
+
+        # time keeping
+        if t is None:
+            t = time.time()
+        self.time_trace.append(t)
+
+        # simple enough
+        alt = bb.get(bb_enums.ALTITUDE)
+        self.altitude_trace.append(alt)
 
 
 
@@ -90,7 +130,9 @@ class MissionLog:
         data = {'navigation_trace':self.navigation_trace,
                 'raw_gps_trace':self.raw_gps_trace,
                 'tree_tip_trace':self.tree_tip_trace,
-                'mission_plan_wps':self.mission_plan_wps}
+                'mission_plan_wps':self.mission_plan_wps,
+                'time_trace':self.time_trace,
+                'altitude_trace':self.altitude_trace}
 
         with open(self.save_location, 'w+') as f:
             json.dump(data, f)
@@ -152,32 +194,54 @@ if __name__ == '__main__':
         data = json.load(f)
 
     nav_trace = np.array(data['navigation_trace'])
+    loc_trace = nav_trace[:,:3]
+    roll_trace = nav_trace[:,3]
+    pitch_trace = nav_trace[:,4]
+    yaw_trace = nav_trace[:,5]
     gps_trace = np.array(data['raw_gps_trace'])
     mplan = np.array(data['mission_plan_wps'])
+    altitude_trace = np.array(data['altitude_trace'])
 
-
-
-    origin = np.array(list(nav_trace[0]))
-    #center on first nav point
-    nav_trace -= origin
-
-    if len(mplan) > 0:
-        mplan -= origin
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
+    origin = np.array(list(loc_trace[0]))
+    #center on first nav point
+    loc_trace -= origin
+    ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='red')
 
-    plt.plot(nav_trace[:,0], nav_trace[:,1], nav_trace[:,2])
+    try:
+        rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
+        rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
+        rot_vecs_z = np.sin(pitch_trace)
+        rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
+        step = 9
+        ax.quiver(loc_trace[::step, 0],
+                  loc_trace[::step, 1],
+                  loc_trace[::step, 2],
+                  rot_vecs[::step, 0],
+                  rot_vecs[::step, 1],
+                  rot_vecs[::step, 2],
+                  length = 1)
+    except:
+        pass
 
-    if len(mplan) > 0:
-        plt.plot(mplan[:,0], mplan[:,1], mplan[:,2])
+
+    # plot the altitude relative to the height of the auv
+    bottom = loc_trace[:,2] - altitude_trace
+    plt.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='brown')
+
+
+    if len(mplan) > 1:
+        mplan -= origin
+        plt.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
 
     # filter out "non-fixes"
     gps_fixes = gps_trace[gps_trace !=  None]
     if len(gps_fixes) > 0:
         gps_fixes -= origin
-        plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1])
+        # plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1])
 
     if equal_z:
         set_axes_equal(ax)

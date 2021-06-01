@@ -8,9 +8,13 @@ ABORT = 'abort'
 LEAK = 'leak'
 
 DEPTH = 'depth'
-RAW_GPS = 'raw_gps'
-MAX_DEPTH = 'max_depth'
+ROLL = 'roll'
+PITCH = 'pitch'
+YAW = 'yaw'
 ALTITUDE = 'altitude'
+RAW_GPS = 'raw_gps'
+
+MAX_DEPTH = 'max_depth'
 MIN_ALTITUDE = 'min_altitude'
 
 MISSION_PLAN_OBJ = 'misison_plan'
