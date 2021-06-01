@@ -91,6 +91,7 @@ class AUVConfig(object):
 
         # Mission logging file location
         self.MISSION_LOG_FOLDER = '~/MissionLogs/'
+        self.ENABLE_MANUAL_MISSION_LOG = False
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

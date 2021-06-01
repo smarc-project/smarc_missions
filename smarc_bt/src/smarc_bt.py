@@ -64,7 +64,9 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetDVLRunning, \
                        A_ReadBuoys, \
                        A_UpdateMissionLog, \
-                       A_SaveMissionLog
+                       A_SaveMissionLog, \
+                       A_ManualMissionLog
+
 
 
 # globally defined values
@@ -420,10 +422,10 @@ def const_tree(auv_config):
 
 
 
-
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
+                              A_ManualMissionLog(),
                               const_safety_tree(),
                              # const_dvl_tree(),
                               run_tree

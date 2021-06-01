@@ -34,6 +34,73 @@ from mission_plan import MissionPlan
 from mission_log import MissionLog
 
 
+class A_ManualMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.started_logs = 0
+        self.num_saved_logs = 0
+
+    def start_new_log(self):
+        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
+        log = MissionLog(mission_plan = None,
+                         save_location = save_location)
+        self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, log)
+        rospy.loginfo("Started new manual mission log")
+        self.started_logs += 1
+        return log
+
+    def update(self):
+        enabled = self.bb.get(bb_enums.ENABLE_MANUAL_MISSION_LOG)
+        log = self.bb.get(bb_enums.MANUAL_MISSION_LOG_OBJ)
+
+        if not enabled:
+            # if we have a log, we save it now
+            # and set it to None, so next time we are
+            # disabled we dont do anything
+            if log is not None:
+                log.save()
+                self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, None)
+                self.num_saved_logs += 1
+
+            self.feedback_message = "Disabled, {} logs saved".format(self.num_saved_logs)
+            return pt.Status.SUCCESS
+
+
+        if log is None:
+            log = self.start_new_log()
+
+        # first add the auv pose
+        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
+        x,y = world_trans[0], world_trans[1]
+        z = -self.bb.get(bb_enums.DEPTH)
+        log.navigation_trace.append((x,y,z))
+
+        # then add the raw gps
+        gps = self.bb.get(bb_enums.RAW_GPS)
+        if gps is None or gps.status.status == -1: # no fix
+            gps_utm_point = None
+        else:
+            # translate the latlon to utm point using the same service as the mission plan
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            if gps_utm_x is None:
+                gps_utm_point = None
+        log.raw_gps_trace.append(gps_utm_point)
+
+        # then add the tree tip and its status
+        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
+        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
+        log.tree_tip_trace.append((tree_tip, tip_status))
+
+        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
+
+        return pt.Status.SUCCESS
+
+
+
+
+
+
 class A_SaveMissionLog(pt.behaviour.Behaviour):
     def __init__(self):
         super(A_SaveMissionLog, self).__init__(name="A_SaveMissionLog")
