@@ -42,6 +42,8 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
 
         self.last_published_time = None
 
+        self.message_object = Empty()
+
 
     def setup(self, timeout):
         self.pub = rospy.Publisher(self.topic, Empty, queue_size=1)
