@@ -25,100 +25,59 @@ from std_msgs.msg import Float64, Header, Bool, Empty
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
 from std_srvs.srv import SetBool
+import time
 
 from toggle_controller import ToggleController     
 
+class MissionComplete(object):
 
-class ToggleController(object):
-    '''a class to define a service client to toggle controllers'''
-    def toggle(self, enable_):
-        #function that toggles the service, that can be called from the code
-        ret = self.toggle_ctrl_service(enable_)
-        if ret.success:
-            rospy.loginfo_throttle_identical(5,"Controller toggled")
+    def mission_complete_cb(self,complete_msg):
+        if not self.completed:    
+            self.planned_surface()
 
-    def __init__(self, service_name_, enable_):
-        rospy.wait_for_service(service_name_)
-        try:
-            self.toggle_ctrl_service = rospy.ServiceProxy(service_name_, SetBool)
-            self.toggle(enable_)
+    def planned_surface(self):
+        
+        #Disable controllers
+        self.toggle_pitch_ctrl.toggle(False)
+        self.toggle_vbs_ctrl.toggle(False)
+        self.toggle_tcg_ctrl.toggle(False)
+        self.toggle_yaw_ctrl.toggle(False)
+        self.toggle_depth_ctrl.toggle(False)
+        self.toggle_speed_ctrl.toggle(False)
+        self.toggle_roll_ctrl.toggle(False)
 
-        except rospy.ServiceException as e:
-            print("Service call failed: %s"%e)
+        #set VBS to 0
+        vbs_level = PercentStamped()
+        vbs_level.value = 0.0
+        self.vbs_pub.publish(vbs_level)
 
-class PlannedSurface(object):
+        # Stop thrusters
+        rpm1 = ThrusterRPM()
+        rpm2 = ThrusterRPM()
+        rpm1.rpm = 0
+        rpm2.rpm = 0
+        self.rpm1_pub.publish(rpm1)
+        self.rpm2_pub.publish(rpm2)
 
-    def execute_cb(self, goal):
+        self.completion_time = time.time()
+        self.completed = True
 
-        rospy.loginfo("Planned Surface Action initiated")
-        count = 0
-
-        r = rospy.Rate(11.) # 10hz
-        while not rospy.is_shutdown() and not self._result.reached_waypoint:
-
-            # Preempted
-            if self._as.is_preempt_requested():
-
-                #Enable controllers
-                '''self.toggle_pitch_ctrl.toggle(True)
-                self.toggle_vbs_ctrl.toggle(True)
-                self.toggle_tcg_ctrl.toggle(True)
-                self.toggle_yaw_ctrl.toggle(True)
-                self.toggle_depth_ctrl.toggle(True)
-                self.toggle_speed_ctrl.toggle(True)
-                self.toggle_roll_ctrl.toggle(True)'''
-                rospy.loginfo('%s: Preempted' % self._action_name)
-                self._as.set_preempted(GotoWaypointResult(), "Preempted PlannedSurface action")
-                return
-
-            #Disable controllers
-            self.toggle_pitch_ctrl.toggle(False)
-            self.toggle_vbs_ctrl.toggle(False)
-            self.toggle_tcg_ctrl.toggle(False)
-            self.toggle_yaw_ctrl.toggle(False)
-            self.toggle_depth_ctrl.toggle(False)
-            self.toggle_speed_ctrl.toggle(False)
-            self.toggle_roll_ctrl.toggle(False)
-
-            #set VBS to 0
-            vbs_level = PercentStamped()
-            vbs_level.value = 0.0
-            self.vbs_pub.publish(vbs_level)
-
-            # Stop thrusters
-            rpm1 = ThrusterRPM()
-            rpm2 = ThrusterRPM()
-            rpm1.rpm = 0
-            rpm2.rpm = 0
-            self.rpm1_pub.publish(rpm1)
-            self.rpm2_pub.publish(rpm2)
-
-            if count == 10:
-                # count to 10 to make sure the setpoints and service calls are received.
-                self._result.reached_waypoint= True
-            
-            count = count + 1
-
-            r.sleep()
-
-        self._as.set_succeeded(self._result,"Mission completed, going to surface")
-
-        rospy.loginfo('%s: Mission completed, going to surface' % self._action_name)
-
-    #def timer_callback(self, event):
+        rospy.loginfo('%s: Mission completed, going to surface')
 
     def __init__(self, name):
 
         """Publish 0 to VBS and disable all controllers"""
-        self._action_name = name
 
+        mission_complete_topic = rospy.get_param('~mission_complete_topic', '/sam/core/mission_complete')
         vbs_cmd_topic = rospy.get_param('~vbs_cmd_topic', '/sam/core/vbs_cmd')
         rpm_cmd_topic_1 = rospy.get_param('~rpm_cmd_topic_1', '/sam/core/thruster1_cmd')
         rpm_cmd_topic_2 = rospy.get_param('~rpm_cmd_topic_2', '/sam/core/thruster2_cmd')
 
-        self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=10)
-        self.rpm1_pub = rospy.Publisher(rpm_cmd_topic_1, ThrusterRPM, queue_size=10)
-        self.rpm2_pub = rospy.Publisher(rpm_cmd_topic_2, ThrusterRPM, queue_size=10)
+        self.vbs_pub = rospy.Publisher(vbs_cmd_topic, PercentStamped, queue_size=1)
+        self.rpm1_pub = rospy.Publisher(rpm_cmd_topic_1, ThrusterRPM, queue_size=1)
+        self.rpm2_pub = rospy.Publisher(rpm_cmd_topic_2, ThrusterRPM, queue_size=1)
+
+        self.mission_complete_sub = rospy.Subscriber(mission_complete_topic, Empty, self.mission_complete_cb )
 
         #controller services
         toggle_yaw_ctrl_service = rospy.get_param('~toggle_yaw_ctrl_service', '/sam/ctrl/toggle_yaw_ctrl')
@@ -137,15 +96,23 @@ class PlannedSurface(object):
         self.toggle_pitch_ctrl = ToggleController(toggle_pitch_ctrl_service, False)
         self.toggle_tcg_ctrl = ToggleController(toggle_tcg_ctrl_service, False)
 
-        self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
-        self._as.start()
-        self._result = GotoWaypointResult()
+        self.completed = False
+        self.completion_time = 0
 
-        rospy.loginfo("Announced action server with name: %s", self._action_name)
-
-        rospy.spin()
 
 if __name__ == '__main__':
 
-    rospy.init_node('planned_surface_action')
-    planner = PlannedSurface(rospy.get_name())
+    rospy.init_node('mission_complete_node')
+    surfacing_node = MissionComplete(rospy.get_name())
+
+    r = rospy.Rate(11.) # 10hz
+
+    while not rospy.is_shutdown():
+
+        if surfacing_node.completed:
+            time_diff = time.time()- surfacing_node.completion_time
+            
+            if time_diff > 30:
+                surfacing_node.completed = False
+
+        r.sleep()
