@@ -78,11 +78,20 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
 
 
 class A_ManualMissionLog(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self,
+                 latlontoutm_service_name,
+                 latlontoutm_service_name_alternative):
         super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
         self.bb = pt.blackboard.Blackboard()
         self.started_logs = 0
         self.num_saved_logs = 0
+
+        # used just for the latlontoutm function only
+        self.mplan = MissionPlan(plandb_msg = None,
+                                 latlontoutm_service_name = latlontoutm_service_name,
+                                 latlontoutm_service_name_alternative = latlontoutm_service_name_alternative,
+                                 waypoints = [])
+
 
     def start_new_log(self):
         save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
@@ -113,27 +122,13 @@ class A_ManualMissionLog(pt.behaviour.Behaviour):
         if log is None:
             log = self.start_new_log()
 
-        # first add the auv pose
-        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
-        x,y = world_trans[0], world_trans[1]
-        z = -self.bb.get(bb_enums.DEPTH)
-        log.navigation_trace.append((x,y,z))
+        # check if there is already a mission plan
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        # otherwise use our default mplan
+        if mplan is None:
+            mplan = self.mplan
 
-        # then add the raw gps
-        gps = self.bb.get(bb_enums.RAW_GPS)
-        if gps is None or gps.status.status == -1: # no fix
-            gps_utm_point = None
-        else:
-            # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
-            if gps_utm_x is None:
-                gps_utm_point = None
-        log.raw_gps_trace.append(gps_utm_point)
-
-        # then add the tree tip and its status
-        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
-        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
-        log.tree_tip_trace.append((tree_tip, tip_status))
+        log.log(self.bb, mplan)
 
         self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
 
@@ -205,28 +200,7 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
             log = self.start_new_log(mplan)
 
 
-        # now we got a valid mission plan
-        # first add the auv pose
-        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
-        x,y = world_trans[0], world_trans[1]
-        z = -self.bb.get(bb_enums.DEPTH)
-        log.navigation_trace.append((x,y,z))
-
-        # then add the raw gps
-        gps = self.bb.get(bb_enums.RAW_GPS)
-        if gps is None or gps.status.status == -1: # no fix
-            gps_utm_point = None
-        else:
-            # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
-            if gps_utm_x is None:
-                gps_utm_point = None
-        log.raw_gps_trace.append(gps_utm_point)
-
-        # then add the tree tip and its status
-        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
-        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
-        log.tree_tip_trace.append((tree_tip, tip_status))
+        log.log(self.bb, mplan)
 
         self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
 
