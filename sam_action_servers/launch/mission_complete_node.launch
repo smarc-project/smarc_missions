@@ -5,8 +5,9 @@
 
 	<!-- topics, note the root! -->
     
-    <node name="planned_surface_action" pkg="sam_action_servers" type="planned_surface_action.py" output="screen" ns="$(arg robot_name)/ctrl">
-        <param name="vbs_cmd_topic" value="/$(arg robot_name)/core/vbs_cmd" />
+    <node name="mission_complete_node" pkg="sam_action_servers" type="mission_complete_node.py" output="screen" ns="$(arg robot_name)/ctrl">
+	<param name="mission_complete_topic" value="/$(arg robot_name)/core/mission_complete" />        
+	<param name="vbs_cmd_topic" value="/$(arg robot_name)/core/vbs_cmd" />
         <param name="rpm1_cmd_topic" value="/$(arg robot_name)/core/thruster1_cmd" />
         <param name="rpm2_cmd_topic" value="/$(arg robot_name)/core/thruster2_cmd" />
         <param name="toggle_pitch_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_pitch_ctrl" />

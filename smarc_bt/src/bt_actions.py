@@ -40,6 +40,211 @@ import imc_enums
 import common_globals
 
 from mission_plan import MissionPlan, Waypoint
+from mission_log import MissionLog
+
+
+class A_PublishFinalize(pt.behaviour.Behaviour):
+    def __init__(self, topic):
+        super(A_PublishFinalize, self).__init__(name="A_PublishFinalize")
+        self.bb = pt.blackboard.Blackboard()
+        self.topic = topic
+
+        self.last_published_time = None
+
+        self.message_object = Empty()
+
+
+    def setup(self, timeout):
+        self.pub = rospy.Publisher(self.topic, Empty, queue_size=1)
+        return True
+
+
+    def update(self):
+        if self.last_published_time is not None:
+            time_since = time.time() - self.last_published_time
+            self.feedback_message = "Last pub'd:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "Never published!"
+
+        finalized = self.bb.get(bb_enums.MISSION_FINALIZED)
+        if not finalized:
+            try:
+                self.pub.publish(self.message_object)
+                self.last_published_time = time.time()
+                self.feedback_message = "Just published"
+                self.bb.set(bb_enums.MISSION_FINALIZED, True)
+                return pt.Status.SUCCESS
+            except:
+                msg = "Couldn't publish"
+                rospy.logwarn_throttle(1, msg)
+                self.feedback_message = msg
+                return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+
+
+
+class A_ManualMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.started_logs = 0
+        self.num_saved_logs = 0
+
+    def start_new_log(self):
+        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
+        log = MissionLog(mission_plan = None,
+                         save_location = save_location)
+        self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, log)
+        rospy.loginfo("Started new manual mission log")
+        self.started_logs += 1
+        return log
+
+    def update(self):
+        enabled = self.bb.get(bb_enums.ENABLE_MANUAL_MISSION_LOG)
+        log = self.bb.get(bb_enums.MANUAL_MISSION_LOG_OBJ)
+
+        if not enabled:
+            # if we have a log, we save it now
+            # and set it to None, so next time we are
+            # disabled we dont do anything
+            if log is not None:
+                log.save()
+                self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, None)
+                self.num_saved_logs += 1
+
+            self.feedback_message = "Disabled, {} logs saved".format(self.num_saved_logs)
+            return pt.Status.SUCCESS
+
+
+        if log is None:
+            log = self.start_new_log()
+
+        # first add the auv pose
+        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
+        x,y = world_trans[0], world_trans[1]
+        z = -self.bb.get(bb_enums.DEPTH)
+        log.navigation_trace.append((x,y,z))
+
+        # then add the raw gps
+        gps = self.bb.get(bb_enums.RAW_GPS)
+        if gps is None or gps.status.status == -1: # no fix
+            gps_utm_point = None
+        else:
+            # translate the latlon to utm point using the same service as the mission plan
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            if gps_utm_x is None:
+                gps_utm_point = None
+        log.raw_gps_trace.append(gps_utm_point)
+
+        # then add the tree tip and its status
+        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
+        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
+        log.tree_tip_trace.append((tree_tip, tip_status))
+
+        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
+
+        return pt.Status.SUCCESS
+
+
+
+
+
+
+class A_SaveMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_SaveMissionLog, self).__init__(name="A_SaveMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.num_saved_logs = 0
+
+
+    def update(self):
+        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
+        if log is not None:
+            log.save()
+            self.num_saved_logs += 1
+            self.bb.set(bb_enums.MISSION_LOG_OBJ, None)
+            self.feedback_message = "Saved log #{}!".format(self.num_saved_logs)
+        else:
+            self.feedback_message = "#saved logs:{}".format(self.num_saved_logs)
+
+        return pt.Status.SUCCESS
+
+
+class A_UpdateMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_UpdateMissionLog, self).__init__(name="A_UpdateMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.started_logs = 0
+
+
+    def start_new_log(self, mplan):
+        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
+        log = MissionLog(mission_plan = mplan,
+                         save_location = save_location)
+        self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
+        rospy.loginfo("Started new mission log")
+        self.started_logs += 1
+        return log
+
+
+    def update(self):
+        # only update if there is an unfinalized mission that has been started
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is None:
+            rospy.loginfo("Mission plan is None, can't make a log of this?")
+            self.feedback_message = "No mission plan!"
+            return pt.Status.FAILURE
+
+
+        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
+        if log is None:
+            log = self.start_new_log(mplan)
+
+        # check if the mission has changed in the meantime
+        # this can happen when the user starts a mission, stops it,
+        # and then starts a different one
+        # we dont wanna log the incomplete one
+        # did it change since we last got called?
+        if log.creation_time != mplan.creation_time:
+            # it changed!
+            # re-start a log
+            log = self.start_new_log(mplan)
+
+
+        # now we got a valid mission plan
+        # first add the auv pose
+        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
+        x,y = world_trans[0], world_trans[1]
+        z = -self.bb.get(bb_enums.DEPTH)
+        log.navigation_trace.append((x,y,z))
+
+        # then add the raw gps
+        gps = self.bb.get(bb_enums.RAW_GPS)
+        if gps is None or gps.status.status == -1: # no fix
+            gps_utm_point = None
+        else:
+            # translate the latlon to utm point using the same service as the mission plan
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            if gps_utm_x is None:
+                gps_utm_point = None
+        log.raw_gps_trace.append(gps_utm_point)
+
+        # then add the tree tip and its status
+        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
+        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
+        log.tree_tip_trace.append((tree_tip, tip_status))
+
+        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
+
+        return pt.Status.SUCCESS
+
+
+
+
+
 
 
 
@@ -233,7 +438,6 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
                  action_namespace,
-                 goal_tolerance = 1,
                  goal_tf_frame = 'utm',
                  node_name = "A_GotoWaypoint"):
         """
@@ -263,9 +467,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         )
 
         self.action_server_ok = False
-
-        assert goal_tolerance >= 1, "Goal tolerance must be >=1!, it is:"+str(goal_tolerance)
-        self.goal_tolerance = goal_tolerance
 
         self.goal_tf_frame = goal_tf_frame
 
@@ -313,11 +514,14 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
             rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
+        # get the goal tolerance as a dynamic variable from the bb
+        goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+
         # construct the message
         goal = GotoWaypointGoal()
         goal.waypoint_pose.pose.position.x = wp.x
         goal.waypoint_pose.pose.position.y = wp.y
-        goal.goal_tolerance = self.goal_tolerance
+        goal.goal_tolerance = goal_tolerance
 
         # 0=None, 1=Depth, 2=Altitude in the action
         # thankfully these are the same in IMC and in the Action
@@ -1205,8 +1409,9 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         # initialise variables of interest
         self.bb.set(bb_enums.BUOY_MARKERS, None)
         self.bb.set(bb_enums.BUOY_DETECTION, None)
-        self.buoy_markers = None
-        self.buoy_detection = None
+        self.markers = None
+        self.markers_centroid = None
+        self.detections = None
 
         # subscribe to buoy markers
         self.sub_markers = rospy.Subscriber(
@@ -1244,7 +1449,7 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
     def get_marker(self, markerarray):
 
         # if we haven't updated the markers
-        if self.buoy_markers is None:
+        if self.markers is None:
 
             # markers should be in the map frame
             # frame_id = markerarray.markers[0].header.frame_id
@@ -1965,341 +2170,366 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour, Framer):
 
 
 
-class A_SetWallPlan(pt.behaviour.Behaviour):
+# class A_SetWallPlan(pt.behaviour.Behaviour):
 
-    def __init__(
-        self, 
-        name, 
-        row_sep,
-        depth,
-        buoy_link,
-        utm_link,
-        velocity,
-        latlon_utm_serv,
-        latlon_utm_serv_alt,
-        x0_overshoot,
-        x1_overshoot,
-        x0_lineup=None,
-        x1_lineup=None,
-        first_lineup=None,
-        starboard=False):
+#     def __init__(
+#         self, 
+#         name, 
+#         row_sep,
+#         depth,
+#         buoy_link,
+#         utm_link,
+#         velocity,
+#         latlon_utm_serv,
+#         latlon_utm_serv_alt,
+#         x0_overshoot,
+#         x1_overshoot,
+#         x0_lineup=None,
+#         x1_lineup=None,
+#         first_lineup=None,
+#         starboard=False):
 
-        # become BT
-        pt.behaviour.Behaviour.__init__(self, name=name)
+#         # become BT
+#         pt.behaviour.Behaviour.__init__(self, name=name)
 
-        # distance between rows and survey depth
-        self.row_sep = row_sep
-        self.depth = depth
+#         # distance between rows and survey depth
+#         self.row_sep = row_sep
+#         self.depth = depth
 
-        # overshoot distance before and after row ends
-        self.x0_overshoot = x0_overshoot
-        self.x1_overshoot = x1_overshoot
+#         # overshoot distance before and after row ends
+#         self.x0_overshoot = x0_overshoot
+#         self.x1_overshoot = x1_overshoot
 
-        # distance before and after overshoot for lineup
-        self.x0_lineup = x0_lineup
-        self.x1_lineup = x1_lineup
+#         # distance before and after overshoot for lineup
+#         self.x0_lineup = x0_lineup
+#         self.x1_lineup = x1_lineup
 
-        # first line up to ensure good clearance
-        self.first_lineup = first_lineup
+#         # first line up to ensure good clearance
+#         self.first_lineup = first_lineup
 
-        # which side of AUV for wall to be on
-        self.starboard = starboard
+#         # which side of AUV for wall to be on
+#         self.starboard = starboard
 
-        # TF frames
-        self.buoy_link = buoy_link
-        self.utm_link = utm_link
-        self.tf_listener = tf.TransformListener()
+#         # TF frames
+#         self.buoy_link = buoy_link
+#         self.utm_link = utm_link
+#         self.tf_listener = tf.TransformListener()
 
-        # need for waypoint class
-        self.velocity = velocity
-        self.latlon_utm_serv = latlon_utm_serv
-        self.latlon_utm_serv_alt = latlon_utm_serv_alt
+#         # need for waypoint class
+#         self.velocity = velocity
+#         self.latlon_utm_serv = latlon_utm_serv
+#         self.latlon_utm_serv_alt = latlon_utm_serv_alt
 
-        # blackboard
-        self.bb = pt.blackboard.Blackboard()
+#         # blackboard
+#         self.bb = pt.blackboard.Blackboard()
 
-        # internal counter
-        self.i = 0
+#         # internal counter
+#         self.i = 0
 
-    def setup(self, timeout):
+#     def setup(self, timeout):
 
-        # wait for TF transformation
-        try:
-            rospy.loginfo('Waiting for transform from {} to {}.'.format(
-                self.buoy_link,
-                self.utm_link
-            ))
-            self.tf_listener.waitForTransform(
-                self.buoy_link, 
-                self.utm_link,
-                rospy.Time(),
-                rospy.Duration(timeout)
-            )
-        except:
-            rospy.loginfo('Transform from {} to {} not found.'.format(
-                self.buoy_link,
-                self.utm_link
-            ))
-        return True
+#         # wait for TF transformation
+#         try:
+#             rospy.loginfo('Waiting for transform from {} to {}.'.format(
+#                 self.buoy_link,
+#                 self.utm_link
+#             ))
+#             self.tf_listener.waitForTransform(
+#                 self.buoy_link,
+#                 self.utm_link,
+#                 rospy.Time(),
+#                 rospy.Duration(timeout)
+#             )
+#         except:
+#             rospy.loginfo('Transform from {} to {} not found.'.format(
+#                 self.buoy_link,
+#                 self.utm_link
+#             ))
+#         return True
 
-    def update(self):
+#     def update(self):
+#         # subscribe to buoy positions
+#         self.sub = rospy.Subscriber(
+#             self.topic_name,
+#             MarkerArray,
+#             callback=self.cb,
+#             queue_size=10
+#         )
+#         # self.bb.set(bb_enums.BUOYS, None)
+#         self.buoys = None
+#         return True
 
-        # if there are no buoys
-        if self.bb.get(bb_enums.BUOYS) is None:
-            self.bb.set(bb_enums.WALL_PLAN_SET, True)
-            # yes, this could be succes,
-            # but running forces you to use a condition
-            # elsewhere in the BT
-            self.feedback_message = 'No buoys'
-            return pt.Status.RUNNING
+#         # if there are no buoys
+#         if self.bb.get(bb_enums.BUOYS) is None:
+#             self.bb.set(bb_enums.WALL_PLAN_SET, True)
+#             # yes, this could be succes,
+#             # but running forces you to use a condition
+#             # elsewhere in the BT
+#             self.feedback_message = 'No buoys'
+#             return pt.Status.RUNNING
 
-        # print(self.bb.get(bb_enums.BUOYS) )
+#         # print(self.bb.get(bb_enums.BUOYS) )
 
-        try:
+#         try:
 
-            # buoys sorted into walls in map frame
-            buoys = self.bb.get(bb_enums.BUOYS)['all']
+#             # buoys sorted into walls in map frame
+#             buoys = self.bb.get(bb_enums.BUOYS)['all']
 
-            # current position in local frame
-            point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
-            point = self.tf_listener.transformPoint(
-                self.buoy_link,
-                point
-            )
-            point = np.array([
-                point.point.x,
-                point.point.y,
-                point.point.z
-            ])
+#             # current position in local frame
+#             point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
+#             point = self.tf_listener.transformPoint(
+#                 self.buoy_link,
+#                 point
+#             )
+#             point = np.array([
+#                 point.point.x,
+#                 point.point.y,
+#                 point.point.z
 
-            # compute a plan
-            if buoys is not None:
+#             # # transform it from local to UTM frame
+#             # pose = self.tf_listener.transformPose(
+#             #     self.utm_link,
+#             #     pose
+#             # )
 
-                # waypoints in local frame
-                wps0 = self.full_plan(
-                    point,
-                    buoys,
-                    row_sep=self.row_sep,
-                    x0_overshoot=self.x0_overshoot,
-                    x1_overshoot=self.x0_overshoot,
-                    x0_lineup=self.x0_lineup,
-                    x1_lineup=self.x1_lineup,
-                    first_lineup=self.first_lineup,
-                    starboard=self.starboard,
-                    depth=self.depth
-                )
-                wps1 = self.full_plan(
-                    wps0[-1],
-                    buoys,
-                    row_sep=self.row_sep,
-                    x0_overshoot=self.x0_overshoot,
-                    x1_overshoot=self.x0_overshoot,
-                    x0_lineup=self.x0_lineup,
-                    x1_lineup=self.x1_lineup,
-                    first_lineup=self.first_lineup,
-                    starboard=self.starboard,
-                    depth=self.depth
-                )
-                wps = np.vstack((wps0, wps1))
+#             # add it to the list
+#             self.buoys.append([
+#                 pose.pose.position.x,
+#                 pose.pose.position.y,
+#                 pose.pose.position.z
+#             ])
 
-                # mission waypoints in UTM frame
-                mwps = list()
+#             # compute a plan
+#             if buoys is not None:
 
-                # loop through waypoints
-                for i, wp in enumerate(wps):
+#                 # waypoints in local frame
+#                 wps0 = self.full_plan(
+#                     point,
+#                     buoys,
+#                     row_sep=self.row_sep,
+#                     x0_overshoot=self.x0_overshoot,
+#                     x1_overshoot=self.x0_overshoot,
+#                     x0_lineup=self.x0_lineup,
+#                     x1_lineup=self.x1_lineup,
+#                     first_lineup=self.first_lineup,
+#                     starboard=self.starboard,
+#                     depth=self.depth
+#                 )
+#                 wps1 = self.full_plan(
+#                     wps0[-1],
+#                     buoys,
+#                     row_sep=self.row_sep,
+#                     x0_overshoot=self.x0_overshoot,
+#                     x1_overshoot=self.x0_overshoot,
+#                     x0_lineup=self.x0_lineup,
+#                     x1_lineup=self.x1_lineup,
+#                     first_lineup=self.first_lineup,
+#                     starboard=self.starboard,
+#                     depth=self.depth
+#                 )
+#                 wps = np.vstack((wps0, wps1))
 
-                    # make pose
-                    pose = PoseStamped()
-                    pose.pose.position.x = wp[0]
-                    pose.pose.position.y = wp[1]
-                    pose.pose.position.z = 1.0 if i == 0 else wp[2]
-                    pose.header = Header(frame_id=self.buoy_link)
+#                 # mission waypoints in UTM frame
+#                 mwps = list()
 
-                    # transform it from local to UTM frame
-                    pose = self.tf_listener.transformPose(
-                        self.utm_link,
-                        pose
-                    )
+#                 # loop through waypoints
+#                 for i, wp in enumerate(wps):
 
-                    # real waypoint
-                    wp = Waypoint(
-                        maneuver_id='goto',
-                        maneuver_imc_id=imc_enums.MANEUVER_GOTO,
-                        maneuver_name='wall_following',
-                        x=pose.pose.position.x,
-                        y=pose.pose.position.y,
-                        z=pose.pose.position.z,
-                        z_unit=imc_enums.Z_DEPTH,
-                        speed=self.velocity,
-                        speed_unit=0,
-                        tf_frame=self.utm_link,
-                        extra_data=None
-                    )
+#                     # make pose
+#                     pose = PoseStamped()
+#                     pose.pose.position.x = wp[0]
+#                     pose.pose.position.y = wp[1]
+#                     pose.pose.position.z = 1.0 if i == 0 else wp[2]
+#                     pose.header = Header(frame_id=self.buoy_link)
 
-                    # add waypoints
-                    mwps.append(wp)
+#                     # transform it from local to UTM frame
+#                     pose = self.tf_listener.transformPose(
+#                         self.utm_link,
+#                         pose
+#                     )
 
-            # plandb message
-            pdb = PlanDB()
-            pdb.request_id = 42
-            pdb.plan_id = "WALLS"
+#                     # real waypoint
+#                     wp = Waypoint(
+#                         maneuver_id='goto',
+#                         maneuver_imc_id=imc_enums.MANEUVER_GOTO,
+#                         maneuver_name='wall_following',
+#                         x=pose.pose.position.x,
+#                         y=pose.pose.position.y,
+#                         z=pose.pose.position.z,
+#                         z_unit=imc_enums.Z_DEPTH,
+#                         speed=self.velocity,
+#                         speed_unit=0,
+#                         tf_frame=self.utm_link,
+#                         extra_data=None
+#                     )
 
-            # construct plan
-            mission_plan = MissionPlan(
-                plandb_msg=pdb,
-                latlontoutm_service_name=self.latlon_utm_serv,
-                latlontoutm_service_name_alternative=self.latlon_utm_serv_alt,
-                plan_frame=self.utm_link,
-                waypoints=mwps
-            )
+#                     # add waypoints
+#                     mwps.append(wp)
 
-            # set the plan and cross our fingers :o
-            self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
-            self.bb.set(bb_enums.WALL_PLAN_SET, True)
-            rospy.loginfo('Wall plan set')
-            return pt.Status.RUNNING
+#             # plandb message
+#             pdb = PlanDB()
+#             pdb.request_id = 42
+#             pdb.plan_id = "WALLS"
 
-        except Exception as e:
-            raise e
-            rospy.loginfo_throttle(60, e)
-            return pt.Status.FAILURE
+#             # construct plan
+#             mission_plan = MissionPlan(
+#                 plandb_msg=pdb,
+#                 latlontoutm_service_name=self.latlon_utm_serv,
+#                 latlontoutm_service_name_alternative=self.latlon_utm_serv_alt,
+#                 plan_frame=self.utm_link,
+#                 waypoints=mwps
+#             )
 
-    @staticmethod
-    def plan(
-        x0, 
-        x1, 
-        n_rows, 
-        row_sep, 
-        x0_overshoot, 
-        x1_overshoot,
-        x0_lineup=None,
-        x1_lineup=None,
-        starboard=False,
-        depth=0.0):
+#             # set the plan and cross our fingers :o
+#             self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
+#             self.bb.set(bb_enums.WALL_PLAN_SET, True)
+#             rospy.loginfo('Wall plan set')
+#             return pt.Status.RUNNING
 
-        # sanity
-        if x0_lineup is not None:
-            assert(x0_overshoot < x0_lineup)
-        if x1_lineup is not None:
-            assert(x1_overshoot < x1_lineup)
+#         except Exception as e:
+#             raise e
+#             rospy.loginfo_throttle(60, e)
+#             return pt.Status.FAILURE
 
-        # parallel unit vector (x,y)
-        par = x1[:2] - x0[:2]
-        par /= np.linalg.norm(par)
+#     @staticmethod
+#     def plan(
+#         x0, 
+#         x1, 
+#         n_rows, 
+#         row_sep, 
+#         x0_overshoot, 
+#         x1_overshoot,
+#         x0_lineup=None,
+#         x1_lineup=None,
+#         starboard=False,
+#         depth=0.0):
+
+#         # sanity
+#         if x0_lineup is not None:
+#             assert(x0_overshoot < x0_lineup)
+#         if x1_lineup is not None:
+#             assert(x1_overshoot < x1_lineup)
+
+#         # parallel unit vector (x,y)
+#         par = x1[:2] - x0[:2]
+#         par /= np.linalg.norm(par)
         
-        # perpendicular unit vector (x,y)
-        perp = np.array([-par[1], par[0]]) if starboard else np.array([par[1], -par[0]])
+#         # perpendicular unit vector (x,y)
+#         perp = np.array([-par[1], par[0]]) if starboard else np.array([par[1], -par[0]])
             
-        # construct a lawnmower
-        wps = list()
+#         # construct a lawnmower
+#         wps = list()
 
-        # i = iteration number, j = row number
-        for i, j in enumerate(reversed(range(n_rows))):
+#         # i = iteration number, j = row number
+#         for i, j in enumerate(reversed(range(n_rows))):
 
-            # i = 0, 2, 4, 6, 8, ...
-            if not i%2:
+#             # i = 0, 2, 4, 6, 8, ...
+#             if not i%2:
 
-                # intial lineup
-                if x0_lineup is not None:
-                    wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
+#                 # intial lineup
+#                 if x0_lineup is not None:
+#                     wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
 
-                # adjacent to line endpoint
-                wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
-                wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
+#                 # adjacent to line endpoint
+#                 wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
+#                 wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
 
-                # terminal lineup
-                if x1_lineup is not None:
-                    wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
+#                 # terminal lineup
+#                 if x1_lineup is not None:
+#                     wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
 
-            # i = 1, 3, 5, 7, 9, ...
-            else:
+#             # i = 1, 3, 5, 7, 9, ...
+#             else:
 
-                # initial lineup
-                if x1_lineup is not None:
-                    wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
+#                 # initial lineup
+#                 if x1_lineup is not None:
+#                     wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
 
-                # adjacent to line endpoint
-                wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
-                wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
+#                 # adjacent to line endpoint
+#                 wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
+#                 wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
 
-                # terminal lineup
-                if x0_lineup is not None:
-                    wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
+#                 # terminal lineup
+#                 if x0_lineup is not None:
+#                     wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
 
-        # add depth and return waypoints
-        wps = np.array(wps)
-        wps = np.hstack((wps, np.full((wps.shape[0], 1), depth)))
-        return wps
+#         # add depth and return waypoints
+#         wps = np.array(wps)
+#         wps = np.hstack((wps, np.full((wps.shape[0], 1), depth)))
+#         return wps
 
-    @staticmethod
-    def full_plan(
-        pose, 
-        walls,
-        row_sep, 
-        x0_overshoot, 
-        x1_overshoot,
-        x0_lineup=None,
-        x1_lineup=None,
-        first_lineup=None,
-        starboard=False,
-        depth=1.0):
+#     @staticmethod
+#     def full_plan(
+#         pose, 
+#         walls,
+#         row_sep, 
+#         x0_overshoot, 
+#         x1_overshoot,
+#         x0_lineup=None,
+#         x1_lineup=None,
+#         first_lineup=None,
+#         starboard=False,
+#         depth=1.0):
 
-        # distance between each buoy and AUV
-        norms = np.linalg.norm(walls[[0,-1]] - pose, axis=2)
+#         # distance between each buoy and AUV
+#         norms = np.linalg.norm(walls[[0,-1]] - pose, axis=2)
 
-        # index of closest extremal wall
-        i = norms.min(axis=1).argmin(axis=0)
-        i = 0 if i == 0 else -1
+#         # index of closest extremal wall
+#         i = norms.min(axis=1).argmin(axis=0)
+#         i = 0 if i == 0 else -1
         
-        # index of closest extremal buoy 
-        norms = np.linalg.norm(walls[i, [0,-1]] - pose, axis=1)
-        j = norms.argmin(axis=0)
-        j = 0 if j == 0 else -1
+#         # index of closest extremal buoy 
+#         norms = np.linalg.norm(walls[i, [0,-1]] - pose, axis=1)
+#         j = norms.argmin(axis=0)
+#         j = 0 if j == 0 else -1
 
-        # order the walls based on (i,j)
-        walls = np.flip(walls, axis=0) if i == -1 else walls
-        walls = np.flip(walls, axis=1) if j == -1 else walls
+#         # order the walls based on (i,j)
+#         walls = np.flip(walls, axis=0) if i == -1 else walls
+#         walls = np.flip(walls, axis=1) if j == -1 else walls
 
-        # waypoints
-        waypoints = list()
+#         # waypoints
+#         waypoints = list()
 
-        # construct waypoints
-        for i, wall in enumerate(walls):
+#         # construct waypoints
+#         for i, wall in enumerate(walls):
 
-            # i = 0, 2, 4, ...
-            if not i%2:
-                wps = A_SetWallPlan.plan(
-                    x0=wall[0], 
-                    x1=wall[-1], 
-                    n_rows=1, 
-                    row_sep=row_sep, 
-                    x0_overshoot=x0_overshoot, 
-                    x1_overshoot=x1_overshoot,
-                    x0_lineup=first_lineup if i==0 else x0_lineup,
-                    x1_lineup=x1_lineup,
-                    starboard=starboard,
-                    depth=depth
-                )
+#             # i = 0, 2, 4, ...
+#             if not i%2:
+#                 wps = A_SetWallPlan.plan(
+#                     x0=wall[0], 
+#                     x1=wall[-1], 
+#                     n_rows=1, 
+#                     row_sep=row_sep, 
+#                     x0_overshoot=x0_overshoot, 
+#                     x1_overshoot=x1_overshoot,
+#                     x0_lineup=first_lineup if i==0 else x0_lineup,
+#                     x1_lineup=x1_lineup,
+#                     starboard=starboard,
+#                     depth=depth
+#                 )
             
-            # i = 1, 3, 5, ...
-            else:
-                wps = A_SetWallPlan.plan(
-                    x0=wall[-1], 
-                    x1=wall[0], 
-                    n_rows=1, 
-                    row_sep=row_sep, 
-                    x0_overshoot=x0_overshoot, 
-                    x1_overshoot=x1_overshoot,
-                    x0_lineup=x0_lineup,
-                    x1_lineup=x1_lineup,
-                    starboard=starboard,
-                    depth=depth
-                )
+#             # i = 1, 3, 5, ...
+#             else:
+#                 wps = A_SetWallPlan.plan(
+#                     x0=wall[-1], 
+#                     x1=wall[0], 
+#                     n_rows=1, 
+#                     row_sep=row_sep, 
+#                     x0_overshoot=x0_overshoot, 
+#                     x1_overshoot=x1_overshoot,
+#                     x0_lineup=x0_lineup,
+#                     x1_lineup=x1_lineup,
+#                     starboard=starboard,
+#                     depth=depth
+#                 )
 
-            # add waypoint
-            waypoints.append(wps)
+#             # add waypoint
+#             waypoints.append(wps)
 
-        # construct path
-        waypoints = np.vstack(waypoints)
-        # waypoints = np.vstack((pose, waypoints))
-        return waypoints
+#         # construct path
+#         waypoints = np.vstack(waypoints)
+#         # waypoints = np.vstack((pose, waypoints))
+#         return waypoints
+#         # put the buoy positions in the blackboard
+#         self.bb.set(bb_enums.BUOYS, self.buoys)
+#         return pt.Status.SUCCESS

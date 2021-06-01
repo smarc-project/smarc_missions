@@ -24,6 +24,7 @@ class AUVConfig(object):
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
+        self.GPS_TOPIC = 'core/gps'
 
         self.EMERGENCY_TOPIC = 'core/abort'
         self.HEARTBEAT_TOPIC = 'core/heartbeat'
@@ -102,9 +103,8 @@ class AUVConfig(object):
 
         # localisation plan (A_SetBuoyLocalisationPlan) in map frame
         # self.BUOY_CENTROID = [0., 9., 0.]
-        # self.BUOY_CENTROID = [ 6.43847892e+05,  6.45931221e+06, -3.14758017e-01]
         self.BUOY_CENTROID = np.load('utm_centroid.npy')
-        self.BUOY_LOCALISATION_DISTANCES = [(10, 10), (10, 10), (10, 10)]
+        self.BUOY_LOCALISATION_DISTANCES = [(10, 10), (10, 10), (9, 9)]
         self.BUOY_LOCALISATION_VELOCITY = 2.0
         self.BUOY_LOCALISATION_DEPTH = 3.0
 
@@ -127,6 +127,9 @@ class AUVConfig(object):
         self.WALL_SURVEY_STARBOARD = False
         self.USE_BUOY_PLAN = False
 
+        # Mission logging file location
+        self.MISSION_LOG_FOLDER = '~/MissionLogs/'
+        self.ENABLE_MANUAL_MISSION_LOG = False
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

@@ -8,6 +8,7 @@ ABORT = 'abort'
 LEAK = 'leak'
 
 DEPTH = 'depth'
+RAW_GPS = 'raw_gps'
 MAX_DEPTH = 'max_depth'
 ALTITUDE = 'altitude'
 MIN_ALTITUDE = 'min_altitude'
@@ -60,3 +61,16 @@ BUOY_PLAN_USE = 'buoy_use_plan'
 
 WALL_PLAN_SET = 'wall_plan_set'
 USE_BUOY_PLAN = 'use_buoy_plan'
+# Algae farm
+BUOYS = 'buoys'
+
+
+# Goto action
+WAYPOINT_TOLERANCE = 'wp_tolerance'
+
+
+# Mission log object
+MISSION_LOG_OBJ = 'mission_log'
+MISSION_LOG_FOLDER = 'mission_logs_folder'
+ENABLE_MANUAL_MISSION_LOG = 'enable_manual_mission_log'
+MANUAL_MISSION_LOG_OBJ = 'manual_mission_log'

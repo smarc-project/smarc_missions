@@ -9,6 +9,7 @@
 	<arg name="path_topic" default="ctrl/planned_path" />
 	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
 	<arg name="latlon_topic" default="dr/lat_lon" />
+	<arg name="gps_topic" default="core/gps" />
 	<arg name="emergency_topic" default="core/abort" />
 	<arg name="heartbeat_topic" default="core/heartbeat" />
 	<arg name="mission_complete_topic" default="core/mission_complete" />
@@ -44,6 +45,9 @@
 	<arg name="waypoint_tolerance" default="1.5" />
 	<arg name="swath" default="20" />
 	<arg name="localization_error_growth" default="0.02" />
+	<arg name="buoy_topic" default="sim/marked_positions" />
+	<arg name="mission_log_folder" default="~/MissionLogs/" />
+	<arg name="enable_manual_mission_log" default="False" />
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
@@ -54,6 +58,7 @@
 		<param name="path_topic" value="$(arg path_topic)" />
 		<param name="plan_viz_topic" value="$(arg plan_viz_topic)" />
 		<param name="latlon_topic" value="$(arg latlon_topic)" />
+		<param name="gps_topic" value="$(arg gps_topic)" />
 		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
 		<param name="mission_complete_topic" value="$(arg mission_complete_topic)" />
@@ -89,5 +94,8 @@
 		<param name="waypoint_tolerance" value="$(arg waypoint_tolerance)" />
 		<param name="swath" value="$(arg swath)" />
 		<param name="localization_error_growth" value="$(arg localization_error_growth)" />
+		<param name="buoy_topic" value="$(arg buoy_topic)" />
+		<param name="mission_log_folder" value="$(arg mission_log_folder)" />
+		<param name="enable_manual_mission_log" value="$(arg enable_manual_mission_log)" />
 	</node>
 </launch>

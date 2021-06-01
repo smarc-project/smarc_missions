@@ -16,8 +16,8 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty
-from smarc_msgs.msg import Leak
-from smarc_msgs.msg import DVL
+from smarc_msgs.msg import Leak, DVL
+from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
 
@@ -66,9 +66,13 @@ from bt_actions import A_GotoWaypoint, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
                         A_ReadBuoys, \
-                        A_SetWallPlan, \
                             A_SetBuoyLocalisationPlan, \
-                                A_UpdateOdom
+                                A_UpdateOdom, \
+                       A_UpdateMissionLog, \
+                       A_SaveMissionLog, \
+                       A_ManualMissionLog, \
+                       A_PublishFinalize
+
 
 
 # globally defined values
@@ -153,6 +157,14 @@ def const_tree(auv_config):
             map_frame=auv_config.LOCAL_LINK,
             utm_frame=auv_config.UTM_LINK
         )
+
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.RAW_GPS:None},
+        )
+
 
 
         def const_neptus_tree():
@@ -330,37 +342,36 @@ def const_tree(auv_config):
         )
         return tree
 
-    def const_wall_plan_tree():
+    # def const_wall_plan_tree():
 
-        tree = Fallback(
-            'FB-WallPlanSet',
-            children=[
-                C_NoNeedToPlanBuoys(auv_config.USE_BUOY_PLAN),
-                A_SetWallPlan(
-                    'A_SetWallPlan',
-                    auv_config.WALL_SURVEY_ROW_SEP,
-                    auv_config.WALL_SURVEY_DEPTH,
-                    auv_config.LOCAL_LINK,
-                    auv_config.UTM_LINK,
-                    auv_config.WALL_SURVEY_VELOCITY,
-                    auv_config.LATLONTOUTM_SERVICE,
-                    auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE,
-                    auv_config.WALL_SURVEY_X0_OVERSHOOT,
-                    auv_config.WALL_SURVEY_X1_OVERSHOOT,
-                    auv_config.WALL_SURVEY_X0_LINEUP,
-                    auv_config.WALL_SURVEY_X1_LINEUP,
-                    auv_config.WALL_SURVEY_FIRST_LINEUP,
-                    auv_config.WALL_SURVEY_STARBOARD
-                )
-            ]
-        )
-        return tree
+    #     tree = Fallback(
+    #         'FB-WallPlanSet',
+    #         children=[
+    #             C_NoNeedToPlanBuoys(auv_config.USE_BUOY_PLAN),
+    #             A_SetWallPlan(
+    #                 'A_SetWallPlan',
+    #                 auv_config.WALL_SURVEY_ROW_SEP,
+    #                 auv_config.WALL_SURVEY_DEPTH,
+    #                 auv_config.LOCAL_LINK,
+    #                 auv_config.UTM_LINK,
+    #                 auv_config.WALL_SURVEY_VELOCITY,
+    #                 auv_config.LATLONTOUTM_SERVICE,
+    #                 auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE,
+    #                 auv_config.WALL_SURVEY_X0_OVERSHOOT,
+    #                 auv_config.WALL_SURVEY_X1_OVERSHOOT,
+    #                 auv_config.WALL_SURVEY_X0_LINEUP,
+    #                 auv_config.WALL_SURVEY_X1_LINEUP,
+    #                 auv_config.WALL_SURVEY_FIRST_LINEUP,
+    #                 auv_config.WALL_SURVEY_STARBOARD
+    #             )
+    #         ]
+    #     )
+    #     return tree
 
 
     def const_execute_mission_tree():
         # GOTO
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                     goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                      goal_tf_frame = auv_config.UTM_LINK)
         wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
@@ -373,7 +384,6 @@ def const_tree(auv_config):
         # SAMPLE
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
         sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                        goal_tf_frame = auv_config.UTM_LINK)
         wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
@@ -388,7 +398,6 @@ def const_tree(auv_config):
         #TODO add an inspection maneuver  into bridge and neptus etc.
         # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
         #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
-        #                                   goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
         #                                   goal_tf_frame = auv_config.UTM_LINK)
         # inspection_maneuver = Sequence(name="SQ-InspectWP",
                                        # children=[
@@ -411,6 +420,7 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
+                                         A_UpdateMissionLog(),
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -424,37 +434,24 @@ def const_tree(auv_config):
 
 
     def const_finalize_mission():
-        publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
-                                             message_object = Empty())
+        publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
 
 
-        set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
-                                                            variable_value = True,
-                                                            name = 'A_SetMissionFinalized->True')
 
         unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
-        #surface on plan completion
-        #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
-        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
-        #                             goal_tf_frame = auv_config.UTM_LINK)
-
-        #is_submerged = C_AtDVLDepth(0.5)
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
-                                  #is_submerged,
-                                  #planned_surface,
                                   publish_complete,
                                   unset_plan_is_go,
-                                  set_finalized
-
+                                  A_SaveMissionLog()
                         ])
 
     # The root of the tree is here
@@ -479,10 +476,10 @@ def const_tree(auv_config):
 
 
 
-
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
+                              A_ManualMissionLog(),
                               const_safety_tree(),
                             #   const_wall_plan_tree(),
                              # const_dvl_tree(),
