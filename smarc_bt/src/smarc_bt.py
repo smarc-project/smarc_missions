@@ -149,7 +149,9 @@ def const_tree(auv_config):
             heading=auv_config.BUOY_WALL_ANGLE,
             n_walls=auv_config.BUOY_N_WALLS,
             atol=auv_config.BUOY_ANGLE_TOLERANCE,
-            dtol=auv_config.BUOY_WALL_INCLUSION_TOLERANCE
+            dtol=auv_config.BUOY_WALL_INCLUSION_TOLERANCE,
+            map_frame=auv_config.LOCAL_LINK,
+            utm_frame=auv_config.UTM_LINK
         )
 
 
@@ -315,14 +317,14 @@ def const_tree(auv_config):
                 ),
                 A_SetBuoyLocalisationPlan(
                     centroid=auv_config.BUOY_CENTROID,
-                    frame=auv_config.LOCAL_LINK,
                     angle=auv_config.BUOY_WALL_ANGLE,
-                    utm_frame=auv_config.UTM_LINK,
-                    latlon_to_utm=auv_config.LATLONTOUTM_SERVICE,
                     distances=auv_config.BUOY_LOCALISATION_DISTANCES,
-                    velocity=auv_config.BUOY_LOCALISATION_VELOCITY,
                     depth=auv_config.BUOY_LOCALISATION_DEPTH,
-                    latlon_to_utm_alt=auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
+                    velocity=auv_config.BUOY_LOCALISATION_VELOCITY,
+                    map_frame=auv_config.LOCAL_LINK,
+                    utm_frame=auv_config.UTM_LINK,
+                    latlontoutm_service0=auv_config.LATLONTOUTM_SERVICE,
+                    latlontoutm_service1=auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
                 )
             ]
         )

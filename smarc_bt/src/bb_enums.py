@@ -49,6 +49,7 @@ LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 
 # Algae farm perception (A_ReadBuoys)
 BUOY_MARKERS = 'buoy_markers'
+BUOY_MARKERS_CENTROID = 'buoy_markers_centroid'
 BUOY_DETECTION = 'buoy_detection'
 
 # buoy localisation (C_BuoysLocalised)

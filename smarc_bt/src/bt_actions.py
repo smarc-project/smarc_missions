@@ -3,6 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+from inspect import FrameInfo
 from logging import makeLogRecord
 from math import dist
 from os import stat, utime
@@ -1159,7 +1160,9 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         heading,
         n_walls,
         atol,
-        dtol
+        dtol,
+        map_frame,
+        utm_frame
     ):
 
         # toggle
@@ -1176,9 +1179,14 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         self.heading = heading
         self.n_walls = n_walls
 
-        # line-fitting angle- and inclusion- tolerances
+        # line-fitting angle- and inclusion-tolerances
         self.atol = atol
         self.dtol = dtol
+
+        # TF frames
+        self.map_frame = map_frame
+        self.utm_frame = utm_frame
+        self.tf_listener = tf.TransformListener()
 
         # blackboard for info
         self.bb = pt.blackboard.Blackboard()
@@ -1221,14 +1229,15 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
     def update(self):
 
         # if we want to read sim buoys and there're none
-        if self.read_markers and self.buoy_markers is None:
+        if self.read_markers and (self.markers_centroid is None or self.markers is None):
             self.feedback_message = 'Sim buoy reader not working.'
             return pt.Status.FAILURE
 
         # otherwise, put them in the blackboard
         else:
             self.feedback_message = 'Putting sim buoys in blackboard.'
-            self.bb.set(bb_enums.BUOY_MARKERS, self.buoy_markers)
+            self.bb.set(bb_enums.BUOY_MARKERS_CENTROID, self.markers_centroid)
+            self.bb.set(bb_enums.BUOY_MARKERS, self.markers)
 
         return pt.Status.SUCCESS
 
@@ -1237,10 +1246,10 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         # if we haven't updated the markers
         if self.buoy_markers is None:
 
-            # TF frame
-            frame_id = markerarray.markers[0].header.frame_id
+            # markers should be in the map frame
+            # frame_id = markerarray.markers[0].header.frame_id
             for marker in markerarray.markers:
-                assert marker.header.frame_id == frame_id
+                assert marker.header.frame_id == self.map_frame
 
             # point cloud of buoy positions
             buoys = np.array([[
@@ -1250,7 +1259,7 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
             ] for marker in markerarray.markers])
 
             # sort the buoys into walls
-            buoys = self.infer_lines(
+            lines = self.infer_lines(
                 points=buoys,
                 theta=self.heading,
                 n_lines=self.n_walls,
@@ -1258,10 +1267,34 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
                 dtol=self.dtol
             )
 
+            # compute the centroid in the UTM frame
+            centroid = buoys.mean(axis=0)
+            centroid = PointStamped(
+                header=Header(frame_id=self.map_frame),
+                point=Point(
+                    x=centroid[0],
+                    y=centroid[1],
+                    z=centroid[2]
+                )
+            )
+            centroid = self.tf_listener.transformPoint(
+                self.utm_frame,
+                centroid
+            )
+            centroid = dict(
+                frame_id=self.utm_frame,
+                position=np.array([
+                    centroid.point.x,
+                    centroid.point.y,
+                    centroid.point.z
+                ])
+            )
+            self.markers_centroid = centroid
+        
             # put a dictionary into the blackboard
-            self.buoy_markers = dict(
-                frame_id=frame_id, 
-                walls=buoys
+            self.markers = dict(
+                frame_id=self.map_frame, 
+                lines=lines
             )
 
         # if we have already recorded them
@@ -1557,62 +1590,57 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         # return results
         return mu, sigma, gsigma, labels, model
 
-class A_Frame0toFrame1(pt.behaviour.Behaviour):
+class Framer:
 
-    def __init__(self, name, frame0, frame1):
+    def __init__(self, frames):
 
         # frames
-        self.frame0 = frame0
-        self.frame1 = frame1
+        self.frames = frames
 
         # TF listener
         self.tf_listener = tf.TransformListener()
-
-        # become behaviour
-        pt.behaviour.Behaviour.__init__(
-            self,
-            name=name
-        )
 
     def setup(self, timeout):
 
         # try to setup transform between the map and utm frame
         try:
-            rospy.loginfo_throttle(3, 'Waiting for tranform between {} to {}'.format(
-                self.frame0,
-                self.frame1
-            ))
-            self.tf_listener.waitForTransform(
-                self.frame0,
-                self.frame1,
-                rospy.Time(),
-                rospy.Duration(timeout)
-            )
-            rospy.loginfo_throttle(3, 'Attained {} to {} transformation.'.format(
-                self.frame0,
-                self.frame1
-            ))
-            self.tf_listener.waitForTransform(
-                self.frame1,
-                self.frame0,
-                rospy.Time(),
-                rospy.Duration(timeout)
-            )
-            rospy.loginfo_throttle(3, 'Attained {} to {} transformation.'.format(
-                self.frame1,
-                self.frame0
-            ))
+
+            # for every pair of frames
+            for frame in combinations(self.frames, 2):
+
+                # current setup frames
+                self._setup_frame = frame
+
+                # verbose
+                rospy.loginfo_throttle(3, 'Waiting for tranform between {} to {}'.format(*frame))
+
+                # wait for transform
+                self.tf_listener.waitForTransform(
+                    *frame,
+                    rospy.time(),
+                    rospy.Duration(timeout)
+                )
+
+                # verbose
+                rospy.loginfo_throttle(3, 'Found tranform between {} to {}'.format(*frame))
 
         # if we couldn't setup
         except:
-            rospy.loginfo_throttle(5, 'Could not setup {} and {} transformations.'.format(
-                self.frame0,
-                self.frame1
-            ))
+            rospy.loginfo_throttle(5, 'Could not setup {} and {} transformations.'.format(*self._setup_frame))
 
         return True
 
-    def points_to_mission(self, points, source_frame, target_frame, velocity, latlon_to_target, latlon_to_target_alternative):
+    def points_to_mission(
+        self, 
+        points, 
+        velocity,
+        source_frame, 
+        target_frame
+    ):
+
+        # sanity
+        assert source_frame in self.frames
+        assert target_frame in self.frames
 
         # waypoints
         wps = list()
@@ -1632,11 +1660,10 @@ class A_Frame0toFrame1(pt.behaviour.Behaviour):
                 )
             )
 
-            # transform point to target frame
+            # transform if needed
             point = self.tf_listener.transformPoint(
-                target_frame,
-                point
-            )
+                target_frame, point
+            ) if source_frame != target_frame else point
 
             # construct waypoint
             wp = Waypoint(
@@ -1664,34 +1691,45 @@ class A_Frame0toFrame1(pt.behaviour.Behaviour):
         # construct plan
         wps = MissionPlan(
             plandb_msg=pdb,
-            latlontoutm_service_name=latlon_to_target,
-            latlontoutm_service_name_alternative=latlon_to_target_alternative,
+            latlontoutm_service_name=self.latlon_to_utm,
+            latlontoutm_service_name_alternative=self.latlon_to_utm_alt,
             plan_frame=target_frame,
             waypoints=wps
         )
-
         return wps
 
 
-class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
+class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour, Framer):
 
-    def __init__(self, centroid, frame, angle, utm_frame, latlon_to_utm, distances, velocity, depth, latlon_to_utm_alt):
+    def __init__(
+        self, 
+        centroid,
+        angle,
+        distances,
+        depth,
+        velocity,
+        map_frame,
+        utm_frame,
+        latlontoutm_service0,
+        latlontoutm_service1
+    ):
 
-        # centroid of farm and its frame
+        # centroid of farm in UTM
         self.centroid = centroid
-        self.frame = frame
 
-        # angle of algae walls
+        # angle of wall parallel direction above easting
         self.angle = angle
 
-        # UTM frame
+        # TF frames
+        self.map_frame = map_frame
         self.utm_frame = utm_frame
+        Framer.__init__(self, [map_frame, utm_frame])
 
         # Lat-lon UTM service
-        self.latlon_to_utm = latlon_to_utm
-        self.latlon_to_utm_alt = latlon_to_utm_alt
+        self.latlon_to_utm = latlontoutm_service0
+        self.latlon_to_utm_alt = latlontoutm_service1
 
-        # distances of spiral path
+        # distances of spiral path w.r.t centroid
         self.distances = distances
 
         # path velocity and depth
@@ -1699,11 +1737,9 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
         self.depth = depth
 
         # become behaviour
-        A_Frame0toFrame1.__init__(
+        pt.behaviour.Behaviour.__init__(
             self,
-            name='A_SetBuoyLocalisationPlan',
-            frame0=self.frame,
-            frame1=self.utm_frame
+            name='A_SetBuoyLocalisationPlan'
         )
 
         # blackboard
@@ -1711,9 +1747,8 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
 
     def update(self):
 
-        # get current position and its frame
+        # get current position in UTM frame
         point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
-        point = self.tf_listener.transformPoint(self.frame, point)
         point = point.point
         point = np.array([
             point.x,
@@ -1740,12 +1775,11 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
         
         # construct waypoints in UTM frame
         path = self.points_to_mission(
-            points=path, 
-            source_frame=self.frame, 
-            target_frame=self.utm_frame,
+            points=path,
             velocity=self.velocity,
-            latlon_to_target=self.latlon_to_utm, 
-            latlon_to_target_alternative=self.latlon_to_utm_alt
+            source_frame=self.utm_frame, 
+            target_frame=self.utm_frame,
+            
         )
 
         # set the plan and the logical variable
@@ -1762,9 +1796,10 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
         lines = [A_SetBuoyLocalisationPlan.perimeter_line(
             centroid=origin,
             angle=angle,
-            distance=distances[0],
+            distance=distances[0][i%2],
             face=i,
-            side=0
+            side=0,
+            width=distances[0][i%2]
         ) for i in range(4)]
         lines = np.array(lines)
 
@@ -1839,9 +1874,10 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
             line = A_SetBuoyLocalisationPlan.perimeter_line(
                 centroid=origin,
                 angle=angle,
-                distance=distances[k],
+                distance=distances[k][i%2],
                 face=i,
-                side=side
+                side=side,
+                width=distances[k][(i+1)%2]
             )
 
             # add first point to path
@@ -1869,7 +1905,7 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
 
 
     @staticmethod
-    def perimeter_line(centroid, angle, distance, face, side):
+    def perimeter_line(centroid, angle, distance, face, side, width):
 
         # sanity
         faces0 = [0, 1, 2, 3]
@@ -1918,8 +1954,8 @@ class A_SetBuoyLocalisationPlan(A_Frame0toFrame1):
 
         # make line
         x = np.array([
-            centroid + v0*distance + v1*distance,
-            centroid + v0*distance + v2*distance
+            centroid + v0*distance + v1*width,
+            centroid + v0*distance + v2*width
         ])
         return x
 

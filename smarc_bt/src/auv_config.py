@@ -8,7 +8,7 @@ A simple config object for an AUV, to make sure that
 the fields are common.
 """
 
-import rospy
+import rospy, numpy as np
 
 class AUVConfig(object):
     """
@@ -101,8 +101,10 @@ class AUVConfig(object):
         self.BUOY_WALL_INCLUSION_TOLERANCE = 1e-2
 
         # localisation plan (A_SetBuoyLocalisationPlan) in map frame
-        self.BUOY_CENTROID = [0., 9., 0.]
-        self.BUOY_LOCALISATION_DISTANCES = [8, 11, 14]
+        # self.BUOY_CENTROID = [0., 9., 0.]
+        # self.BUOY_CENTROID = [ 6.43847892e+05,  6.45931221e+06, -3.14758017e-01]
+        self.BUOY_CENTROID = np.load('utm_centroid.npy')
+        self.BUOY_LOCALISATION_DISTANCES = [(10, 10), (10, 10), (10, 10)]
         self.BUOY_LOCALISATION_VELOCITY = 2.0
         self.BUOY_LOCALISATION_DEPTH = 3.0
 
