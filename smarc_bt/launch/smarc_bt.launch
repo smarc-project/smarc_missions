@@ -47,6 +47,7 @@
 	<arg name="localization_error_growth" default="0.02" />
 	<arg name="buoy_topic" default="sim/marked_positions" />
 	<arg name="mission_log_folder" default="~/MissionLogs/" />
+	<arg name="enable_manual_mission_log" default="False" />
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
@@ -95,5 +96,6 @@
 		<param name="localization_error_growth" value="$(arg localization_error_growth)" />
 		<param name="buoy_topic" value="$(arg buoy_topic)" />
 		<param name="mission_log_folder" value="$(arg mission_log_folder)" />
+		<param name="enable_manual_mission_log" value="$(arg enable_manual_mission_log)" />
 	</node>
 </launch>
