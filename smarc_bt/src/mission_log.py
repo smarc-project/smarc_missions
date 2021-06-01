@@ -11,6 +11,10 @@ import os
 import json
 import time
 
+from nav_msgs.msg import Path
+from geometry_msgs.msg import Point, PoseStamped
+import rospy
+
 class MissionLog:
     def __init__(self,
                  mission_plan,
@@ -39,6 +43,16 @@ class MissionLog:
         self.time_trace = []
 
 
+        self.path_msg = Path()
+        self.path_msg.header.frame_id = 'utm'
+        self.path_pub = rospy.Publisher('bt_viz/path', Path, queue_size=1)
+
+        self.bottom_msg = Path()
+        self.bottom_msg.header.frame_id = 'utm'
+        self.bottom_pub = rospy.Publisher('bt_viz/bottom', Path, queue_size=1)
+
+        self.plan_pub = rospy.Publisher('bt_viz/mission_plan', Path, queue_size=1)
+
         if mission_plan is not None:
             # used to check if log and mission plan are synched
             self.creation_time = mission_plan.creation_time
@@ -53,6 +67,7 @@ class MissionLog:
 
                 point = (wp.x, wp.y, z)
                 self.mission_plan_wps.append(point)
+
         else:
             self.creation_time = time.time()
             self.plan_id = "MANUAL"
@@ -94,6 +109,16 @@ class MissionLog:
         yaw = bb.get(bb_enums.YAW)
         self.navigation_trace.append((x,y,z, roll,pitch,yaw))
 
+        point = bb.get(bb_enums.LOCATION_POINT_STAMPED)
+        ps = PoseStamped()
+        ps.header = point.header
+        ps.pose.position.x = point.point.x
+        ps.pose.position.y = point.point.y
+        ps.pose.position.z = point.point.z
+        self.path_msg.poses.append(ps)
+        self.path_pub.publish(self.path_msg)
+
+
         # then add the raw gps
         gps = bb.get(bb_enums.RAW_GPS)
         if gps is None or gps.status.status == -1: # no fix
@@ -118,6 +143,27 @@ class MissionLog:
         # simple enough
         alt = bb.get(bb_enums.ALTITUDE)
         self.altitude_trace.append(alt)
+
+        ps = PoseStamped()
+        ps.header = point.header
+        ps.pose.position.x = point.point.x
+        ps.pose.position.y = point.point.y
+        ps.pose.position.z = point.point.z - alt
+        self.bottom_msg.poses.append(ps)
+        self.bottom_pub.publish(self.bottom_msg)
+
+        if self.plan_id != 'MANUAL':
+            self.plan_msg = Path()
+            self.plan_msg.header.frame_id = 'utm'
+            for x,y,z in self.mission_plan_wps:
+                ps = PoseStamped()
+                ps.header = point.header
+                ps.pose.position.x = x
+                ps.pose.position.y = y
+                ps.pose.position.z = z
+                self.plan_msg.poses.append(ps)
+            self.plan_pub.publish(self.plan_msg)
+
 
 
 
