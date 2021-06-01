@@ -64,7 +64,10 @@ from bt_actions import A_GotoWaypoint, \
                        A_SetDVLRunning, \
                        A_ReadBuoys, \
                        A_UpdateMissionLog, \
-                       A_SaveMissionLog
+                       A_SaveMissionLog, \
+                       A_ManualMissionLog, \
+                       A_PublishFinalize
+
 
 
 # globally defined values
@@ -365,24 +368,14 @@ def const_tree(auv_config):
 
 
     def const_finalize_mission():
-        publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
-                                             message_object = Empty())
+        publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
 
 
-        set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
-                                                            variable_value = True,
-                                                            name = 'A_SetMissionFinalized->True')
 
         unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
-
-        #surface on plan completion
-        #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
-        #                             goal_tf_frame = auv_config.UTM_LINK)
-
-        #is_submerged = C_AtDVLDepth(0.5)
 
 
         return Sequence(name="SQ-FinalizeMission",
@@ -390,11 +383,8 @@ def const_tree(auv_config):
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
-                                  #is_submerged,
-                                  #planned_surface,
                                   publish_complete,
                                   unset_plan_is_go,
-                                  set_finalized,
                                   A_SaveMissionLog()
                         ])
 
@@ -420,10 +410,10 @@ def const_tree(auv_config):
 
 
 
-
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
+                              A_ManualMissionLog(),
                               const_safety_tree(),
                              # const_dvl_tree(),
                               run_tree

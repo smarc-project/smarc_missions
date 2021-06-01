@@ -33,8 +33,27 @@ class MissionLog:
         # the waypoints of the mission this log belongs to
         self.mission_plan_wps = []
 
+        if mission_plan is not None:
+            # used to check if log and mission plan are synched
+            self.creation_time = mission_plan.creation_time
+            self.plan_id = mission_plan.plan_id
+
+            # we can populate the mission plan right away
+            for wp in mission_plan.waypoints:
+                if wp.z_unit == imc_enums.Z_DEPTH:
+                    z = -wp.z
+                else:
+                    z = wp.z
+
+                point = (wp.x, wp.y, z)
+                self.mission_plan_wps.append(point)
+        else:
+            self.creation_time = time.time()
+            self.plan_id = "MANUAL"
+
+
         # give a nice name to the file
-        t = time.localtime(mission_plan.creation_time)
+        t = time.localtime(self.creation_time)
         t_str = "{}-{:02d}-{:02d}-{:02d}-{:02d}".format(
             t.tm_year,
             t.tm_mon,
@@ -42,7 +61,7 @@ class MissionLog:
             t.tm_hour,
             t.tm_min)
 
-        log_filename = "{}_{}.json".format(t_str, mission_plan.plan_id)
+        log_filename = "{}_{}.json".format(t_str, self.plan_id)
         save_folder = os.path.expanduser(save_location)
         self.disabled = False
         try:
@@ -57,19 +76,8 @@ class MissionLog:
 
         self.save_location = os.path.join(save_folder, log_filename)
 
-        # used to check if log and mission plan are synched
-        self.creation_time = mission_plan.creation_time
 
 
-        # we can populate the mission plan right away
-        for wp in mission_plan.waypoints:
-            if wp.z_unit == imc_enums.Z_DEPTH:
-                z = -wp.z
-            else:
-                z = wp.z
-
-            point = (wp.x, wp.y, z)
-            self.mission_plan_wps.append(point)
 
 
 
@@ -152,14 +160,18 @@ if __name__ == '__main__':
     origin = np.array(list(nav_trace[0]))
     #center on first nav point
     nav_trace -= origin
-    mplan -= origin
+
+    if len(mplan) > 0:
+        mplan -= origin
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
 
     plt.plot(nav_trace[:,0], nav_trace[:,1], nav_trace[:,2])
-    plt.plot(mplan[:,0], mplan[:,1], mplan[:,2])
+
+    if len(mplan) > 0:
+        plt.plot(mplan[:,0], mplan[:,1], mplan[:,2])
 
     # filter out "non-fixes"
     gps_fixes = gps_trace[gps_trace !=  None]
