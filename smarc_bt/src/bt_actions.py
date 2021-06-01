@@ -71,6 +71,8 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
                 self.feedback_message = msg
                 return pt.Status.FAILURE
 
+        return pt.Status.SUCCESS
+
 
 
 
