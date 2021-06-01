@@ -90,12 +90,13 @@ class AUVConfig(object):
         self.ODOM_TOPIC = 'dr/odom'
 
         # Algae farm perception (A_ReadBuoys)
-        self.BUOY_READ_MARKERS = True
-        self.BUOY_READ_DETECTION = True
+        self.BUOY_READ_MARKERS = False
+        self.BUOY_READ_DETECTION = False
         self.BUOY_MARKER_TOPIC = 'sim/marked_positions'
         self.BUOY_DETECTION_TOPIC = 'sim/sidescan/detection_hypothesis'
 
         # infer lines
+        # 90=north, 0=east, etc.
         self.BUOY_WALL_ANGLE = 90.0 # for testing
         self.BUOY_N_WALLS = 2
         self.BUOY_ANGLE_TOLERANCE = 1e-2
@@ -103,7 +104,9 @@ class AUVConfig(object):
 
         # localisation plan (A_SetBuoyLocalisationPlan) in map frame
         # self.BUOY_CENTROID = [0., 9., 0.]
-        self.BUOY_CENTROID = np.load('utm_centroid.npy')
+        # self.BUOY_CENTROID = np.load('utm_centroid.npy')
+        # https://goo.gl/maps/vE9wkxBMkP5X6owXA
+        self.BUOY_CENTROID = np.load('/home/cisprague/catkin_ws/src/smarc_missions/smarc_bt/src/buoys_centroid_latlon.npy')
         self.BUOY_LOCALISATION_DISTANCES = [(10, 10), (10, 10), (9, 9)]
         self.BUOY_LOCALISATION_VELOCITY = 2.0
         self.BUOY_LOCALISATION_DEPTH = 3.0

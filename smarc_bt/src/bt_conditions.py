@@ -480,7 +480,10 @@ class C_NoNeedToPlanBuoys(pt.behaviour.Behaviour):
 
 class C_BuoysLocalised(pt.behaviour.Behaviour):
 
-    def __init__(self):
+    def __init__(self, use):
+
+        # to use or not to use
+        self.use = use
 
         # become behaviour
         pt.behaviour.Behaviour.__init__(
@@ -488,8 +491,24 @@ class C_BuoysLocalised(pt.behaviour.Behaviour):
             name='C_BuoysLocalised'
         )
 
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
     def update(self):
-        return pt.Status.FAILURE
+
+        # if we even care about mapping
+        if self.use:
+            '''
+            if covariances of self.bb.buoy_detections
+            is good return Success
+            '''
+            self.feedback_message = 'We do not '
+            return pt.Status.FAILURE
+
+        # otherwise, whatever dude
+        else:
+            self.feedback_message = 'We do not care about localisation.'
+            return pt.Status.SUCCESS
 
 class C_BuoyLocalisationPlanSet(pt.behaviour.Behaviour):
 

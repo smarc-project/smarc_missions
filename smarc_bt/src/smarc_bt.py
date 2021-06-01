@@ -320,7 +320,7 @@ def const_tree(auv_config):
         tree = Fallback(
             'FB-BuoysLocalised',
             children=[
-                C_BuoysLocalised(),
+                C_BuoysLocalised(auv_config.BUOY_READ_DETECTION),
                 # C_BuoyLocalisationPlanSet(),
                 CheckBlackboardVariableValue(
                     bb_enums.BUOY_LOCALISATION_PLAN_SET, 

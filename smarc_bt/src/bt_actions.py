@@ -24,6 +24,7 @@ from sklearn.cluster import KMeans
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
+from geographic_msgs.msg import GeoPoint
 from nav_msgs.msg import Path, Odometry
 from std_msgs.msg import Float64, Header, Bool, Empty
 from tf2_ros import transform_listener
@@ -32,6 +33,7 @@ from sensor_msgs.msg import NavSatFix
 from vision_msgs.msg import Detection2DArray
 
 from std_srvs.srv import SetBool
+from smarc_msgs.srv import LatLonToUTM
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 import matplotlib.pyplot as plt
@@ -1495,6 +1497,8 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
                 ])
             )
             self.markers_centroid = centroid
+
+
         
             # put a dictionary into the blackboard
             self.markers = dict(
@@ -1896,8 +1900,8 @@ class Framer:
         # construct plan
         wps = MissionPlan(
             plandb_msg=pdb,
-            latlontoutm_service_name=self.latlon_to_utm,
-            latlontoutm_service_name_alternative=self.latlon_to_utm_alt,
+            latlontoutm_service_name=self.latlon_to_utm_serv[0],
+            latlontoutm_service_name_alternative=self.latlon_to_utm_serv[1],
             plan_frame=target_frame,
             waypoints=wps
         )
@@ -1919,7 +1923,7 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour, Framer):
         latlontoutm_service1
     ):
 
-        # centroid of farm in UTM
+        # centroid of farm in lat-lon
         self.centroid = centroid
 
         # angle of wall parallel direction above easting
@@ -1930,9 +1934,11 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour, Framer):
         self.utm_frame = utm_frame
         Framer.__init__(self, [map_frame, utm_frame])
 
-        # Lat-lon UTM service
-        self.latlon_to_utm = latlontoutm_service0
-        self.latlon_to_utm_alt = latlontoutm_service1
+        # Lat-lon UTM services
+        self.latlon_to_utm_serv = [
+            latlontoutm_service0,
+            latlontoutm_service1
+        ]
 
         # distances of spiral path w.r.t centroid
         self.distances = distances
@@ -1949,6 +1955,50 @@ class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour, Framer):
 
         # blackboard
         self.bb = pt.blackboard.Blackboard()
+
+    def setup(self, timeout):
+
+        # setup frames
+        Framer.setup(self, timeout)
+
+        # setup lat-lon to UTM server
+        for s in self.latlon_to_utm_serv:
+            try:
+
+                # wait for the service
+                rospy.loginfo('Waiting for lat-lon service for {}'.format(
+                    self.name
+                ))
+                rospy.wait_for_service(s, timeout=timeout)
+
+                # make a function from the service
+                self.latlon_to_utm = rospy.ServiceProxy(
+                    s,
+                    LatLonToUTM
+                )
+                rospy.loginfo('Found lat-lon service for {}'.format(
+                    self.name
+                ))
+
+                # lat-lon centroid to UTM
+                rospy.loginfo('Computing centroid for buoys.')
+                self.centroid = self.latlon_to_utm(GeoPoint(*self.centroid, 0.0))
+                self.centroid = np.array([
+                    self.centroid.utm_point.x,
+                    self.centroid.utm_point.y,
+                    self.centroid.utm_point.z
+                ])
+                rospy.loginfo('Found buoys centroid at {}'.format(self.centroid))
+                print(self.centroid)
+                break
+
+            # if we couldn't do it
+            except Exception as e:
+                rospy.loginfo('Could not setup {}'.format(self.name))
+                continue
+
+        return True
+
 
     def update(self):
 
