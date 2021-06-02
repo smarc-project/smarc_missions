@@ -209,9 +209,14 @@ class WPDepthPlanner(object):
 
         self.nav_goal.position.z = goal.travel_depth # assign waypoint depth from neptus, goal.z is 0.
         if goal.speed_control_mode == 2:
-            self.vel_ctrl_flag = 1 # check if NEPTUS sets a velocity
+            self.vel_ctrl_flag = True # check if NEPTUS sets a velocity
         elif goal.speed_control_mode == 1:
-            self.vel_ctrl_flag = 0 # use RPM ctrl
+            self.vel_ctrl_flag = False # use RPM ctrl
+            self.forward_rpm = goal.travel_rpm #take rpm from NEPTUS
+
+        if self.use_constant_rpm: #overriding neptus values
+            self.vel_ctrl_flag = False #use constant rpm
+
 
         goal_point = PointStamped()
         goal_point.header.frame_id = self.nav_goal_frame
@@ -230,7 +235,7 @@ class WPDepthPlanner(object):
 
         rospy.loginfo('Nav goal in local %s ' % self.nav_goal.position.x)
 
-        r = rospy.Rate(11.) # 10hz
+        r = rospy.Rate(15.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
             
@@ -333,11 +338,6 @@ class WPDepthPlanner(object):
 
                 ## Publish setpoints to controllers 
                 self.publish_depth_setpoint(depth_setpoint) # call function that uses vbs at low speeds, dynamic depth at higher speeds
-                
-                if self.use_constant_rpm:
-                    self.vel_ctrl_flag = False #use constant rpm
-                else:
-                    self.vel_ctrl_flag = True#use velocity control
 
                 if self.wp_distance < 8.0:
                     wp_is_close = True
