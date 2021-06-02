@@ -18,6 +18,7 @@ import rospy
 class MissionLog:
     def __init__(self,
                  mission_plan,
+                 robot_name,
                  save_location = "~/MissionLogs/"):
         """
         A log object to create easy to read and visualize path logs
@@ -28,6 +29,7 @@ class MissionLog:
         Everything in utm frame and z up.
         """
 
+        self.robot_name = robot_name
         # filtered/corrected trace of auv pose
         # x,y,z, yaw,pitch,roll
         self.navigation_trace = []
@@ -41,6 +43,10 @@ class MissionLog:
         self.mission_plan_wps = []
 
         self.time_trace = []
+
+        # a dict for vehicle-specific data
+        # loaded from Log<Vehicle> actions
+        self.vehicle_data = {}
 
 
         self.path_msg = Path()
@@ -95,11 +101,50 @@ class MissionLog:
             self.disabled = True
             return
 
-        self.save_location = os.path.join(save_folder, log_filename)
+        self.data_full_path = os.path.join(save_folder, log_filename)
+        script_name = 'view.py'
+        self.script_full_path = os.path.join(save_folder, script_name)
 
 
+    def vehicle_log(self, key, bb_key, bb):
+        l = self.vehicle_data.get(key)
+        if l is None:
+            self.vehicle_data[key] = []
+        self.vehicle_data[key].append(bb.get(bb_key))
 
-    def log(self, bb, mplan, t=None):
+
+    def log_lolo(self, bb):
+        if 'lolo' not in self.robot_name:
+            return False
+
+        self.vehicle_data['robot_name'] = self.robot_name
+        self.vehicle_log('elevator_trace', bb_enums.LOLO_ELEVATOR, bb)
+        self.vehicle_log('elevon_port_trace', bb_enums.LOLO_ELEVON_PORT, bb)
+        self.vehicle_log('elevon_strb_trace', bb_enums.LOLO_ELEVON_STRB, bb)
+        self.vehicle_log('aft_tank_trace', bb_enums.LOLO_AFT_TANK, bb)
+        self.vehicle_log('aft_tank_target_trace', bb_enums.LOLO_AFT_TANK_TARGET, bb)
+        self.vehicle_log('front_tank_trace', bb_enums.LOLO_FRONT_TANK, bb)
+        self.vehicle_log('front_tank_target_trace', bb_enums.LOLO_FRONT_TANK_TARGET, bb)
+
+        return True
+
+
+    def log_sam(self, bb):
+        if 'sam' not in self.robot_name:
+            return False
+        return True
+
+
+    def log(self, mplan, bb, t=None):
+        ############################################
+        # vehicle-specific stuff
+        logged_lolo = self.log_lolo(bb)
+        logged_sam = self.log_sam(bb)
+
+
+        ############################################
+        # vehicle-agnostic stuff
+
         # first add the auv pose
         world_trans = bb.get(bb_enums.WORLD_TRANS)
         x,y = world_trans[0], world_trans[1]
@@ -167,6 +212,8 @@ class MissionLog:
 
 
 
+
+
     def save(self):
         if self.disabled:
             print("Save location was bad before, can not save!")
@@ -180,8 +227,18 @@ class MissionLog:
                 'time_trace':self.time_trace,
                 'altitude_trace':self.altitude_trace}
 
-        with open(self.save_location, 'w+') as f:
+        with open(self.data_full_path, 'w+') as f:
             json.dump(data, f)
+
+        # also save a viewer script to the same locale
+        try:
+            if not os.path.exists(self.script_full_path):
+                with open(self.script_full_path, 'w+') as f:
+                    global viewer_script
+                    f.write(viewer_script)
+        except:
+            print("Viewer script could not be written")
+
 
 def set_axes_equal(ax):
     '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
@@ -212,7 +269,11 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
+viewer_script = """
 if __name__ == '__main__':
+    import numpy as np
+    import os
+    import json
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D #needed for '3d'
     import sys
@@ -294,7 +355,7 @@ if __name__ == '__main__':
 
 
     plt.show()
-
+"""
 
 
 

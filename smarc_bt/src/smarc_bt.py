@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
@@ -66,7 +66,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
-                       A_PublishFinalize
+                       A_PublishFinalize, \
+                       A_ReadLolo
 
 
 
@@ -92,6 +93,7 @@ def const_tree(auv_config):
 
     # just for clarity when looking at the bb in the field
     bb.set(bb_enums.MISSION_FINALIZED, False)
+    bb.set(bb_enums.ROBOT_NAME, auv_config.robot_name)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -168,6 +170,13 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.RAW_GPS:None},
         )
 
+        read_lolo = A_ReadLolo(
+            robot_name = auv_config.robot_name,
+            elevator_topic = auv_config.LOLO_ELEVATOR_TOPIC,
+            elevon_port_topic = auv_config.LOLO_ELEVON_PORT_TOPIC,
+            elevon_strb_topic = auv_config.LOLO_ELEVON_STRB_TOPIC,
+            aft_tank_topic = auv_config.LOLO_AFT_TANK_TOPIC,
+            front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
 
 
         def const_neptus_tree():
@@ -208,6 +217,7 @@ def const_tree(auv_config):
                             read_pitch,
                             read_yaw,
                             read_buoys,
+                            read_lolo,
                             update_tf,
                             neptus_tree,
                             publish_heartbeat

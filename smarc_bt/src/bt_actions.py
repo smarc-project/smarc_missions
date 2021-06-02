@@ -14,7 +14,7 @@ import tf
 import actionlib
 
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 from nav_msgs.msg import Path
@@ -32,6 +32,102 @@ import common_globals
 
 from mission_plan import MissionPlan
 from mission_log import MissionLog
+
+
+class A_ReadLolo(pt.behaviour.Behaviour):
+    def __init__(self,
+                 robot_name,
+                 elevator_topic,
+                 elevon_port_topic,
+                 elevon_strb_topic,
+                 aft_tank_topic,
+                 front_tank_topic):
+        super(A_ReadLolo, self).__init__(name="A_ReadLolo")
+        self.bb = pt.blackboard.Blackboard()
+        self.robot_name = robot_name
+        self.elevator_topic = elevator_topic
+        self.elevon_port_topic = elevon_port_topic
+        self.elevon_strb_topic = elevon_strb_topic
+        self.aft_tank_topic = aft_tank_topic
+        self.front_tank_topic = front_tank_topic
+
+        self.elevator_sub = None
+        self.elevon_port_sub = None
+        self.elevon_strb_sub = None
+        self.aft_tank_sub = None
+        self.front_tank_sub = None
+
+        self.elevator = None
+        self.elevon_port = None
+        self.elevon_strb = None
+        self.aft_tank = None
+        self.aft_tank_target = None
+        self.front_tank = None
+        self.front_tank_target = None
+
+        self.anim_frames = ['^','<','v','>']
+        self.elev_anim_frame = 0
+        self.elevonp_anim_frame = 0
+        self.elevons_anim_frame = 0
+        self.aft_anim_frame = 0
+        self.front_anim_frame = 0
+
+        self.disabled = False
+
+    def elev_cb(self, msg):
+        self.elevator = msg.data
+        self.elev_anim_frame = (self.elev_anim_frame + 1) %(len(self.anim_frames))
+    def elevon_port_cb(self, msg):
+        self.elevon_port = msg.data
+        self.elevonp_anim_frame = (self.elevonp_anim_frame + 1) %(len(self.anim_frames))
+    def elevon_strb_cb(self, msg):
+        self.elevon_strb = msg.data
+        self.elevons_anim_frame = (self.elevons_anim_frame + 1) %(len(self.anim_frames))
+    def aft_tank_cb(self, msg):
+        self.aft_tank = msg.percent_current
+        self.aft_tank_target = msg.percent_target
+        self.aft_anim_frame = (self.aft_anim_frame + 1) %(len(self.anim_frames))
+    def front_tank_cb(self, msg):
+        self.front_tank = msg.percent_current
+        self.front_tank_target = msg.percent_target
+        self.front_anim_frame = (self.front_anim_frame + 1) %(len(self.anim_frames))
+
+
+    def setup(self, timeout):
+        if 'lolo' not in self.robot_name:
+            self.disabled = True
+            return True
+        from lolo_msgs.msg import VbsTank
+        self.elevator_sub = rospy.Subscriber(self.elevator_topic, FloatStamped, self.elev_cb)
+        self.elevon_port_sub = rospy.Subscriber(self.elevon_port_topic, FloatStamped, self.elevon_port_cb)
+        self.elevon_strb_sub = rospy.Subscriber(self.elevon_strb_topic, FloatStamped, self.elevon_strb_cb)
+        self.aft_tank_sub = rospy.Subscriber(self.aft_tank_topic, VbsTank, self.aft_tank_cb)
+        self.front_tank_sub = rospy.Subscriber(self.front_tank_topic, VbsTank, self.front_tank_cb)
+        return True
+
+    def update(self):
+        if self.disabled:
+            self.feedback_message = "Robot not LOLO"
+            return pt.Status.SUCCESS
+
+        self.bb.set(bb_enums.LOLO_ELEVATOR, self.elevator)
+        self.bb.set(bb_enums.LOLO_ELEVON_PORT, self.elevon_port)
+        self.bb.set(bb_enums.LOLO_ELEVON_STRB, self.elevon_strb)
+        self.bb.set(bb_enums.LOLO_AFT_TANK, self.aft_tank)
+        self.bb.set(bb_enums.LOLO_AFT_TANK_TARGET, self.aft_tank_target)
+        self.bb.set(bb_enums.LOLO_FRONT_TANK, self.front_tank)
+        self.bb.set(bb_enums.LOLO_FRONT_TANK_TARGET, self.front_tank_target)
+
+
+        frame = 'elv{} enp{} ens{} aft{} frn{}'.format(
+            self.anim_frames[self.elev_anim_frame],
+            self.anim_frames[self.elevonp_anim_frame],
+            self.anim_frames[self.elevons_anim_frame],
+            self.anim_frames[self.aft_anim_frame],
+            self.anim_frames[self.front_anim_frame])
+        self.feedback_message = frame
+        return pt.Status.SUCCESS
+
 
 
 class A_PublishFinalize(pt.behaviour.Behaviour):
@@ -96,6 +192,7 @@ class A_ManualMissionLog(pt.behaviour.Behaviour):
     def start_new_log(self):
         save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
         log = MissionLog(mission_plan = None,
+                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
                          save_location = save_location)
         self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, log)
         rospy.loginfo("Started new manual mission log")
@@ -169,6 +266,7 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
     def start_new_log(self, mplan):
         save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
         log = MissionLog(mission_plan = mplan,
+                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
                          save_location = save_location)
         self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
         rospy.loginfo("Started new mission log")

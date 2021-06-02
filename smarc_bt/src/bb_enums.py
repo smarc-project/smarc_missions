@@ -3,6 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+ROBOT_NAME = 'robot_name'
 
 ABORT = 'abort'
 LEAK = 'leak'
@@ -65,3 +66,12 @@ MISSION_LOG_OBJ = 'mission_log'
 MISSION_LOG_FOLDER = 'mission_logs_folder'
 ENABLE_MANUAL_MISSION_LOG = 'enable_manual_mission_log'
 MANUAL_MISSION_LOG_OBJ = 'manual_mission_log'
+
+# lolo-specific
+LOLO_ELEVATOR = 'lolo_elevator'
+LOLO_ELEVON_PORT = 'lolo_elevon_port'
+LOLO_ELEVON_STRB = 'lolo_elevon_strb'
+LOLO_AFT_TANK = 'lolo_aft_tank'
+LOLO_FRONT_TANK = 'lolo_front_tank'
+LOLO_AFT_TANK_TARGET = 'lolo_aft_tank_target'
+LOLO_FRONT_TANK_TARGET = 'lolo_front_tank_target'
