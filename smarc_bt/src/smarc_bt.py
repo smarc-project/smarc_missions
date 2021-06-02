@@ -222,7 +222,7 @@ def const_tree(auv_config):
                             read_roll,
                             read_pitch,
                             read_yaw,
-                            #read_gps,
+                            read_gps,
                             read_buoys,
                             read_lolo,
                             update_tf,

@@ -317,6 +317,8 @@ if __name__ == '__main__':
     #center on first nav point
     loc_trace -= origin
     ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='red')
+    plt.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2]+3, "S")
+    plt.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2]+3, "E")
 
     try:
         rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
@@ -342,6 +344,7 @@ if __name__ == '__main__':
 
     if len(mplan) > 1:
         mplan -= origin
+        mplan[:,2] = np.min(mplan[:,2], 0.)
         plt.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
 
     # filter out "non-fixes"
