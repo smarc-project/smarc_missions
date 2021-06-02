@@ -3,8 +3,13 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+from inspect import FrameInfo
+from logging import makeLogRecord
+from math import dist
+from os import stat, utime
 import py_trees as pt
 import py_trees_ros as ptr
+from tf import transformations
 
 import time
 import numpy as np
@@ -12,25 +17,32 @@ import numpy as np
 import rospy
 import tf
 import actionlib
-
+from itertools import chain, combinations
+from sklearn.mixture import BayesianGaussianMixture
+from sklearn.cluster import DBSCAN
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
-from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
-from nav_msgs.msg import Path
+from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
+from geographic_msgs.msg import GeoPoint
+from nav_msgs.msg import Path, Odometry
 from std_msgs.msg import Float64, Header, Bool, Empty
+from tf2_ros import transform_listener
 from visualization_msgs.msg import MarkerArray
 from sensor_msgs.msg import NavSatFix
+from vision_msgs.msg import Detection2DArray
+
 
 from std_srvs.srv import SetBool
+from smarc_msgs.srv import LatLonToUTM
 
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
-
+import matplotlib.pyplot as plt
 import bb_enums
 import imc_enums
 import common_globals
 
-from mission_plan import MissionPlan
+from mission_plan import MissionPlan, Waypoint
 from mission_log import MissionLog
 
 
@@ -641,7 +653,54 @@ class A_UpdateTF(pt.behaviour.Behaviour):
 
         return pt.Status.SUCCESS
 
+class A_UpdateOdom(pt.behaviour.Behaviour):
 
+    def __init__(self, odom_topic):
+
+        # topic name
+        self.odom_topic = odom_topic
+
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            'A_UpdateOdom'
+        )
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+    def setup(self, timeout):
+
+        # setup subscribers
+        try:
+
+            # subscribe to DR pose
+            rospy.loginfo_throttle(5, 'Setting up Odometry reader.')
+            self.sub_odom = rospy.Subscriber(
+                name=self.odom_topic,
+                data_class=Odometry,
+                callback=self.get_odom,
+                queue_size=10
+            )
+
+        except:
+            rospy.loginfo_throttle(5, 'Could not set up odometry reader.')
+
+    def get_odom(self, odometry):
+
+        # TF frame
+        frame_id = odometry.header.frame_id
+
+        # pose
+        pose = odometry.pose.pose
+        pose = PoseStamped(
+            pose=pose,
+            header=Header(frame_id)
+        )
+
+        # twist
+        twist = odometry.twist.twist
+        twist = PoseStamped
 
 
 class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
@@ -722,7 +781,6 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
         # reset it until next message
         self.plan_control_msg = None
         return pt.Status.SUCCESS
-
 
 
 class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
@@ -1265,27 +1323,47 @@ class A_FollowLeader(ptr.actions.ActionClient):
 class A_ReadBuoys(pt.behaviour.Behaviour):
 
     '''
-    This action reads the uncertain positions
-    (mean and covariance) of buoys from the rostopic.
+    This action reads the 
+    - simulated buoy positions (marker_topic) 
+    - and the detected buoy positions (detection_topic)
     '''
 
     def __init__(
-        self,
-        topic_name,
-        buoy_link,
-        utm_link,
-        latlon_utm_serv,
+        self, 
+        read_markers,
+        read_detection, 
+        marker_topic, 
+        detection_topic,
+        heading,
+        n_walls,
+        atol,
+        dtol,
+        map_frame,
+        utm_frame
     ):
 
-        # rostopic name and type (e.g. marker array)
-        self.topic_name = topic_name
+        # toggle
+        self.read_markers = read_markers
+        self.read_detection = read_detection
 
-        # frame IDs for TF
-        self.buoy_link = buoy_link
-        self.utm_link = utm_link
+        # markers (map frame)
+        self.marker_topic = marker_topic
 
-        # lat/lon to utm service
-        self.latlon_utm_serv = latlon_utm_serv
+        # detection hypothesis of buoys (odom frame)
+        self.detection_topic = detection_topic
+
+        # a priori wall orientation and number of walls
+        self.heading = heading
+        self.n_walls = n_walls
+
+        # line-fitting angle- and inclusion-tolerances
+        self.atol = atol
+        self.dtol = dtol
+
+        # TF frames
+        self.map_frame = map_frame
+        self.utm_frame = utm_frame
+        self.tf_listener = tf.TransformListener()
 
         # blackboard for info
         self.bb = pt.blackboard.Blackboard()
@@ -1296,90 +1374,1245 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
             name="A_ReadBuoys"
         )
 
-        # for coordinate frame transformations
+    def setup(self, timeout):
+
+        # feedback
+        rospy.loginfo('Setting up A_ReadBuoys')
+
+        # initialise variables of interest
+        self.bb.set(bb_enums.BUOY_MARKERS, None)
+        self.bb.set(bb_enums.BUOY_DETECTION, None)
+        self.markers = None
+        self.markers_centroid = None
+        self.detections = None
+
+        # subscribe to buoy markers
+        self.sub_markers = rospy.Subscriber(
+            self.marker_topic,
+            MarkerArray,
+            callback=self.get_marker,
+            queue_size=10
+        )
+        
+        # # subscribe to buoy detection
+        # self.sub_sensor = rospy.Subscriber(
+        #     self.detection_topic,
+        #     Detection2DArray,
+        #     callback=self.get_detection,
+        #     queue_size=10
+        # )
+
+        return True
+
+    def update(self):
+
+        # if we want to read sim buoys and there're none
+        if self.read_markers and (self.markers_centroid is None or self.markers is None):
+            self.feedback_message = 'Sim buoy reader not working.'
+            return pt.Status.FAILURE
+
+        # otherwise, put them in the blackboard
+        else:
+            self.feedback_message = 'Putting sim buoys in blackboard.'
+            self.bb.set(bb_enums.BUOY_MARKERS_CENTROID, self.markers_centroid)
+            self.bb.set(bb_enums.BUOY_MARKERS, self.markers)
+
+        return pt.Status.SUCCESS
+
+    def get_marker(self, markerarray):
+
+        # if we haven't updated the markers
+        if self.markers is None:
+
+            # markers should be in the map frame
+            # frame_id = markerarray.markers[0].header.frame_id
+            for marker in markerarray.markers:
+                assert marker.header.frame_id == self.map_frame
+
+            # point cloud of buoy positions
+            buoys = np.array([[
+                marker.pose.position.x,
+                marker.pose.position.y,
+                marker.pose.position.z
+            ] for marker in markerarray.markers])
+
+            # sort the buoys into walls
+            lines = self.infer_lines(
+                points=buoys,
+                theta=self.heading,
+                n_lines=self.n_walls,
+                atol=self.atol,
+                dtol=self.dtol
+            )
+
+            # compute the centroid in the UTM frame
+            centroid = buoys.mean(axis=0)
+            centroid = PointStamped(
+                header=Header(frame_id=self.map_frame),
+                point=Point(
+                    x=centroid[0],
+                    y=centroid[1],
+                    z=centroid[2]
+                )
+            )
+            centroid = self.tf_listener.transformPoint(
+                self.utm_frame,
+                centroid
+            )
+            centroid = dict(
+                frame_id=self.utm_frame,
+                position=np.array([
+                    centroid.point.x,
+                    centroid.point.y,
+                    centroid.point.z
+                ])
+            )
+            self.markers_centroid = centroid
+
+            # put a dictionary into the blackboard
+            self.markers = dict(
+                frame_id=self.map_frame, 
+                lines=lines
+            )
+
+        # if we have already recorded them
+        else:
+            pass
+
+    def get_detection(self, detection2darray):
+
+        # TF frame
+        frame_id = detection2darray.detections[0].header.frame_id
+        for detection in detection2darray.detections:
+            assert detection.header.frame_id == frame_id
+
+        # point cloud of buoy positions
+        buoys = list()
+        for detection in detection2darray.detections:
+            for result in detection.results:
+                buoys.append([
+                    result.pose.pose.position.x,
+                    result.pose.pose.position.y,
+                    result.pose.pose.position.z
+                ])
+        buoys = np.array(buoys)
+
+    @staticmethod
+    def infer_lines(points, theta, dtol, algo, xrange, yrange):
+
+        # if we don't have at least 2 points
+        if points.shape[0] < 2:
+            return list()
+
+        # degrees to radians
+        theta = np.deg2rad(theta)
+
+        # unit vectors
+        vx = np.array([np.sin(theta), -np.cos(theta)])
+        vy = np.array([np.cos(theta), np.sin(theta)])
+
+        # metric: horizontal distance between points
+        metric = lambda p0, p1: abs((p1 - p0)[:2].dot(vx))
+
+        # cluster the points
+        model = DBSCAN(
+            eps=dtol,
+            min_samples=2,
+            metric=metric,
+            algorithm=algo
+        )
+        c = model.fit_predict(points)
+        
+        # seperate points into lines
+        lines = [
+            points[c==_]
+            for _ in np.unique(c) 
+            if _!=-1
+        ]
+
+        # centroid of points
+        centroid = points.mean(axis=0)
+
+        # sort points in lines
+        lines = [
+            line[np.argsort(
+                [(point - centroid)[:2].dot(vy) for point in line]
+            )]
+            for line in lines
+        ]
+
+        # sort lines
+        lines = [lines[_] for _ in np.argsort([
+            (line.mean(axis=0) - centroid)[:2].dot(vx)
+            for line in lines
+        ])]
+
+        # remove out-of-range lines
+        _ = list()
+        for line in lines:
+
+            # distances
+            d = line - centroid
+            dx = np.array([np.dot(_, vx) for _ in d])
+            dy = np.array([np.dot(_, vy) for _ in d])
+
+            print(dx, dy)
+
+        return lines
+
+
+    @staticmethod
+    def _infer_lines(points, theta, n_lines, atol, dtol):
+
+        '''
+        Clusters a set of partially colinear points
+        into a collection of totally colinear points.
+        E.g. infer algae walls from a set of buoys
+        and a priori known wall angles and number.
+
+        points: (n, >2) np.array of partially colinear points [m]
+        theta: float of a priori known angle of colinearity [deg]
+        n_walls: int a priori known number of walls
+        etol: float error tolerance of wall inference
+        '''
+
+        # if we don't have at least 2 points
+        if points.shape[0] < 2:
+            return list()
+
+        # centroid of points
+        centroid = points.mean(axis=0)
+
+        # a priori direction of heading
+        theta = np.deg2rad(theta)
+        vtheta = np.array([np.cos(theta), np.sin(theta)])
+
+        # all binary subsets of points
+        w = np.array([s for s in combinations(points, 2)])
+
+        # Euclidian distance between each subset
+        d = w[:,1,:] - w[:,0,:]
+        d = np.linalg.norm(d, axis=1)
+
+        # subsets totally ordered
+        w = w[np.argsort(d)]
+
+        # maximal walls
+        mw = list()
+
+        # loop through subsets in decreasing span-size order
+        for s in reversed(w):
+
+            # initialise skip
+            skip = False
+
+            # direction of line
+            vline = s[-1,:2] - s[0,:2]
+            vline /= np.linalg.norm(vline)
+
+            # loss (to find parallel line)
+            l = 1.0 - abs(vline.dot(vtheta))
+
+            # if the line fits
+            if l < atol:
+
+                # check for colinear lines
+                for line in mw:
+                    
+                    # distance from pair to line
+                    d0 = line[-1,:2] - line[0,:2]
+                    d1 = line[0,:2] - s[:,:2]
+                    d2 = np.cross(d0, d1)
+                    d3 = np.linalg.norm(d0)
+                    d = abs(d2)/d3
+                    d = np.linalg.norm(d)
+                    
+                    # if it's colinear, skip
+                    skip = True if d < dtol else False
+                    if skip:
+                        break
+
+                # if we want to skip
+                if skip:
+                    continue
+
+                # distance from points to line
+                d0 = s[-1,:2] - s[0,:2]
+                d1 = s[0,:2] - points[:,:2]
+                d2 = np.cross(d0, d1)
+                d3 = np.linalg.norm(d0)
+                d = abs(d2)/d3
+                
+                # points close to the line
+                p = points[d < dtol]
+
+                # sort points along heading line
+                d = p - centroid
+                d = np.array([np.dot(_[:2], vtheta) for _ in d])
+                p = p[np.argsort(d)]
+
+                # record the wall
+                mw.append(p)
+
+            # if we found them all
+            if len(mw) == n_lines:
+                break
+
+        # if we found lines
+        if len(mw) > 0:
+
+            # centroid of each line
+            d = np.array([_.mean(axis=0) for _ in mw])
+            
+            # vectors from centroid to line centroids
+            d = d - centroid
+            
+            # cross product of those vector with heading direction
+            d = [np.cross(_[:2], vtheta) for _ in d]
+
+            # sort the lines
+            i = np.argsort(d)
+            mw = [mw[j] for j in np.argsort(d)]
+
+        # return list of wall arrays rather than an array itself
+        # because some lines may have different numbers of points
+        return mw
+
+    @staticmethod
+    def generate_data(points, n_samples, sigma):
+
+        # samples
+        samples = np.random.choice(range(points.shape[0]), n_samples)
+        samples = points[samples]
+        
+        # add noise and return
+        samples += np.random.normal(
+            scale=np.sqrt(sigma), 
+            size=(n_samples, 3)
+        )
+        return samples
+
+    def plot(
+        lines=None,
+        samples=None,
+        means=None,
+        sample_lines=None,
+        ref_point=None,
+        path=None,
+        c=None,
+        ax=None):
+
+        # make figure and axis
+        if ax is None:
+            fig, ax = plt.subplots(1)
+
+        # plot lines
+        if lines is not None:
+            for i, line in enumerate(lines):
+                label = 'Ground truth' if i == 0 else None
+                ax.plot(
+                    line[:,0], line[:,1], 
+                    'k.--', label=label, alpha=0.25
+                )
+
+        # plot samples
+        if samples is not None:
+            ax.scatter(
+                samples[:,0], samples[:,1], alpha=0.2, 
+                label='Samples', c=c, s=40, cmap='viridis'
+            )
+
+        # plot means
+        if means is not None:
+            ax.plot(means[:,0], means[:,1], 'kx', label='Means')
+
+        # plot sample lines
+        if sample_lines is not None:
+            for i, line in enumerate(sample_lines):
+
+                # port line
+                if i == 0:
+                    k = 'r-'
+                    label = 'Port line'
+
+                # starboard line
+                elif i == len(sample_lines) - 1:
+                    k = 'g-'
+                    label = 'Starboard line'
+
+                # intermediate line
+                else:
+                    k = 'k-'
+                    label = None
+
+                # plot
+                ax.plot(
+                    line[:,0], line[:,1], 
+                    k, alpha=1, label=label
+                )
+                label = 'Infimum' if i == 0 else None
+                ax.plot(
+                    line[0,0], line[0,1],
+                    'k*', alpha=1, label=label
+                )
+
+        # plot reference points
+        if ref_point is not None:
+            ax.plot(ref_point[0], ref_point[1], 'ko', label='AUV')
+
+        # plot path
+        if path is not None:
+            ax.plot(path[:,0], path[:,1], 'k.--', label='Path', alpha=0.5)
+
+        # formatting and return
+        ax.set_aspect('equal')
+        ax.set_xlabel('$x~[m]$')
+        ax.set_ylabel('$y~[m]$')
+        ax.legend(bbox_to_anchor=(1.05, 1))
+        return fig, ax
+
+    @staticmethod
+    def approximate(samples, n_components, use_trace=False, model=None):
+
+        '''
+        Fits a Gaussian mixture model to cluster
+        a set of points.
+
+        Args:
+            - samples: (n_samples, n_features) np.array.
+            The points you want to cluster.
+            - n_components: int.
+            The maximum number of clusters.
+            - use_trace: bool.
+            To use the trace of the covariance matrix
+            (total variance) or the determinant 
+            (generalized variance).
+
+        Returns:
+            - means of active classes
+            - covariance matricies of active classes
+            - generalized variance of active classes
+            - class labels of samples
+        '''
+
+        # Variational Gaussian mixture model
+        # NOTE: warm-starating isn't good here
+        # because it will overfit with too little
+        # data points.
+        if model is None:
+            model = BayesianGaussianMixture(
+                n_components=n_components,
+                warm_start=True
+            )
+        else:
+            assert model.n_components == n_components
+            assert model.warm_start == True
+
+        # optimise the model
+        model.fit(samples)
+
+        # compute sample labels
+        labels = model.predict(samples)
+
+        # active classes
+        i = np.unique(labels)
+
+        # means, covariance matricies
+        mu = model.means_[i]
+        sigma = model.covariances_[i]
+
+        # total variance
+        if use_trace:
+            gsigma = np.trace(sigma, axis1=1, axis2=2)
+
+        # generalized variance
+        else:
+            gsigma = np.linalg.det(sigma)
+
+        # return results
+        return mu, sigma, gsigma, labels, model
+
+class Framer:
+
+    def __init__(self, frames):
+
+        # frames
+        self.frames = frames
+
+        # TF listener
         self.tf_listener = tf.TransformListener()
 
     def setup(self, timeout):
 
-        # wait for TF transformation
+        # try to setup transform between the map and utm frame
         try:
-            rospy.loginfo('Waiting for transform from {} to {}.'.format(
-                self.buoy_link,
-                self.utm_link
-            ))
-            self.tf_listener.waitForTransform(
-                self.buoy_link,
-                self.utm_link,
-                rospy.Time(),
-                rospy.Duration(timeout)
-            )
-        except:
-            rospy.loginfo('Transform from {} to {} not found.'.format(
-                self.buoy_link,
-                self.utm_link
-            ))
 
-        # subscribe to buoy positions
-        self.sub = rospy.Subscriber(
-            self.topic_name,
-            MarkerArray,
-            callback=self.cb,
-            queue_size=10
-        )
-        # self.bb.set(bb_enums.BUOYS, None)
-        self.buoys = None
+            # for every pair of frames
+            for frame in combinations(self.frames, 2):
+
+                # current setup frames
+                self._setup_frame = frame
+
+                # verbose
+                rospy.loginfo_throttle(3, 'Waiting for tranform between {} to {}'.format(*frame))
+
+                # wait for transform
+                self.tf_listener.waitForTransform(
+                    *frame,
+                    rospy.time(),
+                    rospy.Duration(timeout)
+                )
+
+                # verbose
+                rospy.loginfo_throttle(3, 'Found tranform between {} to {}'.format(*frame))
+
+        # if we couldn't setup
+        except:
+            rospy.loginfo_throttle(5, 'Could not setup {} and {} transformations.'.format(*self._setup_frame))
+
         return True
 
-    def cb(self, msg):
+    def points_to_mission(
+        self, 
+        points, 
+        velocity,
+        source_frame, 
+        target_frame
+    ):
 
-        '''
-        This will read the uncertain buoy positions
-        from the SLAM backend and sensors.
-        But, for now, it just read the simulator buoys.
-        The buoys here are assumed to be in the map frame.
-        '''
+        # sanity
+        assert source_frame in self.frames
+        assert target_frame in self.frames
 
-        # space for bouy positions
-        # rospy.loginfo('hello')
-        self.buoys = list()
+        # waypoints
+        wps = list()
 
-        # loop through visualization markers
-        for marker in msg.markers:
+        # loop through the points
+        for point in points:
 
-            # convert their pose to pose stamped
-            pose = PoseStamped(
-                header=marker.header,
-                pose=marker.pose
+            # construct point in source_frame
+            point = PointStamped(
+                header=Header(
+                    frame_id=source_frame
+                ),
+                point=Point(
+                    x=point[0],
+                    y=point[1],
+                    z=point[2]
+                )
             )
 
-            # # transform it from local to UTM frame
-            # pose = self.tf_listener.transformPose(
-            #     self.utm_link,
-            #     pose
-            # )
+            # transform if needed
+            point = self.tf_listener.transformPoint(
+                target_frame, point
+            ) if source_frame != target_frame else point
 
-            # add it to the list
-            self.buoys.append([
-                pose.pose.position.x,
-                pose.pose.position.y,
-                pose.pose.position.z
-            ])
+            # construct waypoint
+            wp = Waypoint(
+                maneuver_id='goto',
+                maneuver_imc_id=imc_enums.MANEUVER_GOTO,
+                maneuver_name=self.name,
+                x=point.point.x,
+                y=point.point.y,
+                z=point.point.z,
+                z_unit=imc_enums.Z_DEPTH,
+                speed=velocity,
+                speed_unit=0,
+                tf_frame=target_frame,
+                extra_data=None
+            )
 
-        # make it into a numpy array because why not
-        self.buoys = np.array(self.buoys)
-        self.buoys = self.buoys[np.argsort(self.buoys[:,0])]
-        self.buoys = self.buoys.reshape((-1, 3, 3))
-        self.buoys = np.sort(self.buoys, axis=1)
-        self.buoys = dict(
-            front=self.buoys[:,0,:],
-            left=self.buoys[0,:,:],
-            back=self.buoys[:,-1,:],
-            right=self.buoys[-1,:,:],
-            all=self.buoys
+            # record it
+            wps.append(wp)
+
+        # plandb message
+        pdb = PlanDB()
+        pdb.request_id = 42
+        pdb.plan_id = self.name
+        
+        # construct plan
+        wps = MissionPlan(
+            plandb_msg=pdb,
+            latlontoutm_service_name=self.latlon_to_utm_serv[0],
+            latlontoutm_service_name_alternative=self.latlon_to_utm_serv[1],
+            plan_frame=target_frame,
+            waypoints=wps
         )
+        return wps
+
+
+class A_SetBuoyLocalisationPlan(pt.behaviour.Behaviour, Framer):
+
+    def __init__(
+        self, 
+        centroid,
+        angle,
+        distances,
+        depth,
+        velocity,
+        map_frame,
+        utm_frame,
+        latlontoutm_service0,
+        latlontoutm_service1
+    ):
+
+        # centroid of farm in lat-lon
+        self.centroid = centroid
+
+        # angle of wall parallel direction above easting
+        self.angle = angle
+
+        # TF frames
+        self.map_frame = map_frame
+        self.utm_frame = utm_frame
+        Framer.__init__(self, [map_frame, utm_frame])
+
+        # Lat-lon UTM services
+        self.latlon_to_utm_serv = [
+            latlontoutm_service0,
+            latlontoutm_service1
+        ]
+
+        # distances of spiral path w.r.t centroid
+        self.distances = distances
+
+        # path velocity and depth
+        self.velocity = velocity
+        self.depth = depth
+
+        # become behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            name='A_SetBuoyLocalisationPlan'
+        )
+
+        # blackboard
+        self.bb = pt.blackboard.Blackboard()
+
+    def setup(self, timeout):
+
+        # setup frames
+        Framer.setup(self, timeout)
+
+        # setup lat-lon to UTM server
+        for s in self.latlon_to_utm_serv:
+            try:
+
+                # wait for the service
+                rospy.loginfo('Waiting for lat-lon service for {}'.format(
+                    self.name
+                ))
+                rospy.wait_for_service(s, timeout=timeout)
+
+                # make a function from the service
+                self.latlon_to_utm = rospy.ServiceProxy(
+                    s,
+                    LatLonToUTM
+                )
+                rospy.loginfo('Found lat-lon service for {}'.format(
+                    self.name
+                ))
+
+                # lat-lon centroid to UTM
+                rospy.loginfo('Computing centroid for buoys.')
+                self.centroid = self.latlon_to_utm(GeoPoint(*self.centroid, 0.0))
+                self.centroid = np.array([
+                    self.centroid.utm_point.x,
+                    self.centroid.utm_point.y,
+                    self.centroid.utm_point.z
+                ])
+                rospy.loginfo('Found buoys centroid at {}'.format(self.centroid))
+                print(self.centroid)
+                break
+
+            # if we couldn't do it
+            except Exception as e:
+                rospy.loginfo('Could not setup {}'.format(self.name))
+                continue
+
+        return True
+
 
     def update(self):
 
-        # put the buoy positions in the blackboard
-        self.bb.set(bb_enums.BUOYS, self.buoys)
-        return pt.Status.SUCCESS
+        # get current position in UTM frame
+        point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
+        point = point.point
+        point = np.array([
+            point.x,
+            point.y,
+            point.z
+        ])
+
+        # compute perimeter plan
+        path = self.perimeter_plan(
+            point,
+            self.centroid,
+            angle=self.angle,
+            distances=self.distances
+        )
+
+        # add a depth
+        path = np.hstack((
+            path, 
+            np.full(
+                (path.shape[0], 1),
+                self.depth
+            )
+        ))
+        
+        # construct waypoints in UTM frame
+        path = self.points_to_mission(
+            points=path,
+            velocity=self.velocity,
+            source_frame=self.utm_frame, 
+            target_frame=self.utm_frame,
+            
+        )
+
+        # set the plan and the logical variable
+        self.bb.set(bb_enums.MISSION_PLAN_OBJ, path)
+        self.bb.set(bb_enums.BUOY_LOCALISATION_PLAN_SET, True)
+
+        return pt.Status.FAILURE
+
+
+    @staticmethod
+    def perimeter_plan(point, origin, angle, distances, direction=None):
+
+        # lines at first distance
+        lines = [A_SetBuoyLocalisationPlan.perimeter_line(
+            centroid=origin,
+            angle=angle,
+            distance=distances[0][i%2],
+            face=i,
+            side=0,
+            width=distances[0][i%2]
+        ) for i in range(4)]
+        lines = np.array(lines)
+
+        # distance from point to line centroids
+        d = np.mean(lines, axis=1)
+        d -= point[:2]
+        d = np.linalg.norm(d, axis=1)
+        
+        # closest line and its index
+        i = np.argmin(d)
+        line = lines[i]
+
+        # if CCW 0 (port) or CW 1 (starboard)
+        if direction in [0, 1]:
+            side = direction
+            line = np.flip(line, axis=0) if direction else line
+
+        # if direction is a vector
+        elif np.array(direction).shape == (2,):
+
+            # make unit vector
+            direction /= np.linalg.norm(direction)
+
+            # direction of nominal line
+            vline = line[1] - line[0]
+            vline /= np.linalg.norm(vline)
+
+            # are they in the same direction
+            if vline.dot(direction) > 0:
+
+                # continue to the next CCW line
+                side = 0
+                i = (i+1)%4
+                line = lines[i]
+
+            # if they have opposing directions
+            else:
+
+                # continue to the next CW line
+                side = 1
+                i = (i-1)%4
+                line = np.flip(lines[i], axis=0)
+
+        # otherwise, just start with the closest point
+        else:
+
+            # get closest point in line
+            d = line - point[:2]
+            d = np.linalg.norm(d, axis=1)
+
+            # ordered line
+            side = np.argmin(d)
+            line = np.flip(line, axis=0) if side else line
+
+        # intialise path and distance
+        path = [line[0]]
+
+        # cycle steps
+        j = 0
+
+        # distance counter
+        k = 0
+        nk = len(distances)
+
+        # make spiral path
+        while True:
+
+            # next face
+            i = (i-1)%4 if side else (i+1)%4
+
+            # compute next line
+            line = A_SetBuoyLocalisationPlan.perimeter_line(
+                centroid=origin,
+                angle=angle,
+                distance=distances[k][i%2],
+                face=i,
+                side=side,
+                width=distances[k][(i+1)%2]
+            )
+
+            # add first point to path
+            path.append(line[0])
+
+            # increment cycle step
+            j = (j+1)%4
+
+            # increment distance
+            if j == 0:
+                k += 1
+                
+            # termination
+            if k == nk:
+
+                # add second point
+                if nk > 1:
+                    path.append(line[1])
+
+                # terminate
+                break
+
+        # return path
+        return np.array(path)
+
+
+    @staticmethod
+    def perimeter_line(centroid, angle, distance, face, side, width):
+
+        # sanity
+        faces0 = [0, 1, 2, 3]
+        faces1 = ['right', 'top', 'left', 'bottom']
+        assert face in faces0 or face in faces1
+        sides0 = [0, 1]
+        sides1 = ['port', 'starboard']
+        assert side in sides0 or side in sides1
+        centroid = centroid[:2]
+
+        # translate
+        # this was an afterthough so we can
+        # loop through ranges
+        if face in faces0:
+            face = faces1[face]
+        if side in sides0:
+            side = sides1[side]
+
+        # unit vectors
+        angle = np.deg2rad(angle)
+        vtop = np.array([np.cos(angle), np.sin(angle)])
+        vbottom = -vtop
+        vleft = np.array([-vtop[1], vtop[0]])
+        vright = np.array([vtop[1], -vtop[0]])
+
+        # cases
+        if face == 'top' and side == 'starboard':
+            v0, v1, v2 = vtop, vleft, vright
+        elif face == 'top' and side == 'port':
+            v0, v1, v2 = vtop, vright, vleft
+
+        elif face == 'bottom' and side == 'starboard':
+            v0, v1, v2 = vbottom, vright, vleft
+        elif face == 'bottom' and side == 'port':
+            v0, v1, v2 = vbottom, vleft, vright
+
+        elif face == 'left' and side == 'starboard':
+            v0, v1, v2 = vleft, vbottom, vtop
+        elif face == 'left' and side == 'port':
+            v0, v1, v2 = vleft, vtop, vbottom
+
+        elif face == 'right' and side == 'starboard':
+            v0, v1, v2 = vright, vtop, vbottom
+        elif face == 'right' and side == 'port':
+            v0, v1, v2 = vright, vbottom, vtop
+
+        # make line
+        x = np.array([
+            centroid + v0*distance + v1*width,
+            centroid + v0*distance + v2*width
+        ])
+        return x
+
+
+        
+
+
+
+
+# class A_SetWallPlan(pt.behaviour.Behaviour):
+
+#     def __init__(
+#         self, 
+#         name, 
+#         row_sep,
+#         depth,
+#         buoy_link,
+#         utm_link,
+#         velocity,
+#         latlon_utm_serv,
+#         latlon_utm_serv_alt,
+#         x0_overshoot,
+#         x1_overshoot,
+#         x0_lineup=None,
+#         x1_lineup=None,
+#         first_lineup=None,
+#         starboard=False):
+
+#         # become BT
+#         pt.behaviour.Behaviour.__init__(self, name=name)
+
+#         # distance between rows and survey depth
+#         self.row_sep = row_sep
+#         self.depth = depth
+
+#         # overshoot distance before and after row ends
+#         self.x0_overshoot = x0_overshoot
+#         self.x1_overshoot = x1_overshoot
+
+#         # distance before and after overshoot for lineup
+#         self.x0_lineup = x0_lineup
+#         self.x1_lineup = x1_lineup
+
+#         # first line up to ensure good clearance
+#         self.first_lineup = first_lineup
+
+#         # which side of AUV for wall to be on
+#         self.starboard = starboard
+
+#         # TF frames
+#         self.buoy_link = buoy_link
+#         self.utm_link = utm_link
+#         self.tf_listener = tf.TransformListener()
+
+#         # need for waypoint class
+#         self.velocity = velocity
+#         self.latlon_utm_serv = latlon_utm_serv
+#         self.latlon_utm_serv_alt = latlon_utm_serv_alt
+
+#         # blackboard
+#         self.bb = pt.blackboard.Blackboard()
+
+#         # internal counter
+#         self.i = 0
+
+#     def setup(self, timeout):
+
+#         # wait for TF transformation
+#         try:
+#             rospy.loginfo('Waiting for transform from {} to {}.'.format(
+#                 self.buoy_link,
+#                 self.utm_link
+#             ))
+#             self.tf_listener.waitForTransform(
+#                 self.buoy_link,
+#                 self.utm_link,
+#                 rospy.Time(),
+#                 rospy.Duration(timeout)
+#             )
+#         except:
+#             rospy.loginfo('Transform from {} to {} not found.'.format(
+#                 self.buoy_link,
+#                 self.utm_link
+#             ))
+#         return True
+
+#     def update(self):
+#         # subscribe to buoy positions
+#         self.sub = rospy.Subscriber(
+#             self.topic_name,
+#             MarkerArray,
+#             callback=self.cb,
+#             queue_size=10
+#         )
+#         # self.bb.set(bb_enums.BUOYS, None)
+#         self.buoys = None
+#         return True
+
+#         # if there are no buoys
+#         if self.bb.get(bb_enums.BUOYS) is None:
+#             self.bb.set(bb_enums.WALL_PLAN_SET, True)
+#             # yes, this could be succes,
+#             # but running forces you to use a condition
+#             # elsewhere in the BT
+#             self.feedback_message = 'No buoys'
+#             return pt.Status.RUNNING
+
+#         # print(self.bb.get(bb_enums.BUOYS) )
+
+#         try:
+
+#             # buoys sorted into walls in map frame
+#             buoys = self.bb.get(bb_enums.BUOYS)['all']
+
+#             # current position in local frame
+#             point = self.bb.get(bb_enums.LOCATION_POINT_STAMPED)
+#             point = self.tf_listener.transformPoint(
+#                 self.buoy_link,
+#                 point
+#             )
+#             point = np.array([
+#                 point.point.x,
+#                 point.point.y,
+#                 point.point.z
+
+#             # # transform it from local to UTM frame
+#             # pose = self.tf_listener.transformPose(
+#             #     self.utm_link,
+#             #     pose
+#             # )
+
+#             # add it to the list
+#             self.buoys.append([
+#                 pose.pose.position.x,
+#                 pose.pose.position.y,
+#                 pose.pose.position.z
+#             ])
+
+#             # compute a plan
+#             if buoys is not None:
+
+#                 # waypoints in local frame
+#                 wps0 = self.full_plan(
+#                     point,
+#                     buoys,
+#                     row_sep=self.row_sep,
+#                     x0_overshoot=self.x0_overshoot,
+#                     x1_overshoot=self.x0_overshoot,
+#                     x0_lineup=self.x0_lineup,
+#                     x1_lineup=self.x1_lineup,
+#                     first_lineup=self.first_lineup,
+#                     starboard=self.starboard,
+#                     depth=self.depth
+#                 )
+#                 wps1 = self.full_plan(
+#                     wps0[-1],
+#                     buoys,
+#                     row_sep=self.row_sep,
+#                     x0_overshoot=self.x0_overshoot,
+#                     x1_overshoot=self.x0_overshoot,
+#                     x0_lineup=self.x0_lineup,
+#                     x1_lineup=self.x1_lineup,
+#                     first_lineup=self.first_lineup,
+#                     starboard=self.starboard,
+#                     depth=self.depth
+#                 )
+#                 wps = np.vstack((wps0, wps1))
+
+#                 # mission waypoints in UTM frame
+#                 mwps = list()
+
+#                 # loop through waypoints
+#                 for i, wp in enumerate(wps):
+
+#                     # make pose
+#                     pose = PoseStamped()
+#                     pose.pose.position.x = wp[0]
+#                     pose.pose.position.y = wp[1]
+#                     pose.pose.position.z = 1.0 if i == 0 else wp[2]
+#                     pose.header = Header(frame_id=self.buoy_link)
+
+#                     # transform it from local to UTM frame
+#                     pose = self.tf_listener.transformPose(
+#                         self.utm_link,
+#                         pose
+#                     )
+
+#                     # real waypoint
+#                     wp = Waypoint(
+#                         maneuver_id='goto',
+#                         maneuver_imc_id=imc_enums.MANEUVER_GOTO,
+#                         maneuver_name='wall_following',
+#                         x=pose.pose.position.x,
+#                         y=pose.pose.position.y,
+#                         z=pose.pose.position.z,
+#                         z_unit=imc_enums.Z_DEPTH,
+#                         speed=self.velocity,
+#                         speed_unit=0,
+#                         tf_frame=self.utm_link,
+#                         extra_data=None
+#                     )
+
+#                     # add waypoints
+#                     mwps.append(wp)
+
+#             # plandb message
+#             pdb = PlanDB()
+#             pdb.request_id = 42
+#             pdb.plan_id = "WALLS"
+
+#             # construct plan
+#             mission_plan = MissionPlan(
+#                 plandb_msg=pdb,
+#                 latlontoutm_service_name=self.latlon_utm_serv,
+#                 latlontoutm_service_name_alternative=self.latlon_utm_serv_alt,
+#                 plan_frame=self.utm_link,
+#                 waypoints=mwps
+#             )
+
+#             # set the plan and cross our fingers :o
+#             self.bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
+#             self.bb.set(bb_enums.WALL_PLAN_SET, True)
+#             rospy.loginfo('Wall plan set')
+#             return pt.Status.RUNNING
+
+#         except Exception as e:
+#             raise e
+#             rospy.loginfo_throttle(60, e)
+#             return pt.Status.FAILURE
+
+#     @staticmethod
+#     def plan(
+#         x0, 
+#         x1, 
+#         n_rows, 
+#         row_sep, 
+#         x0_overshoot, 
+#         x1_overshoot,
+#         x0_lineup=None,
+#         x1_lineup=None,
+#         starboard=False,
+#         depth=0.0):
+
+#         # sanity
+#         if x0_lineup is not None:
+#             assert(x0_overshoot < x0_lineup)
+#         if x1_lineup is not None:
+#             assert(x1_overshoot < x1_lineup)
+
+#         # parallel unit vector (x,y)
+#         par = x1[:2] - x0[:2]
+#         par /= np.linalg.norm(par)
+        
+#         # perpendicular unit vector (x,y)
+#         perp = np.array([-par[1], par[0]]) if starboard else np.array([par[1], -par[0]])
+            
+#         # construct a lawnmower
+#         wps = list()
+
+#         # i = iteration number, j = row number
+#         for i, j in enumerate(reversed(range(n_rows))):
+
+#             # i = 0, 2, 4, 6, 8, ...
+#             if not i%2:
+
+#                 # intial lineup
+#                 if x0_lineup is not None:
+#                     wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
+
+#                 # adjacent to line endpoint
+#                 wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
+#                 wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
+
+#                 # terminal lineup
+#                 if x1_lineup is not None:
+#                     wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
+
+#             # i = 1, 3, 5, 7, 9, ...
+#             else:
+
+#                 # initial lineup
+#                 if x1_lineup is not None:
+#                     wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_lineup*par)
+
+#                 # adjacent to line endpoint
+#                 wps.append(x1[:2] + (row_sep*(j+1))*perp + x1_overshoot*par)
+#                 wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_overshoot*par)
+
+#                 # terminal lineup
+#                 if x0_lineup is not None:
+#                     wps.append(x0[:2] + (row_sep*(j+1))*perp - x0_lineup*par)
+
+#         # add depth and return waypoints
+#         wps = np.array(wps)
+#         wps = np.hstack((wps, np.full((wps.shape[0], 1), depth)))
+#         return wps
+
+#     @staticmethod
+#     def full_plan(
+#         pose, 
+#         walls,
+#         row_sep, 
+#         x0_overshoot, 
+#         x1_overshoot,
+#         x0_lineup=None,
+#         x1_lineup=None,
+#         first_lineup=None,
+#         starboard=False,
+#         depth=1.0):
+
+#         # distance between each buoy and AUV
+#         norms = np.linalg.norm(walls[[0,-1]] - pose, axis=2)
+
+#         # index of closest extremal wall
+#         i = norms.min(axis=1).argmin(axis=0)
+#         i = 0 if i == 0 else -1
+        
+#         # index of closest extremal buoy 
+#         norms = np.linalg.norm(walls[i, [0,-1]] - pose, axis=1)
+#         j = norms.argmin(axis=0)
+#         j = 0 if j == 0 else -1
+
+#         # order the walls based on (i,j)
+#         walls = np.flip(walls, axis=0) if i == -1 else walls
+#         walls = np.flip(walls, axis=1) if j == -1 else walls
+
+#         # waypoints
+#         waypoints = list()
+
+#         # construct waypoints
+#         for i, wall in enumerate(walls):
+
+#             # i = 0, 2, 4, ...
+#             if not i%2:
+#                 wps = A_SetWallPlan.plan(
+#                     x0=wall[0], 
+#                     x1=wall[-1], 
+#                     n_rows=1, 
+#                     row_sep=row_sep, 
+#                     x0_overshoot=x0_overshoot, 
+#                     x1_overshoot=x1_overshoot,
+#                     x0_lineup=first_lineup if i==0 else x0_lineup,
+#                     x1_lineup=x1_lineup,
+#                     starboard=starboard,
+#                     depth=depth
+#                 )
+            
+#             # i = 1, 3, 5, ...
+#             else:
+#                 wps = A_SetWallPlan.plan(
+#                     x0=wall[-1], 
+#                     x1=wall[0], 
+#                     n_rows=1, 
+#                     row_sep=row_sep, 
+#                     x0_overshoot=x0_overshoot, 
+#                     x1_overshoot=x1_overshoot,
+#                     x0_lineup=x0_lineup,
+#                     x1_lineup=x1_lineup,
+#                     starboard=starboard,
+#                     depth=depth
+#                 )
+
+#             # add waypoint
+#             waypoints.append(wps)
+
+#         # construct path
+#         waypoints = np.vstack(waypoints)
+#         # waypoints = np.vstack((pose, waypoints))
+#         return waypoints
+#         # put the buoy positions in the blackboard
+#         self.bb.set(bb_enums.BUOYS, self.buoys)
+#         return pt.Status.SUCCESS

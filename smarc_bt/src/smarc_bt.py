@@ -40,7 +40,10 @@ from bt_conditions import C_DepthOK, \
                           C_LeaderExists, \
                           C_LeaderIsFarEnough, \
                           C_AtDVLDepth, \
-                          C_CheckWaypointType
+                          C_CheckWaypointType, \
+                          C_NoNeedToPlanBuoys, \
+                          C_BuoysLocalised, \
+                            C_BuoyLocalisationPlanSet \
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -62,7 +65,9 @@ from bt_actions import A_GotoWaypoint, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
-                       A_ReadBuoys, \
+                        A_ReadBuoys, \
+                            A_SetBuoyLocalisationPlan, \
+                                A_UpdateOdom, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
@@ -154,11 +159,21 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.YAW : 'data'}
         )
 
+        read_odom = A_UpdateOdom(
+            odom_topic=auv_config.ODOM_TOPIC
+        )
+
         read_buoys = A_ReadBuoys(
-            topic_name=auv_config.BUOY_TOPIC,
-            buoy_link=auv_config.LOCAL_LINK,
-            utm_link=auv_config.UTM_LINK,
-            latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
+            read_markers=auv_config.BUOY_READ_MARKERS,
+            read_detection=auv_config.BUOY_READ_DETECTION,
+            marker_topic=auv_config.BUOY_MARKER_TOPIC,
+            detection_topic=auv_config.BUOY_DETECTION_TOPIC,
+            heading=auv_config.BUOY_WALL_ANGLE,
+            n_walls=auv_config.BUOY_N_WALLS,
+            atol=auv_config.BUOY_ANGLE_TOLERANCE,
+            dtol=auv_config.BUOY_WALL_INCLUSION_TOLERANCE,
+            map_frame=auv_config.LOCAL_LINK,
+            utm_frame=auv_config.UTM_LINK
         )
 
         read_gps = ReadTopic(
@@ -193,7 +208,6 @@ def const_tree(auv_config):
         neptus_tree = const_neptus_tree()
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
                                               message_object = Empty())
-
 
         return Sequence(name="SQ-DataIngestion",
                         # dont show all the things inside here
@@ -322,6 +336,58 @@ def const_tree(auv_config):
                             set_next_plan_action
                         ])
 
+    def const_buoy_localisation_tree():
+
+        tree = Fallback(
+            'FB-BuoysLocalised',
+            children=[
+                C_BuoysLocalised(auv_config.BUOY_READ_DETECTION),
+                # C_BuoyLocalisationPlanSet(),
+                CheckBlackboardVariableValue(
+                    bb_enums.BUOY_LOCALISATION_PLAN_SET, 
+                    True,
+                    'C_BuoyLocalisationPlanSet'
+                ),
+                A_SetBuoyLocalisationPlan(
+                    centroid=auv_config.BUOY_CENTROID,
+                    angle=auv_config.BUOY_WALL_ANGLE,
+                    distances=auv_config.BUOY_LOCALISATION_DISTANCES,
+                    depth=auv_config.BUOY_LOCALISATION_DEPTH,
+                    velocity=auv_config.BUOY_LOCALISATION_VELOCITY,
+                    map_frame=auv_config.LOCAL_LINK,
+                    utm_frame=auv_config.UTM_LINK,
+                    latlontoutm_service0=auv_config.LATLONTOUTM_SERVICE,
+                    latlontoutm_service1=auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
+                )
+            ]
+        )
+        return tree
+
+    # def const_wall_plan_tree():
+
+    #     tree = Fallback(
+    #         'FB-WallPlanSet',
+    #         children=[
+    #             C_NoNeedToPlanBuoys(auv_config.USE_BUOY_PLAN),
+    #             A_SetWallPlan(
+    #                 'A_SetWallPlan',
+    #                 auv_config.WALL_SURVEY_ROW_SEP,
+    #                 auv_config.WALL_SURVEY_DEPTH,
+    #                 auv_config.LOCAL_LINK,
+    #                 auv_config.UTM_LINK,
+    #                 auv_config.WALL_SURVEY_VELOCITY,
+    #                 auv_config.LATLONTOUTM_SERVICE,
+    #                 auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE,
+    #                 auv_config.WALL_SURVEY_X0_OVERSHOOT,
+    #                 auv_config.WALL_SURVEY_X1_OVERSHOOT,
+    #                 auv_config.WALL_SURVEY_X0_LINEUP,
+    #                 auv_config.WALL_SURVEY_X1_LINEUP,
+    #                 auv_config.WALL_SURVEY_FIRST_LINEUP,
+    #                 auv_config.WALL_SURVEY_STARBOARD
+    #             )
+    #         ]
+    #     )
+    #     return tree
 
 
     def const_execute_mission_tree():
@@ -438,7 +504,9 @@ def const_tree(auv_config):
                               const_data_ingestion_tree(),
                               manual_logging,
                               const_safety_tree(),
+                            #   const_wall_plan_tree(),
                              # const_dvl_tree(),
+                             const_buoy_localisation_tree(),
                               run_tree
                     ])
 
