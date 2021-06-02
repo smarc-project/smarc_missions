@@ -170,7 +170,7 @@ class MissionLog:
             gps_utm_point = None
         else:
             # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.longitude)
             if gps_utm_x is None or gps_utm_y is None:
                 gps_utm_point = None
         self.raw_gps_trace.append(gps_utm_point)
