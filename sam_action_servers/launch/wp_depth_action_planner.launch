@@ -67,6 +67,9 @@
   		<param name="vbs_diving_flag" value="True" />
   		<param name="crosstrack_flag" value="True" />
   		<param name="wp_overshoot_flag" value="True" />
+  		<param name="timeout_flag" value="True" />
+		<param name="timeout_limit" value="500" />
+
 
 		<!--Controller services-->
 		<param name="toggle_yaw_ctrl_service" value="$(arg toggle_yaw_ctrl_service)" />
