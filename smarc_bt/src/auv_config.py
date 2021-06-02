@@ -24,6 +24,10 @@ class AUVConfig(object):
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
+        self.GPS_TOPIC = 'core/gps'
+        self.ROLL_TOPIC = '/'+self.robot_name+'/dr/roll'
+        self.PITCH_TOPIC = '/'+self.robot_name+'/dr/pitch'
+        self.YAW_TOPIC = '/'+self.robot_name+'/dr/yaw'
 
         self.EMERGENCY_TOPIC = 'core/abort'
         self.HEARTBEAT_TOPIC = 'core/heartbeat'
@@ -85,6 +89,19 @@ class AUVConfig(object):
         # function of distance traveled. 0.01 means 1 meter error per 100m travel
         self.LOCALIZATION_ERROR_GROWTH = 0.02
 
+        # Algae farm
+        self.BUOY_TOPIC = 'sim/marked_positions'
+
+        # Mission logging file location
+        self.MISSION_LOG_FOLDER = '~/MissionLogs/'
+        self.ENABLE_MANUAL_MISSION_LOG = False
+
+        # lolo-specific
+        self.LOLO_ELEVATOR_TOPIC = '/lolo/core/elevator'
+        self.LOLO_ELEVON_PORT_TOPIC = '/lolo/core/elevon_port_fb'
+        self.LOLO_ELEVON_STRB_TOPIC = '/lolo/core/elevon_strb_fb'
+        self.LOLO_AFT_TANK_TOPIC = '/lolo/core/vbs/aft_tank_fb'
+        self.LOLO_FRONT_TANK_TOPIC = '/lolo/core/vbs/front_tank_fb'
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

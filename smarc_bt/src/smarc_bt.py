@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
@@ -22,8 +22,8 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty
-from smarc_msgs.msg import Leak
-from smarc_msgs.msg import DVL
+from smarc_msgs.msg import Leak, DVL
+from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
 
@@ -67,7 +67,14 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissonForPOI, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
-                       A_SetDVLRunning
+                       A_SetDVLRunning, \
+                       A_ReadBuoys, \
+                       A_UpdateMissionLog, \
+                       A_SaveMissionLog, \
+                       A_ManualMissionLog, \
+                       A_PublishFinalize, \
+                       A_ReadLolo
+
 
 
 # globally defined values
@@ -92,6 +99,7 @@ def const_tree(auv_config):
 
     # just for clarity when looking at the bb in the field
     bb.set(bb_enums.MISSION_FINALIZED, False)
+    bb.set(bb_enums.ROBOT_NAME, auv_config.robot_name)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -135,6 +143,46 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.CURRENT_LATITUDE : 'latitude',
                                     bb_enums.CURRENT_LONGITUDE : 'longitude'}
         )
+        read_roll = ReadTopic(
+            name = "A_ReadRoll",
+            topic_name = auv_config.ROLL_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.ROLL : 'data'}
+        )
+        read_pitch = ReadTopic(
+            name = "A_ReadPitch",
+            topic_name = auv_config.PITCH_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.PITCH : 'data'}
+        )
+        read_yaw = ReadTopic(
+            name = "A_ReadYaw",
+            topic_name = auv_config.YAW_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.YAW : 'data'}
+        )
+
+        read_buoys = A_ReadBuoys(
+            topic_name=auv_config.BUOY_TOPIC,
+            buoy_link=auv_config.LOCAL_LINK,
+            utm_link=auv_config.UTM_LINK,
+            latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
+        )
+
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.RAW_GPS:None},
+        )
+
+        read_lolo = A_ReadLolo(
+            robot_name = auv_config.robot_name,
+            elevator_topic = auv_config.LOLO_ELEVATOR_TOPIC,
+            elevon_port_topic = auv_config.LOLO_ELEVON_PORT_TOPIC,
+            elevon_strb_topic = auv_config.LOLO_ELEVON_STRB_TOPIC,
+            aft_tank_topic = auv_config.LOLO_AFT_TANK_TOPIC,
+            front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
 
 
         def const_neptus_tree():
@@ -171,6 +219,11 @@ def const_tree(auv_config):
                             read_alt,
                             read_detection,
                             read_latlon,
+                            read_roll,
+                            read_pitch,
+                            read_yaw,
+                            read_buoys,
+                            read_lolo,
                             update_tf,
                             neptus_tree,
                             publish_heartbeat
@@ -290,7 +343,6 @@ def const_tree(auv_config):
     def const_execute_mission_tree():
         # GOTO
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                     goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                      goal_tf_frame = auv_config.UTM_LINK)
         wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
@@ -303,7 +355,6 @@ def const_tree(auv_config):
         # SAMPLE
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
         sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
                                        goal_tf_frame = auv_config.UTM_LINK)
         wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
@@ -318,7 +369,6 @@ def const_tree(auv_config):
         #TODO add an inspection maneuver  into bridge and neptus etc.
         # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
         #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
-        #                                   goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
         #                                   goal_tf_frame = auv_config.UTM_LINK)
         # inspection_maneuver = Sequence(name="SQ-InspectWP",
                                        # children=[
@@ -341,6 +391,7 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
+                                         A_UpdateMissionLog(),
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -354,37 +405,24 @@ def const_tree(auv_config):
 
 
     def const_finalize_mission():
-        publish_complete = A_SimplePublisher(topic=auv_config.MISSION_COMPLETE_TOPIC,
-                                             message_object = Empty())
+        publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
 
 
-        set_finalized = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
-                                                            variable_value = True,
-                                                            name = 'A_SetMissionFinalized->True')
 
         unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
-        #surface on plan completion
-        #planned_surface = A_GotoWaypoint(action_namespace = auv_config.PLANNED_SURFACE_ACTION_NAMESPACE,
-        #                             goal_tolerance = auv_config.WAYPOINT_TOLERANCE,
-        #                             goal_tf_frame = auv_config.UTM_LINK)
-
-        #is_submerged = C_AtDVLDepth(0.5)
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
                                   C_PlanCompleted(),
-                                  #is_submerged,
-                                  #planned_surface,
                                   publish_complete,
                                   unset_plan_is_go,
-                                  set_finalized
-
+                                  A_SaveMissionLog()
                         ])
 
     # The root of the tree is here
@@ -407,12 +445,14 @@ def const_tree(auv_config):
                             #  const_leader_follower()
                         ])
 
-
+    manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
+                                        latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE)
 
 
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
+                              manual_logging,
                               const_safety_tree(),
                              # const_dvl_tree(),
                               run_tree
@@ -428,8 +468,9 @@ def main():
     launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
     try:
         config.generate_launch_file(launch_path)
-    except:
+    except Exception as e:
         print("Did not generate the launch file")
+        print(e)
 
     # init the node
     rospy.init_node("bt", log_level=rospy.INFO)

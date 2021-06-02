@@ -3,13 +3,19 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
+ROBOT_NAME = 'robot_name'
 
 ABORT = 'abort'
 LEAK = 'leak'
 
 DEPTH = 'depth'
-MAX_DEPTH = 'max_depth'
+ROLL = 'roll'
+PITCH = 'pitch'
+YAW = 'yaw'
 ALTITUDE = 'altitude'
+RAW_GPS = 'raw_gps'
+
+MAX_DEPTH = 'max_depth'
 MIN_ALTITUDE = 'min_altitude'
 
 MISSION_PLAN_OBJ = 'misison_plan'
@@ -46,3 +52,26 @@ MISSION_FINALIZED = 'mission_finalized'
 # coverage stuffs
 SWATH = 'swath'
 LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
+
+# Algae farm
+BUOYS = 'buoys'
+
+
+# Goto action
+WAYPOINT_TOLERANCE = 'wp_tolerance'
+
+
+# Mission log object
+MISSION_LOG_OBJ = 'mission_log'
+MISSION_LOG_FOLDER = 'mission_logs_folder'
+ENABLE_MANUAL_MISSION_LOG = 'enable_manual_mission_log'
+MANUAL_MISSION_LOG_OBJ = 'manual_mission_log'
+
+# lolo-specific
+LOLO_ELEVATOR = 'lolo_elevator'
+LOLO_ELEVON_PORT = 'lolo_elevon_port'
+LOLO_ELEVON_STRB = 'lolo_elevon_strb'
+LOLO_AFT_TANK = 'lolo_aft_tank'
+LOLO_FRONT_TANK = 'lolo_front_tank'
+LOLO_AFT_TANK_TARGET = 'lolo_aft_tank_target'
+LOLO_FRONT_TANK_TARGET = 'lolo_front_tank_target'

@@ -14,11 +14,12 @@ import tf
 import actionlib
 
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped
 import actionlib_msgs.msg as actionlib_msgs
-from geometry_msgs.msg import PointStamped, PoseArray
+from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 from nav_msgs.msg import Path
 from std_msgs.msg import Float64, Header, Bool, Empty
+from visualization_msgs.msg import MarkerArray
 from sensor_msgs.msg import NavSatFix
 
 from std_srvs.srv import SetBool
@@ -30,6 +31,283 @@ import imc_enums
 import common_globals
 
 from mission_plan import MissionPlan
+from mission_log import MissionLog
+
+
+class A_ReadLolo(pt.behaviour.Behaviour):
+    def __init__(self,
+                 robot_name,
+                 elevator_topic,
+                 elevon_port_topic,
+                 elevon_strb_topic,
+                 aft_tank_topic,
+                 front_tank_topic):
+        super(A_ReadLolo, self).__init__(name="A_ReadLolo")
+        self.bb = pt.blackboard.Blackboard()
+        self.robot_name = robot_name
+        self.elevator_topic = elevator_topic
+        self.elevon_port_topic = elevon_port_topic
+        self.elevon_strb_topic = elevon_strb_topic
+        self.aft_tank_topic = aft_tank_topic
+        self.front_tank_topic = front_tank_topic
+
+        self.elevator_sub = None
+        self.elevon_port_sub = None
+        self.elevon_strb_sub = None
+        self.aft_tank_sub = None
+        self.front_tank_sub = None
+
+        self.elevator = None
+        self.elevon_port = None
+        self.elevon_strb = None
+        self.aft_tank = None
+        self.aft_tank_target = None
+        self.front_tank = None
+        self.front_tank_target = None
+
+        self.anim_frames = ['^','<','v','>']
+        self.elev_anim_frame = 0
+        self.elevonp_anim_frame = 0
+        self.elevons_anim_frame = 0
+        self.aft_anim_frame = 0
+        self.front_anim_frame = 0
+
+        self.disabled = False
+
+    def elev_cb(self, msg):
+        self.elevator = msg.data
+        self.elev_anim_frame = (self.elev_anim_frame + 1) %(len(self.anim_frames))
+    def elevon_port_cb(self, msg):
+        self.elevon_port = msg.data
+        self.elevonp_anim_frame = (self.elevonp_anim_frame + 1) %(len(self.anim_frames))
+    def elevon_strb_cb(self, msg):
+        self.elevon_strb = msg.data
+        self.elevons_anim_frame = (self.elevons_anim_frame + 1) %(len(self.anim_frames))
+    def aft_tank_cb(self, msg):
+        self.aft_tank = msg.percent_current
+        self.aft_tank_target = msg.percent_target
+        self.aft_anim_frame = (self.aft_anim_frame + 1) %(len(self.anim_frames))
+    def front_tank_cb(self, msg):
+        self.front_tank = msg.percent_current
+        self.front_tank_target = msg.percent_target
+        self.front_anim_frame = (self.front_anim_frame + 1) %(len(self.anim_frames))
+
+
+    def setup(self, timeout):
+        if 'lolo' not in self.robot_name:
+            self.disabled = True
+            return True
+        from lolo_msgs.msg import VbsTank
+        self.elevator_sub = rospy.Subscriber(self.elevator_topic, FloatStamped, self.elev_cb)
+        self.elevon_port_sub = rospy.Subscriber(self.elevon_port_topic, FloatStamped, self.elevon_port_cb)
+        self.elevon_strb_sub = rospy.Subscriber(self.elevon_strb_topic, FloatStamped, self.elevon_strb_cb)
+        self.aft_tank_sub = rospy.Subscriber(self.aft_tank_topic, VbsTank, self.aft_tank_cb)
+        self.front_tank_sub = rospy.Subscriber(self.front_tank_topic, VbsTank, self.front_tank_cb)
+        return True
+
+    def update(self):
+        if self.disabled:
+            self.feedback_message = "Robot not LOLO"
+            return pt.Status.SUCCESS
+
+        self.bb.set(bb_enums.LOLO_ELEVATOR, self.elevator)
+        self.bb.set(bb_enums.LOLO_ELEVON_PORT, self.elevon_port)
+        self.bb.set(bb_enums.LOLO_ELEVON_STRB, self.elevon_strb)
+        self.bb.set(bb_enums.LOLO_AFT_TANK, self.aft_tank)
+        self.bb.set(bb_enums.LOLO_AFT_TANK_TARGET, self.aft_tank_target)
+        self.bb.set(bb_enums.LOLO_FRONT_TANK, self.front_tank)
+        self.bb.set(bb_enums.LOLO_FRONT_TANK_TARGET, self.front_tank_target)
+
+
+        frame = 'elv{} enp{} ens{} aft{} frn{}'.format(
+            self.anim_frames[self.elev_anim_frame],
+            self.anim_frames[self.elevonp_anim_frame],
+            self.anim_frames[self.elevons_anim_frame],
+            self.anim_frames[self.aft_anim_frame],
+            self.anim_frames[self.front_anim_frame])
+        self.feedback_message = frame
+        return pt.Status.SUCCESS
+
+
+
+class A_PublishFinalize(pt.behaviour.Behaviour):
+    def __init__(self, topic):
+        super(A_PublishFinalize, self).__init__(name="A_PublishFinalize")
+        self.bb = pt.blackboard.Blackboard()
+        self.topic = topic
+
+        self.last_published_time = None
+
+        self.message_object = Empty()
+
+
+    def setup(self, timeout):
+        self.pub = rospy.Publisher(self.topic, Empty, queue_size=1)
+        return True
+
+
+    def update(self):
+        if self.last_published_time is not None:
+            time_since = time.time() - self.last_published_time
+            self.feedback_message = "Last pub'd:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "Never published!"
+
+        finalized = self.bb.get(bb_enums.MISSION_FINALIZED)
+        if not finalized:
+            try:
+                self.pub.publish(self.message_object)
+                self.last_published_time = time.time()
+                self.feedback_message = "Just published"
+                self.bb.set(bb_enums.MISSION_FINALIZED, True)
+                return pt.Status.SUCCESS
+            except:
+                msg = "Couldn't publish"
+                rospy.logwarn_throttle(1, msg)
+                self.feedback_message = msg
+                return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
+
+
+
+
+
+class A_ManualMissionLog(pt.behaviour.Behaviour):
+    def __init__(self,
+                 latlontoutm_service_name,
+                 latlontoutm_service_name_alternative):
+        super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.started_logs = 0
+        self.num_saved_logs = 0
+
+        # used just for the latlontoutm function only
+        self.mplan = MissionPlan(plandb_msg = None,
+                                 latlontoutm_service_name = latlontoutm_service_name,
+                                 latlontoutm_service_name_alternative = latlontoutm_service_name_alternative,
+                                 waypoints = [])
+
+
+    def start_new_log(self):
+        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
+        log = MissionLog(mission_plan = None,
+                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
+                         save_location = save_location)
+        self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, log)
+        rospy.loginfo("Started new manual mission log")
+        self.started_logs += 1
+        return log
+
+    def update(self):
+        enabled = self.bb.get(bb_enums.ENABLE_MANUAL_MISSION_LOG)
+        log = self.bb.get(bb_enums.MANUAL_MISSION_LOG_OBJ)
+
+        if not enabled:
+            # if we have a log, we save it now
+            # and set it to None, so next time we are
+            # disabled we dont do anything
+            if log is not None:
+                log.save()
+                self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, None)
+                self.num_saved_logs += 1
+
+            self.feedback_message = "Disabled, {} logs saved".format(self.num_saved_logs)
+            return pt.Status.SUCCESS
+
+
+        if log is None:
+            log = self.start_new_log()
+
+        # check if there is already a mission plan
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        # otherwise use our default mplan
+        if mplan is None:
+            mplan = self.mplan
+
+        log.log(self.bb, mplan)
+
+        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
+
+        return pt.Status.SUCCESS
+
+
+
+
+
+
+class A_SaveMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_SaveMissionLog, self).__init__(name="A_SaveMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.num_saved_logs = 0
+
+
+    def update(self):
+        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
+        if log is not None:
+            log.save()
+            self.num_saved_logs += 1
+            self.bb.set(bb_enums.MISSION_LOG_OBJ, None)
+            self.feedback_message = "Saved log #{}!".format(self.num_saved_logs)
+        else:
+            self.feedback_message = "#saved logs:{}".format(self.num_saved_logs)
+
+        return pt.Status.SUCCESS
+
+
+class A_UpdateMissionLog(pt.behaviour.Behaviour):
+    def __init__(self):
+        super(A_UpdateMissionLog, self).__init__(name="A_UpdateMissionLog")
+        self.bb = pt.blackboard.Blackboard()
+        self.started_logs = 0
+
+
+    def start_new_log(self, mplan):
+        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
+        log = MissionLog(mission_plan = mplan,
+                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
+                         save_location = save_location)
+        self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
+        rospy.loginfo("Started new mission log")
+        self.started_logs += 1
+        return log
+
+
+    def update(self):
+        # only update if there is an unfinalized mission that has been started
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is None:
+            rospy.loginfo("Mission plan is None, can't make a log of this?")
+            self.feedback_message = "No mission plan!"
+            return pt.Status.FAILURE
+
+
+        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
+        if log is None:
+            log = self.start_new_log(mplan)
+
+        # check if the mission has changed in the meantime
+        # this can happen when the user starts a mission, stops it,
+        # and then starts a different one
+        # we dont wanna log the incomplete one
+        # did it change since we last got called?
+        if log.creation_time != mplan.creation_time:
+            # it changed!
+            # re-start a log
+            log = self.start_new_log(mplan)
+
+
+        log.log(self.bb, mplan)
+
+        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
+
+        return pt.Status.SUCCESS
+
+
+
+
+
 
 
 
@@ -223,7 +501,6 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
                  action_namespace,
-                 goal_tolerance = 1,
                  goal_tf_frame = 'utm',
                  node_name = "A_GotoWaypoint"):
         """
@@ -253,9 +530,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         )
 
         self.action_server_ok = False
-
-        assert goal_tolerance >= 1, "Goal tolerance must be >=1!, it is:"+str(goal_tolerance)
-        self.goal_tolerance = goal_tolerance
 
         self.goal_tf_frame = goal_tf_frame
 
@@ -303,11 +577,14 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
             rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
+        # get the goal tolerance as a dynamic variable from the bb
+        goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+
         # construct the message
         goal = GotoWaypointGoal()
         goal.waypoint_pose.pose.position.x = wp.x
         goal.waypoint_pose.pose.position.y = wp.y
-        goal.goal_tolerance = self.goal_tolerance
+        goal.goal_tolerance = goal_tolerance
 
         # 0=None, 1=Depth, 2=Altitude in the action
         # thankfully these are the same in IMC and in the Action
@@ -1081,3 +1358,126 @@ class A_FollowLeader(ptr.actions.ActionClient):
 
     def feedback_cb(self, msg):
         pass
+
+
+class A_ReadBuoys(pt.behaviour.Behaviour):
+
+    '''
+    This action reads the uncertain positions
+    (mean and covariance) of buoys from the rostopic.
+    '''
+
+    def __init__(
+        self,
+        topic_name,
+        buoy_link,
+        utm_link,
+        latlon_utm_serv,
+    ):
+
+        # rostopic name and type (e.g. marker array)
+        self.topic_name = topic_name
+
+        # frame IDs for TF
+        self.buoy_link = buoy_link
+        self.utm_link = utm_link
+
+        # lat/lon to utm service
+        self.latlon_utm_serv = latlon_utm_serv
+
+        # blackboard for info
+        self.bb = pt.blackboard.Blackboard()
+
+        # become a behaviour
+        pt.behaviour.Behaviour.__init__(
+            self,
+            name="A_ReadBuoys"
+        )
+
+        # for coordinate frame transformations
+        self.tf_listener = tf.TransformListener()
+
+    def setup(self, timeout):
+
+        # wait for TF transformation
+        try:
+            rospy.loginfo('Waiting for transform from {} to {}.'.format(
+                self.buoy_link,
+                self.utm_link
+            ))
+            self.tf_listener.waitForTransform(
+                self.buoy_link,
+                self.utm_link,
+                rospy.Time(),
+                rospy.Duration(timeout)
+            )
+        except:
+            rospy.loginfo('Transform from {} to {} not found.'.format(
+                self.buoy_link,
+                self.utm_link
+            ))
+
+        # subscribe to buoy positions
+        self.sub = rospy.Subscriber(
+            self.topic_name,
+            MarkerArray,
+            callback=self.cb,
+            queue_size=10
+        )
+        # self.bb.set(bb_enums.BUOYS, None)
+        self.buoys = None
+        return True
+
+    def cb(self, msg):
+
+        '''
+        This will read the uncertain buoy positions
+        from the SLAM backend and sensors.
+        But, for now, it just read the simulator buoys.
+        The buoys here are assumed to be in the map frame.
+        '''
+
+        # space for bouy positions
+        # rospy.loginfo('hello')
+        self.buoys = list()
+
+        # loop through visualization markers
+        for marker in msg.markers:
+
+            # convert their pose to pose stamped
+            pose = PoseStamped(
+                header=marker.header,
+                pose=marker.pose
+            )
+
+            # # transform it from local to UTM frame
+            # pose = self.tf_listener.transformPose(
+            #     self.utm_link,
+            #     pose
+            # )
+
+            # add it to the list
+            self.buoys.append([
+                pose.pose.position.x,
+                pose.pose.position.y,
+                pose.pose.position.z
+            ])
+
+        # make it into a numpy array because why not
+        self.buoys = np.array(self.buoys)
+        self.buoys = self.buoys[np.argsort(self.buoys[:,0])]
+        self.buoys = self.buoys.reshape((-1, 3, 3))
+        self.buoys = np.sort(self.buoys, axis=1)
+        self.buoys = dict(
+            front=self.buoys[:,0,:],
+            left=self.buoys[0,:,:],
+            back=self.buoys[:,-1,:],
+            right=self.buoys[-1,:,:],
+            all=self.buoys
+        )
+
+    def update(self):
+
+        # put the buoy positions in the blackboard
+        self.bb.set(bb_enums.BUOYS, self.buoys)
+        return pt.Status.SUCCESS

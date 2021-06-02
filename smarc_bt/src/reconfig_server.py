@@ -33,6 +33,10 @@ class ReconfigServer(object):
                                "default:{}".format(config.MAX_DEPTH),
                                config.MAX_DEPTH, 0, 50)
 
+        self.ddrc.add_variable(bb_enums.WAYPOINT_TOLERANCE,
+                               "default:{}".format(config.WAYPOINT_TOLERANCE),
+                               config.WAYPOINT_TOLERANCE, 0.1, 10)
+
         # coverage stuffs
         self.ddrc.add_variable(bb_enums.SWATH,
                                "default:{}".format(config.SWATH),
@@ -40,6 +44,15 @@ class ReconfigServer(object):
         self.ddrc.add_variable(bb_enums.LOCALIZATION_ERROR_GROWTH,
                                "default:{}".format(config.LOCALIZATION_ERROR_GROWTH),
                                config.LOCALIZATION_ERROR_GROWTH, 0, 0.1)
+
+        self.ddrc.add_variable(bb_enums.MISSION_LOG_FOLDER,
+                               "default:{}".format(config.MISSION_LOG_FOLDER),
+                               config.MISSION_LOG_FOLDER)
+
+        self.ddrc.add_variable(bb_enums.ENABLE_MANUAL_MISSION_LOG,
+                               "Check to start a new log, uncheck to stop and save it",
+                               config.ENABLE_MANUAL_MISSION_LOG)
+
 
         rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
 
