@@ -225,7 +225,9 @@ class A_ManualMissionLog(pt.behaviour.Behaviour):
         if mplan is None:
             mplan = self.mplan
 
-        log.log(self.bb, mplan)
+        log.log(bb = self.bb,
+                mplan = mplan,
+                t = rospy.get_time())
 
         self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
 
@@ -298,7 +300,9 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
             log = self.start_new_log(mplan)
 
 
-        log.log(self.bb, mplan)
+        log.log(bb = self.bb,
+                mplan = mplan,
+                t = rospy.get_time())
 
         self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
 

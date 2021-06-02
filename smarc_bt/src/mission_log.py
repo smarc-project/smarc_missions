@@ -135,7 +135,7 @@ class MissionLog:
         return True
 
 
-    def log(self, mplan, bb, t=None):
+    def log(self, bb, mplan, t=None):
         ############################################
         # vehicle-specific stuff
         logged_lolo = self.log_lolo(bb)

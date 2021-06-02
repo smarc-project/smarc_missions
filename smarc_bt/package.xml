@@ -62,6 +62,7 @@
   <depend>py_trees_ros</depend>
   <depend>smarc_msgs</depend>
   <depend>visualization_msgs</depend>
+  <depend>lolo_msgs</depend>
 
   <!--buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
