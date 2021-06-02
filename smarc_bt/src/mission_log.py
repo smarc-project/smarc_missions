@@ -172,7 +172,7 @@ class MissionLog:
             # translate the latlon to utm point using the same service as the mission plan
             gps_utm_x, gps_utm_y = mplan.latlon_to_utm(lat = gps.latitude,
                                                        lon = gps.longitude,
-                                                       z = 0.
+                                                       z = 0.,
                                                        in_degrees = True)
             if gps_utm_x is None or gps_utm_y is None:
                 gps_utm_point = None
@@ -341,13 +341,13 @@ if __name__ == '__main__':
 
     # plot the altitude relative to the height of the auv
     bottom = loc_trace[:,2] - altitude_trace
-    plt.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='brown')
+    ax.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='brown')
 
 
     if len(mplan) > 1:
-        mplan -= origin
-        mplan[:,2] = np.min(mplan[:,2], 0.)
-        plt.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
+        mplan[:,2] -= origin[:2]
+        mplan[:,2] = np.min(mplan[:,2], 0)
+        ax.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
 
     # filter out "non-fixes"
     gps_fixes = gps_trace[gps_trace !=  None]
@@ -357,11 +357,12 @@ if __name__ == '__main__':
             fixes.append((p[0],p[1]))
         gps_fixes = np.array(fixes)
         gps_fixes -= origin[:2]
-        plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1], c='black')
+        ax.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1], c='black')
 
     if equal_z:
         set_axes_equal(ax)
 
+    plt.show()
 
 """
 
