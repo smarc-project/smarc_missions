@@ -120,21 +120,24 @@ class MissionPlan:
     def latlon_to_utm(self,
                       lat,
                       lon,
-                      z):
-        rospy.loginfo("Waiting at most 1s for latlontoutm service "+str(self.latlontoutm_service_name))
+                      z,
+                      in_degrees=False):
         try:
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
         except:
             rospy.logwarn(str(self.latlontoutm_service_name)+" service not found!")
             return (None, None)
 
-        rospy.loginfo("Got latlontoutm service")
         try:
             latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
                                                      LatLonToUTM)
             gp = GeoPoint()
-            gp.latitude = np.degrees(lat)
-            gp.longitude = np.degrees(lon)
+            if in_degrees:
+                gp.latitude = lat
+                gp.longitude = lon
+            else:
+                gp.latitude = np.degrees(lat)
+                gp.longitude = np.degrees(lon)
             gp.altitude = z
             res = latlontoutm_service(gp)
             return (res.utm_point.x, res.utm_point.y)

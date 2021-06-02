@@ -170,9 +170,14 @@ class MissionLog:
             gps_utm_point = None
         else:
             # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.longitude)
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(lat = gps.latitude,
+                                                       lon = gps.longitude,
+                                                       z = 0.
+                                                       in_degrees = True)
             if gps_utm_x is None or gps_utm_y is None:
                 gps_utm_point = None
+            else:
+                gps_utm_point = (gps_utm_x, gps_utm_y)
         self.raw_gps_trace.append(gps_utm_point)
 
         # then add the tree tip and its status
@@ -211,9 +216,6 @@ class MissionLog:
 
 
 
-
-
-
     def save(self):
         if self.disabled:
             print("Save location was bad before, can not save!")
@@ -232,10 +234,9 @@ class MissionLog:
 
         # also save a viewer script to the same locale
         try:
-            if not os.path.exists(self.script_full_path):
-                with open(self.script_full_path, 'w+') as f:
-                    global viewer_script
-                    f.write(viewer_script)
+            with open(self.script_full_path, 'w+') as f:
+                global viewer_script
+                f.write(viewer_script)
         except:
             print("Viewer script could not be written")
 
@@ -269,7 +270,8 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-viewer_script = """
+viewer_script = """#! /usr/bin/env python3
+
 if __name__ == '__main__':
     import numpy as np
     import os
@@ -317,8 +319,8 @@ if __name__ == '__main__':
     #center on first nav point
     loc_trace -= origin
     ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='red')
-    plt.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2]+3, "S")
-    plt.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2]+3, "E")
+    ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2]+3, "S")
+    ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2]+3, "E")
 
     try:
         rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
@@ -350,14 +352,17 @@ if __name__ == '__main__':
     # filter out "non-fixes"
     gps_fixes = gps_trace[gps_trace !=  None]
     if len(gps_fixes) > 0:
-        gps_fixes -= origin
-        # plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1])
+        fixes=[]
+        for p in gps_fixes:
+            fixes.append((p[0],p[1]))
+        gps_fixes = np.array(fixes)
+        gps_fixes -= origin[:2]
+        plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1], c='black')
 
     if equal_z:
         set_axes_equal(ax)
 
 
-    plt.show()
 """
 
 

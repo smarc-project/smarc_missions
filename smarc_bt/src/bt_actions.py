@@ -877,12 +877,15 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
 
         # same thing with gps fix
         # the bridge only looks at lat lon height=altitude
-        self.gps_fix.latitude = lat
-        self.gps_fix.longitude = lon
-        self.gps_fix.altitude = -depth
-        self.gps_fix.header.seq = int(time.time())
-        self.gps_fix_pub.publish(self.gps_fix)
-        self.gps_nav_data_pub.publish(self.gps_fix)
+        # we read this from the raw gps instead
+        navsatfix = self.bb.get(bb_enums.RAW_GPS)
+        if navsatfix is not None:
+            self.gps_fix.latitude = navsatfix.latitude
+            self.gps_fix.longitude = navsatfix.longitude
+            self.gps_fix.altitude = -depth
+            self.gps_fix.header.seq = int(time.time())
+            self.gps_fix_pub.publish(self.gps_fix)
+            self.gps_nav_data_pub.publish(self.gps_fix)
 
         return pt.Status.SUCCESS
 
