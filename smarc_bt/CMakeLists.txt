@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   visualization_msgs
   lolo_msgs
   smarc_msgs
+  vision_msgs
   #uuv_gazebo_ros_plugins_msgs
 )
 

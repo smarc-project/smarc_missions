@@ -53,6 +53,19 @@ MISSION_FINALIZED = 'mission_finalized'
 SWATH = 'swath'
 LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 
+# Algae farm perception (A_ReadBuoys)
+BUOY_MARKERS = 'buoy_markers'
+BUOY_MARKERS_CENTROID = 'buoy_markers_centroid'
+BUOY_DETECTION = 'buoy_detection'
+
+# buoy localisation (C_BuoysLocalised)
+BUOY_LOCALISATION_PLAN_SET = 'buoy_localisation_plan_set'
+
+
+BUOY_PLAN_USE = 'buoy_use_plan'
+
+WALL_PLAN_SET = 'wall_plan_set'
+USE_BUOY_PLAN = 'use_buoy_plan'
 # Algae farm
 BUOYS = 'buoys'
 
