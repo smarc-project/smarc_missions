@@ -8,7 +8,8 @@ A simple config object for an AUV, to make sure that
 the fields are common.
 """
 
-import rospy, numpy as np
+import rospy, numpy as np, os
+
 
 class AUVConfig(object):
     """
@@ -106,7 +107,9 @@ class AUVConfig(object):
         # self.BUOY_CENTROID = [0., 9., 0.]
         # self.BUOY_CENTROID = np.load('utm_centroid.npy')
         # https://goo.gl/maps/vE9wkxBMkP5X6owXA
-        self.BUOY_CENTROID = np.load('/home/cisprague/catkin_ws/src/smarc_missions/smarc_bt/src/buoys_centroid_latlon.npy')
+        # 58°15'00.0"N 11°27'00.0"E
+        # self.BUOY_CENTROID = [58.15, 11.27]
+        self.BUOY_CENTROID = [58.25092212, 11.45027245]
         self.BUOY_LOCALISATION_DISTANCES = [(10, 10), (10, 10), (9, 9)]
         self.BUOY_LOCALISATION_VELOCITY = 2.0
         self.BUOY_LOCALISATION_DEPTH = 3.0

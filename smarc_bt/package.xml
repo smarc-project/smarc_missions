@@ -63,6 +63,7 @@
   <depend>smarc_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>vision_msgs</depend>
+  <depend>python-sklearn</depend>
 
   <!--buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>

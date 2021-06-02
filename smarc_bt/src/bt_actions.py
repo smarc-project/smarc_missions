@@ -32,6 +32,7 @@ from visualization_msgs.msg import MarkerArray
 from sensor_msgs.msg import NavSatFix
 from vision_msgs.msg import Detection2DArray
 
+
 from std_srvs.srv import SetBool
 from smarc_msgs.srv import LatLonToUTM
 
@@ -728,9 +729,6 @@ class A_UpdateOdom(pt.behaviour.Behaviour):
         twist = PoseStamped
 
 
-
-
-
 class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
     def __init__(self, plan_control_topic):
         super(A_UpdateNeptusPlanControl, self).__init__("A_UpdateNeptusPlanControl")
@@ -809,7 +807,6 @@ class A_UpdateNeptusPlanControl(pt.behaviour.Behaviour):
         # reset it until next message
         self.plan_control_msg = None
         return pt.Status.SUCCESS
-
 
 
 class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
