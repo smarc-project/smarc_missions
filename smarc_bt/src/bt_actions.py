@@ -19,7 +19,7 @@ import tf
 import actionlib
 from itertools import chain, combinations
 from sklearn.mixture import BayesianGaussianMixture
-from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
 import actionlib_msgs.msg as actionlib_msgs
@@ -1495,8 +1495,6 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
             )
             self.markers_centroid = centroid
 
-
-        
             # put a dictionary into the blackboard
             self.markers = dict(
                 frame_id=self.map_frame, 
@@ -1526,7 +1524,71 @@ class A_ReadBuoys(pt.behaviour.Behaviour):
         buoys = np.array(buoys)
 
     @staticmethod
-    def infer_lines(points, theta, n_lines, atol, dtol):
+    def infer_lines(points, theta, dtol, algo, xrange, yrange):
+
+        # if we don't have at least 2 points
+        if points.shape[0] < 2:
+            return list()
+
+        # degrees to radians
+        theta = np.deg2rad(theta)
+
+        # unit vectors
+        vx = np.array([np.sin(theta), -np.cos(theta)])
+        vy = np.array([np.cos(theta), np.sin(theta)])
+
+        # metric: horizontal distance between points
+        metric = lambda p0, p1: abs((p1 - p0)[:2].dot(vx))
+
+        # cluster the points
+        model = DBSCAN(
+            eps=dtol,
+            min_samples=2,
+            metric=metric,
+            algorithm=algo
+        )
+        c = model.fit_predict(points)
+        
+        # seperate points into lines
+        lines = [
+            points[c==_]
+            for _ in np.unique(c) 
+            if _!=-1
+        ]
+
+        # centroid of points
+        centroid = points.mean(axis=0)
+
+        # sort points in lines
+        lines = [
+            line[np.argsort(
+                [(point - centroid)[:2].dot(vy) for point in line]
+            )]
+            for line in lines
+        ]
+
+        # sort lines
+        lines = [lines[_] for _ in np.argsort([
+            (line.mean(axis=0) - centroid)[:2].dot(vx)
+            for line in lines
+        ])]
+
+        # remove out-of-range lines
+        _ = list()
+        for line in lines:
+
+            # distances
+            d = line - centroid
+            dx = np.array([np.dot(_, vx) for _ in d])
+            dy = np.array([np.dot(_, vy) for _ in d])
+
+            print(dx, dy)
+
+        return lines
+
+
+    @staticmethod
+    def _infer_lines(points, theta, n_lines, atol, dtol):
 
         '''
         Clusters a set of partially colinear points
