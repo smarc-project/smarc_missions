@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   #mpl_toolkits
   actionlib
   #math
+  ddynamic_reconfigure_python
 )
 
 ## System dependencies are found with CMake's conventions

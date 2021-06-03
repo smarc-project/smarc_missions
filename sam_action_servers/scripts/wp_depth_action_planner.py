@@ -34,6 +34,43 @@ from tf.transformations import quaternion_from_euler
 from toggle_controller import ToggleController  
 import time   
 
+from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
+
+class ReconfigServer(object):
+    def __init__(self, planner):
+        """
+        Read the defaults from the config object
+        so that we dont change the launch-defaults right away
+        with different reconfig defaults
+        We then just put whatever reconfig we get into the BB with the same key
+        """
+        # DynamicDynamicReConfig
+        # because the .cfg way of doing this is pain
+        self.planner = planner #store a copy of the reference to the object
+        self.ddrc = DDynamicReconfigure("actions_reconfig")
+        # name, description, default value, min, max, edit_method
+        self.ddrc.add_variable("lookahead_dist",
+                               "Lookahead Distance",
+                               planner.lookahead_dist, 1., 20.)
+
+
+        rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
+
+
+        # this should be the last thing in this init
+        self.ddrc.start(self.reconfig_cb)
+
+
+
+    def reconfig_cb(self, config, level):
+        for key in self.ddrc.get_variable_names():
+            new_value = config.get(key)
+
+            rospy.loginfo("New value for:{} set to:{} )".format(key, new_value))
+            self.planner.lookahead_dist = new_value
+
+        return config
+
 class WPDepthPlanner(object):
 
     # create messages that are used to publish feedback/result
@@ -214,6 +251,11 @@ class WPDepthPlanner(object):
             self.vel_ctrl_flag = False # use RPM ctrl
             self.forward_rpm = goal.travel_rpm #take rpm from NEPTUS
 
+        #get wp goal tolerance from Neptus
+        if goal.goal_tolerance:
+            self.wp_tolerance = goal.goal_tolerance #take the goal tolerance from Neptus if it exists!
+            rospy.loginfo_throttle(5,'Using Goal tolerance from neptus:'+ str(goal.goal_tolerance))
+
         if self.use_constant_rpm: #overriding neptus values
             self.vel_ctrl_flag = False #use constant rpm
 
@@ -312,7 +354,8 @@ class WPDepthPlanner(object):
                     err_tang = math.atan2(y_goal-y_prev, x_goal- x_prev) # path tangential vector
                     #err_tang = math.atan2(ydiff, xdiff) # path tangential vector
                     err_crosstrack = -(pose_fb.pose.position.x - x_prev)*math.sin(err_tang)+ (pose_fb.pose.position.y - y_prev)*math.cos(err_tang) # crosstrack error
-                    lookahead = 3 #lookahead distance(m)
+                    #lookahead = 3 #lookahead distance(m)
+                    lookahead = self.lookahead_dist
                     err_velpath = math.atan2(-err_crosstrack,lookahead)
 
                     yaw_setpoint = (err_tang) + (err_velpath)
@@ -389,7 +432,7 @@ class WPDepthPlanner(object):
         self._action_name = name
 
         #self.heading_offset = rospy.get_param('~heading_offsets', 5.)
-        self.wp_tolerance = rospy.get_param('~wp_tolerance', 5.)
+        self.wp_tolerance = rospy.get_param('~wp_tolerance', 5.) #default value, overriden by Neptus if it is set in Neptus
         self.depth_tolerance = rospy.get_param('~depth_tolerance', 0.5)
 
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
@@ -405,6 +448,7 @@ class WPDepthPlanner(object):
         #augmentation for vbs diving at low speeds, crosstrack error and waypoint overshoot
         self.vbs_diving_flag = rospy.get_param('~vbs_diving_flag', True)
         self.crosstrack_flag = rospy.get_param('~crosstrack_flag', True)
+        self.lookahead_dist = rospy.get_param('~lookahead_dist', 3.0)
         self.wp_overshoot_flag =  rospy.get_param('~wp_overshoot_flag', True)
         self.timeout_flag = rospy.get_param('~timeout_flag', True)
         self.timeout_limit = rospy.get_param('~timeout_limit', 500)
@@ -474,9 +518,12 @@ class WPDepthPlanner(object):
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
 
+        reconfig = ReconfigServer(self)
+
         rospy.spin()
 
 if __name__ == '__main__':
 
     rospy.init_node('wp_depth_action_planner')
     planner = WPDepthPlanner(rospy.get_name())
+    

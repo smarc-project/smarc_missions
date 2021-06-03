@@ -78,6 +78,7 @@
   <!--depend>sam_msgs</depend>
   <depend>smarc_msgs</depend-->
   <!--depend>std_srvs</depend-->
+  <depend>ddynamic_reconfigure_python</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
