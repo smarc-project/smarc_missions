@@ -176,11 +176,12 @@ class MissionLog:
 
         # then add the raw gps
         gps = bb.get(bb_enums.RAW_GPS)
-        # also log the raw lat lon
-        self.raw_gps_latlon_trace.append((gps.latitude, gps.longitude))
         if gps is None or gps.status.status == -1: # no fix
+            self.raw_gps_latlon_trace.append(None)
             gps_utm_point = None
         else:
+            # also log the raw lat lon
+            self.raw_gps_latlon_trace.append((gps.latitude, gps.longitude))
             # translate the latlon to utm point using the same service as the mission plan
             gps_utm_x, gps_utm_y = mplan.latlon_to_utm(lat = gps.latitude,
                                                        lon = gps.longitude,
