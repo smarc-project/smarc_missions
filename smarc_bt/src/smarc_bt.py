@@ -22,7 +22,7 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty
-from smarc_msgs.msg import Leak, DVL
+from smarc_msgs.msg import Leak, DVL, FloatStamped
 from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
@@ -148,19 +148,19 @@ def const_tree(auv_config):
         read_roll = ReadTopic(
             name = "A_ReadRoll",
             topic_name = auv_config.ROLL_TOPIC,
-            topic_type = Float64,
+            topic_type = FloatStamped,
             blackboard_variables = {bb_enums.ROLL : 'data'}
         )
         read_pitch = ReadTopic(
             name = "A_ReadPitch",
             topic_name = auv_config.PITCH_TOPIC,
-            topic_type = Float64,
+            topic_type = FloatStamped,
             blackboard_variables = {bb_enums.PITCH : 'data'}
         )
         read_yaw = ReadTopic(
             name = "A_ReadYaw",
             topic_name = auv_config.YAW_TOPIC,
-            topic_type = Float64,
+            topic_type = FloatStamped,
             blackboard_variables = {bb_enums.YAW : 'data'}
         )
 
