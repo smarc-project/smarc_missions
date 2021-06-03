@@ -14,6 +14,7 @@ PITCH = 'pitch'
 YAW = 'yaw'
 ALTITUDE = 'altitude'
 RAW_GPS = 'raw_gps'
+DVL_VELOCITY = 'dvl_velocities'
 
 MAX_DEPTH = 'max_depth'
 MIN_ALTITUDE = 'min_altitude'

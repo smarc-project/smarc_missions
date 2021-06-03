@@ -33,10 +33,13 @@ class MissionLog:
         # filtered/corrected trace of auv pose
         # x,y,z, yaw,pitch,roll
         self.navigation_trace = []
+        # vx,vy,vz from dvl
+        self.velocity_trace = []
         # distance from bottom
         self.altitude_trace = []
         # raw gps fixes
         self.raw_gps_trace = []
+        self.raw_gps_latlon_trace = []
         # leaf nodes with name and status
         self.tree_tip_trace = []
         # the waypoints of the mission this log belongs to
@@ -163,9 +166,18 @@ class MissionLog:
         self.path_msg.poses.append(ps)
         self.path_pub.publish(self.path_msg)
 
+        # velocities from dvl
+        vel_msg = bb.get(bb_enums.DVL_VELOCITY)
+        vels = (vel_msg.x, vel_msg.y, vel_msg.z)
+        self.velocity_trace.append(vels)
+
+
+
 
         # then add the raw gps
         gps = bb.get(bb_enums.RAW_GPS)
+        # also log the raw lat lon
+        self.raw_gps_latlon_trace.append((gps.latitude, gps.longitude))
         if gps is None or gps.status.status == -1: # no fix
             gps_utm_point = None
         else:
@@ -223,7 +235,9 @@ class MissionLog:
 
         # save a json file for now for easy inspection
         data = {'navigation_trace':self.navigation_trace,
+                'velocity_trace':self.velocity_trace,
                 'raw_gps_trace':self.raw_gps_trace,
+                'raw_gps_latlon_trace':self.raw_gps_latlon_trace,
                 'tree_tip_trace':self.tree_tip_trace,
                 'mission_plan_wps':self.mission_plan_wps,
                 'time_trace':self.time_trace,
@@ -345,7 +359,7 @@ if __name__ == '__main__':
 
 
     if len(mplan) > 1:
-        mplan[:,2] -= origin[:2]
+        mplan[:,:2] -= origin[:2]
         mplan[:,2] = np.min(mplan[:,2], 0)
         ax.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
 
@@ -357,13 +371,22 @@ if __name__ == '__main__':
             fixes.append((p[0],p[1]))
         gps_fixes = np.array(fixes)
         gps_fixes -= origin[:2]
-        ax.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1], c='black')
+        ax.scatter(gps_fixes[:,0], gps_fixes[:,1], 0, c='grey', alpha=0.2)
+        filtered_locs = loc_trace[gps_trace != None]
+        step = 20
+        for fix, loc in zip(gps_fixes[::step], filtered_locs[::step]):
+            xs = [fix[0], loc[0]]
+            ys = [fix[1], loc[1]]
+            zs = [0., loc[2]]
+            ax.plot(xs, ys, zs, c='grey', alpha=0.2)
+            diff = np.sqrt((xs[0]-xs[1])**2+(ys[0]-ys[1])**2+(zs[0]-zs[1])**2)
+            ax.text(sum(xs)/2, sum(ys)/2, sum(zs)/2, s='{:.1f}'.format(diff))
+
 
     if equal_z:
         set_axes_equal(ax)
 
     plt.show()
-
 """
 
 

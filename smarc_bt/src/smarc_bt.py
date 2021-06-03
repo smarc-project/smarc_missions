@@ -49,7 +49,7 @@ from bt_conditions import C_DepthOK, \
                           C_CheckWaypointType, \
                           C_NoNeedToPlanBuoys, \
                           C_BuoysLocalised, \
-                            C_BuoyLocalisationPlanSet \
+                          C_BuoyLocalisationPlanSet \
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -71,9 +71,9 @@ from bt_actions import A_GotoWaypoint, \
                        A_VizPublishPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
-                        A_ReadBuoys, \
-                            A_SetBuoyLocalisationPlan, \
-                                A_UpdateOdom, \
+                       A_ReadBuoys, \
+                       A_SetBuoyLocalisationPlan, \
+                       A_UpdateOdom, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
@@ -121,10 +121,11 @@ def const_tree(auv_config):
          # max_period = None,
          # allow_silence = True
         read_alt = ReadTopic(
-            name = "A_ReadAlt",
-            topic_name = auv_config.ALTITUDE_TOPIC,
+            name = "A_ReadDVL",
+            topic_name = auv_config.DVL_TOPIC,
             topic_type = DVL,
-            blackboard_variables = {bb_enums.ALTITUDE:'altitude'}
+            blackboard_variables = {bb_enums.ALTITUDE:'altitude',
+                                    bb_enums.DVL_VELOCITY:'velocity'}
         )
 
         read_leak = ReadTopic(

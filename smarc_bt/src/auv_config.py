@@ -19,7 +19,7 @@ class AUVConfig(object):
         self.robot_name = 'sam'
 
         # topics
-        self.ALTITUDE_TOPIC = 'core/dvl'
+        self.DVL_TOPIC = 'core/dvl'
         self.LEAK_TOPIC = 'core/leak'
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
