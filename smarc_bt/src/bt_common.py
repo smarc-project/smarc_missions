@@ -164,13 +164,10 @@ class CheckBlackboardVariableValue(pt.behaviour.Behaviour):
     returns succcess if there IS a value, and it is what we expected,
     otherwiser FAILURE
     """
-    def __init__(self, variable_name, expected_value, name, preset=None):
+    def __init__(self, variable_name, expected_value, name):
         self.bb = pt.blackboard.Blackboard()
         self.variable_name = variable_name
         self.expected_value = expected_value
-        if preset is not None:
-            self.bb.set(self.variable_name, preset)
-
 
         super(CheckBlackboardVariableValue, self).__init__(name)
 
