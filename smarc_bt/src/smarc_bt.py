@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
@@ -10,6 +10,12 @@ import rospy
 
 import py_trees as pt
 import py_trees_ros as ptr
+
+if not hasattr(rospy, 'loginfo_throttle_identical'): setattr(rospy, 'loginfo_throttle_identical', rospy.loginfo_throttle)
+if not hasattr(rospy, 'logwarn_throttle_identical'): setattr(rospy, 'logwarn_throttle_identical', rospy.logwarn_throttle)
+if not hasattr(rospy, 'logwarn_once'): setattr(rospy, 'logwarn_once', rospy.logwarn)
+if not hasattr(rospy, 'logerr_throttle_identical'):  setattr(rospy, 'logerr_throttle_identical', rospy.logerr_throttle)
+
 
 # just convenience really
 from py_trees.composites import Selector as Fallback
@@ -47,7 +53,8 @@ from bt_common import Sequence, \
                       ReadTopic, \
                       A_RunOnce, \
                       A_SimplePublisher, \
-                      Counter
+                      Counter, \
+                      Not
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
@@ -66,7 +73,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
-                       A_PublishFinalize
+                       A_PublishFinalize, \
+                       A_ReadLolo
 
 
 
@@ -92,6 +100,7 @@ def const_tree(auv_config):
 
     # just for clarity when looking at the bb in the field
     bb.set(bb_enums.MISSION_FINALIZED, False)
+    bb.set(bb_enums.ROBOT_NAME, auv_config.robot_name)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -108,10 +117,11 @@ def const_tree(auv_config):
          # max_period = None,
          # allow_silence = True
         read_alt = ReadTopic(
-            name = "A_ReadAlt",
-            topic_name = auv_config.ALTITUDE_TOPIC,
+            name = "A_ReadDVL",
+            topic_name = auv_config.DVL_TOPIC,
             topic_type = DVL,
-            blackboard_variables = {bb_enums.ALTITUDE:'altitude'}
+            blackboard_variables = {bb_enums.ALTITUDE:'altitude',
+                                    bb_enums.DVL_VELOCITY:'velocity'}
         )
 
         read_leak = ReadTopic(
@@ -168,6 +178,13 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.RAW_GPS:None},
         )
 
+        read_lolo = A_ReadLolo(
+            robot_name = auv_config.robot_name,
+            elevator_topic = auv_config.LOLO_ELEVATOR_TOPIC,
+            elevon_port_topic = auv_config.LOLO_ELEVON_PORT_TOPIC,
+            elevon_strb_topic = auv_config.LOLO_ELEVON_STRB_TOPIC,
+            aft_tank_topic = auv_config.LOLO_AFT_TANK_TOPIC,
+            front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
 
 
         def const_neptus_tree():
@@ -207,7 +224,9 @@ def const_tree(auv_config):
                             read_roll,
                             read_pitch,
                             read_yaw,
+                            read_gps,
                             read_buoys,
+                            read_lolo,
                             update_tf,
                             neptus_tree,
                             publish_heartbeat
@@ -324,6 +343,7 @@ def const_tree(auv_config):
 
 
 
+
     def const_execute_mission_tree():
         # GOTO
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
@@ -369,6 +389,10 @@ def const_tree(auv_config):
                                         sample_maneuver
                                     ])
 
+        unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
+                                                         variable_value = False,
+                                                         name = 'A_MissionFinalized->False')
+
 
         # and then execute them in order
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
@@ -376,6 +400,7 @@ def const_tree(auv_config):
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
                                          A_UpdateMissionLog(),
+                                         unfinalize,
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -384,7 +409,8 @@ def const_tree(auv_config):
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
-                                  follow_plan
+                                  follow_plan,
+                                  A_SaveMissionLog()
                         ])
 
 
@@ -398,12 +424,18 @@ def const_tree(auv_config):
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
+        plan_complete_or_stopped = Fallback(name="FB-PlanCompleteOrStopped",
+                                            children=[
+                                                      C_PlanCompleted(),
+                                                      Not(C_StartPlanReceived())
+                                            ])
+
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
-                                  C_PlanCompleted(),
+                                  plan_complete_or_stopped,
                                   publish_complete,
                                   unset_plan_is_go,
                                   A_SaveMissionLog()

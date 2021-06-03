@@ -18,6 +18,26 @@ import common_globals
 # GENERIC TREE NODES AND SUCH
 ###############################################################
 
+class Not(pt.behaviour.Behaviour):
+    """
+    Inverts the success/failure state of the child
+    """
+    def __init__(self, child):
+        name = str(type(child)).split('.')[-1]
+        super(Not, self).__init__("Not-{}".format(name))
+        self.child = child
+
+    def update(self):
+        r = self.child.update()
+        self.feedback_message = self.child.feedback_message
+        if r == pt.Status.SUCCESS:
+            return pt.Status.FAILURE
+        elif r == pt.Status.FAILURE:
+            return pt.Status.SUCCESS
+        else:
+            return r
+
+
 class A_RunOnce(pt.behaviour.Behaviour):
     """
     Just returns RUNNING once.

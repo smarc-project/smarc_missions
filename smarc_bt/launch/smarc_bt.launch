@@ -10,6 +10,9 @@
 	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
 	<arg name="latlon_topic" default="dr/lat_lon" />
 	<arg name="gps_topic" default="core/gps" />
+	<arg name="roll_topic" default="/$(arg robot_name)/dr/roll" />
+	<arg name="pitch_topic" default="/$(arg robot_name)/dr/pitch" />
+	<arg name="yaw_topic" default="/$(arg robot_name)/dr/yaw" />
 	<arg name="emergency_topic" default="core/abort" />
 	<arg name="heartbeat_topic" default="core/heartbeat" />
 	<arg name="mission_complete_topic" default="core/mission_complete" />
@@ -48,6 +51,11 @@
 	<arg name="buoy_topic" default="sim/marked_positions" />
 	<arg name="mission_log_folder" default="~/MissionLogs/" />
 	<arg name="enable_manual_mission_log" default="False" />
+	<arg name="lolo_elevator_topic" default="/lolo/core/elevator" />
+	<arg name="lolo_elevon_port_topic" default="/lolo/core/elevon_port_fb" />
+	<arg name="lolo_elevon_strb_topic" default="/lolo/core/elevon_strb_fb" />
+	<arg name="lolo_aft_tank_topic" default="/lolo/core/vbs/aft_tank_fb" />
+	<arg name="lolo_front_tank_topic" default="/lolo/core/vbs/front_tank_fb" />
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
@@ -59,6 +67,9 @@
 		<param name="plan_viz_topic" value="$(arg plan_viz_topic)" />
 		<param name="latlon_topic" value="$(arg latlon_topic)" />
 		<param name="gps_topic" value="$(arg gps_topic)" />
+		<param name="roll_topic" value="$(arg roll_topic)" />
+		<param name="pitch_topic" value="$(arg pitch_topic)" />
+		<param name="yaw_topic" value="$(arg yaw_topic)" />
 		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
 		<param name="mission_complete_topic" value="$(arg mission_complete_topic)" />
@@ -97,5 +108,10 @@
 		<param name="buoy_topic" value="$(arg buoy_topic)" />
 		<param name="mission_log_folder" value="$(arg mission_log_folder)" />
 		<param name="enable_manual_mission_log" value="$(arg enable_manual_mission_log)" />
+		<param name="lolo_elevator_topic" value="$(arg lolo_elevator_topic)" />
+		<param name="lolo_elevon_port_topic" value="$(arg lolo_elevon_port_topic)" />
+		<param name="lolo_elevon_strb_topic" value="$(arg lolo_elevon_strb_topic)" />
+		<param name="lolo_aft_tank_topic" value="$(arg lolo_aft_tank_topic)" />
+		<param name="lolo_front_tank_topic" value="$(arg lolo_front_tank_topic)" />
 	</node>
 </launch>

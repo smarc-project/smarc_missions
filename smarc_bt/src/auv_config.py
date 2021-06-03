@@ -18,7 +18,7 @@ class AUVConfig(object):
         self.robot_name = 'sam'
 
         # topics
-        self.ALTITUDE_TOPIC = 'core/dvl'
+        self.DVL_TOPIC = 'core/dvl'
         self.LEAK_TOPIC = 'core/leak'
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
@@ -95,6 +95,13 @@ class AUVConfig(object):
         # Mission logging file location
         self.MISSION_LOG_FOLDER = '~/MissionLogs/'
         self.ENABLE_MANUAL_MISSION_LOG = False
+
+        # lolo-specific
+        self.LOLO_ELEVATOR_TOPIC = '/lolo/core/elevator'
+        self.LOLO_ELEVON_PORT_TOPIC = '/lolo/core/elevon_port_fb'
+        self.LOLO_ELEVON_STRB_TOPIC = '/lolo/core/elevon_strb_fb'
+        self.LOLO_AFT_TANK_TOPIC = '/lolo/core/vbs/aft_tank_fb'
+        self.LOLO_FRONT_TANK_TOPIC = '/lolo/core/vbs/front_tank_fb'
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

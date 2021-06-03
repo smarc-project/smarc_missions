@@ -18,6 +18,7 @@ import rospy
 class MissionLog:
     def __init__(self,
                  mission_plan,
+                 robot_name,
                  save_location = "~/MissionLogs/"):
         """
         A log object to create easy to read and visualize path logs
@@ -28,19 +29,27 @@ class MissionLog:
         Everything in utm frame and z up.
         """
 
+        self.robot_name = robot_name
         # filtered/corrected trace of auv pose
         # x,y,z, yaw,pitch,roll
         self.navigation_trace = []
+        # vx,vy,vz from dvl
+        self.velocity_trace = []
         # distance from bottom
         self.altitude_trace = []
         # raw gps fixes
         self.raw_gps_trace = []
+        self.raw_gps_latlon_trace = []
         # leaf nodes with name and status
         self.tree_tip_trace = []
         # the waypoints of the mission this log belongs to
         self.mission_plan_wps = []
 
         self.time_trace = []
+
+        # a dict for vehicle-specific data
+        # loaded from Log<Vehicle> actions
+        self.vehicle_data = {}
 
 
         self.path_msg = Path()
@@ -95,11 +104,50 @@ class MissionLog:
             self.disabled = True
             return
 
-        self.save_location = os.path.join(save_folder, log_filename)
+        self.data_full_path = os.path.join(save_folder, log_filename)
+        script_name = 'view.py'
+        self.script_full_path = os.path.join(save_folder, script_name)
 
+
+    def vehicle_log(self, key, bb_key, bb):
+        l = self.vehicle_data.get(key)
+        if l is None:
+            self.vehicle_data[key] = []
+        self.vehicle_data[key].append(bb.get(bb_key))
+
+
+    def log_lolo(self, bb):
+        if 'lolo' not in self.robot_name:
+            return False
+
+        self.vehicle_data['robot_name'] = self.robot_name
+        self.vehicle_log('elevator_trace', bb_enums.LOLO_ELEVATOR, bb)
+        self.vehicle_log('elevon_port_trace', bb_enums.LOLO_ELEVON_PORT, bb)
+        self.vehicle_log('elevon_strb_trace', bb_enums.LOLO_ELEVON_STRB, bb)
+        self.vehicle_log('aft_tank_trace', bb_enums.LOLO_AFT_TANK, bb)
+        self.vehicle_log('aft_tank_target_trace', bb_enums.LOLO_AFT_TANK_TARGET, bb)
+        self.vehicle_log('front_tank_trace', bb_enums.LOLO_FRONT_TANK, bb)
+        self.vehicle_log('front_tank_target_trace', bb_enums.LOLO_FRONT_TANK_TARGET, bb)
+
+        return True
+
+
+    def log_sam(self, bb):
+        if 'sam' not in self.robot_name:
+            return False
+        return True
 
 
     def log(self, bb, mplan, t=None):
+        ############################################
+        # vehicle-specific stuff
+        logged_lolo = self.log_lolo(bb)
+        logged_sam = self.log_sam(bb)
+
+
+        ############################################
+        # vehicle-agnostic stuff
+
         # first add the auv pose
         world_trans = bb.get(bb_enums.WORLD_TRANS)
         x,y = world_trans[0], world_trans[1]
@@ -118,16 +166,31 @@ class MissionLog:
         self.path_msg.poses.append(ps)
         self.path_pub.publish(self.path_msg)
 
+        # velocities from dvl
+        vel_msg = bb.get(bb_enums.DVL_VELOCITY)
+        vels = (vel_msg.x, vel_msg.y, vel_msg.z)
+        self.velocity_trace.append(vels)
+
+
+
 
         # then add the raw gps
         gps = bb.get(bb_enums.RAW_GPS)
         if gps is None or gps.status.status == -1: # no fix
+            self.raw_gps_latlon_trace.append(None)
             gps_utm_point = None
         else:
+            # also log the raw lat lon
+            self.raw_gps_latlon_trace.append((gps.latitude, gps.longitude))
             # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
+            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(lat = gps.latitude,
+                                                       lon = gps.longitude,
+                                                       z = 0.,
+                                                       in_degrees = True)
             if gps_utm_x is None or gps_utm_y is None:
                 gps_utm_point = None
+            else:
+                gps_utm_point = (gps_utm_x, gps_utm_y)
         self.raw_gps_trace.append(gps_utm_point)
 
         # then add the tree tip and its status
@@ -166,7 +229,6 @@ class MissionLog:
 
 
 
-
     def save(self):
         if self.disabled:
             print("Save location was bad before, can not save!")
@@ -174,14 +236,25 @@ class MissionLog:
 
         # save a json file for now for easy inspection
         data = {'navigation_trace':self.navigation_trace,
+                'velocity_trace':self.velocity_trace,
                 'raw_gps_trace':self.raw_gps_trace,
+                'raw_gps_latlon_trace':self.raw_gps_latlon_trace,
                 'tree_tip_trace':self.tree_tip_trace,
                 'mission_plan_wps':self.mission_plan_wps,
                 'time_trace':self.time_trace,
                 'altitude_trace':self.altitude_trace}
 
-        with open(self.save_location, 'w+') as f:
+        with open(self.data_full_path, 'w+') as f:
             json.dump(data, f)
+
+        # also save a viewer script to the same locale
+        try:
+            with open(self.script_full_path, 'w+') as f:
+                global viewer_script
+                f.write(viewer_script)
+        except:
+            print("Viewer script could not be written")
+
 
 def set_axes_equal(ax):
     '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
@@ -212,7 +285,12 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
+viewer_script = """#! /usr/bin/env python3
+
 if __name__ == '__main__':
+    import numpy as np
+    import os
+    import json
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D #needed for '3d'
     import sys
@@ -256,6 +334,8 @@ if __name__ == '__main__':
     #center on first nav point
     loc_trace -= origin
     ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='red')
+    ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2]+3, "S")
+    ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2]+3, "E")
 
     try:
         rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
@@ -276,25 +356,39 @@ if __name__ == '__main__':
 
     # plot the altitude relative to the height of the auv
     bottom = loc_trace[:,2] - altitude_trace
-    plt.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='brown')
+    ax.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='brown')
 
 
     if len(mplan) > 1:
-        mplan -= origin
-        plt.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
+        mplan[:,:2] -= origin[:2]
+        mplan[:,2] = np.min(mplan[:,2], 0)
+        ax.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
 
     # filter out "non-fixes"
     gps_fixes = gps_trace[gps_trace !=  None]
     if len(gps_fixes) > 0:
-        gps_fixes -= origin
-        # plt.plot(gps_fixes[:,0], gps_fixes[:,1], gps_fixes[:,1])
+        fixes=[]
+        for p in gps_fixes:
+            fixes.append((p[0],p[1]))
+        gps_fixes = np.array(fixes)
+        gps_fixes -= origin[:2]
+        ax.scatter(gps_fixes[:,0], gps_fixes[:,1], 0, c='grey', alpha=0.2)
+        filtered_locs = loc_trace[gps_trace != None]
+        step = 20
+        for fix, loc in zip(gps_fixes[::step], filtered_locs[::step]):
+            xs = [fix[0], loc[0]]
+            ys = [fix[1], loc[1]]
+            zs = [0., loc[2]]
+            ax.plot(xs, ys, zs, c='grey', alpha=0.2)
+            diff = np.sqrt((xs[0]-xs[1])**2+(ys[0]-ys[1])**2+(zs[0]-zs[1])**2)
+            ax.text(sum(xs)/2, sum(ys)/2, sum(zs)/2, s='{:.1f}'.format(diff))
+
 
     if equal_z:
         set_axes_equal(ax)
 
-
     plt.show()
-
+"""
 
 
 
