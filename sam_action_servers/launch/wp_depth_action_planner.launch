@@ -66,6 +66,7 @@
 		<!--WP following augmentations for using VBS, crosstrack error and WP overshoot handling-->
   		<param name="vbs_diving_flag" value="True" />
   		<param name="crosstrack_flag" value="True" />
+		<param name="lookahead_dist" value="3.0" />
   		<param name="wp_overshoot_flag" value="True" />
   		<param name="timeout_flag" value="True" />
 		<param name="timeout_limit" value="500" />

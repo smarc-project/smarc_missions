@@ -8,8 +8,7 @@ A simple config object for an AUV, to make sure that
 the fields are common.
 """
 
-import rospy, numpy as np, os
-
+import rospy
 
 class AUVConfig(object):
     """
@@ -82,7 +81,7 @@ class AUVConfig(object):
         self.DVL_RUNNING_DEPTH = 0.55
 
         # in meters
-        self.WAYPOINT_TOLERANCE = 0.5
+        self.WAYPOINT_TOLERANCE = 1.5
 
         # coverage planning variables
         # total width of sensor footprint, perpendicular to movement
@@ -90,51 +89,8 @@ class AUVConfig(object):
         # function of distance traveled. 0.01 means 1 meter error per 100m travel
         self.LOCALIZATION_ERROR_GROWTH = 0.02
 
-        # A_UpdateOdom
-        self.ODOM_TOPIC = 'dr/odom'
-
-        # Algae farm perception (A_ReadBuoys)
-        self.BUOY_READ_MARKERS = False
-        self.BUOY_READ_DETECTION = False
-        self.BUOY_MARKER_TOPIC = 'sim/marked_positions'
-        self.BUOY_DETECTION_TOPIC = 'sim/sidescan/detection_hypothesis'
-
-        # infer lines
-        # 90=north, 0=east, etc.
-        self.BUOY_WALL_ANGLE = 90.0 # for testing
-        self.BUOY_N_WALLS = 2
-        self.BUOY_ANGLE_TOLERANCE = 1e-2
-        self.BUOY_WALL_INCLUSION_TOLERANCE = 1e-2
-
-        # localisation plan (A_SetBuoyLocalisationPlan) in map frame
-        # self.BUOY_CENTROID = [0., 9., 0.]
-        # self.BUOY_CENTROID = np.load('utm_centroid.npy')
-        # https://goo.gl/maps/vE9wkxBMkP5X6owXA
-        # 58°15'00.0"N 11°27'00.0"E
-        # self.BUOY_CENTROID = [58.15, 11.27]
-        self.BUOY_CENTROID = [58.25092212, 11.45027245]
-        self.BUOY_LOCALISATION_DISTANCES = [(10, 10), (10, 10), (9, 9)]
-        self.BUOY_LOCALISATION_VELOCITY = 2.0
-        self.BUOY_LOCALISATION_DEPTH = 3.0
-
-
-
-        # self.BUOY_MIN_PER_WALL = 3 # the narrower this range the faster the algo
-        # self.BUOY_MAX_PER_WALL = 3
-        self.BUOY_N_WALLS = 2 # this can be greater, but the algo will take longer
-        self.BUOY_GROUPING_ETOL = 1e-4
-
-        # Algae farm planning
-        self.WALL_SURVEY_ROW_SEP = 2.0
-        self.WALL_SURVEY_DEPTH = 4.0
-        self.WALL_SURVEY_VELOCITY = 2.0
-        self.WALL_SURVEY_X0_OVERSHOOT = 1.0
-        self.WALL_SURVEY_X1_OVERSHOOT = 1.0
-        self.WALL_SURVEY_X0_LINEUP = 5.0
-        self.WALL_SURVEY_X1_LINEUP = 5.0
-        self.WALL_SURVEY_FIRST_LINEUP = 20.0
-        self.WALL_SURVEY_STARBOARD = False
-        self.USE_BUOY_PLAN = False
+        # Algae farm
+        self.BUOY_TOPIC = 'sim/marked_positions'
 
         # Mission logging file location
         self.MISSION_LOG_FOLDER = '~/MissionLogs/'
