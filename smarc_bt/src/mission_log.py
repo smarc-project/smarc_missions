@@ -311,6 +311,13 @@ if __name__ == '__main__':
     except:
         pass
 
+    no_bottom = False
+    try:
+        if sys.argv[2] == 'nobottom':
+            no_bottom = True
+    except:
+        pass
+
 
 
 
@@ -333,9 +340,9 @@ if __name__ == '__main__':
     origin = np.array(list(loc_trace[0]))
     #center on first nav point
     loc_trace -= origin
-    ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='red')
-    ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2]+3, "S")
-    ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2]+3, "E")
+    ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='green')
+    ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2], "S")
+    ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2], "E")
 
     try:
         rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
@@ -349,40 +356,53 @@ if __name__ == '__main__':
                   rot_vecs[::step, 0],
                   rot_vecs[::step, 1],
                   rot_vecs[::step, 2],
-                  length = 1)
+                  length = 1,
+                  c='green')
     except:
         pass
 
 
-    # plot the altitude relative to the height of the auv
-    bottom = loc_trace[:,2] - altitude_trace
-    ax.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='brown')
+    if not no_bottom:
+        # plot the altitude relative to the height of the auv
+        bottom = loc_trace[:,2] - altitude_trace
+        ax.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='yellow')
 
 
     if len(mplan) > 1:
         mplan[:,:2] -= origin[:2]
-        mplan[:,2] = np.min(mplan[:,2], 0)
-        ax.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='green')
+        mplan[:,2] = np.minimum(mplan[:,2], 0)
+        ax.plot(mplan[:,0], mplan[:,1], mplan[:,2], c='red')
 
     # filter out "non-fixes"
-    gps_fixes = gps_trace[gps_trace !=  None]
-    if len(gps_fixes) > 0:
-        fixes=[]
-        for p in gps_fixes:
-            fixes.append((p[0],p[1]))
-        gps_fixes = np.array(fixes)
-        gps_fixes -= origin[:2]
-        ax.scatter(gps_fixes[:,0], gps_fixes[:,1], 0, c='grey', alpha=0.2)
-        filtered_locs = loc_trace[gps_trace != None]
+    good_fixes = []
+    good_fix_locs = []
+    for gps_fix, loc in zip(gps_trace, loc_trace):
+        if gps_fix is None:
+            continue
+        good_fixes.append(gps_fix-origin[:2])
+        good_fix_locs.append(loc)
+
+    if len(good_fixes) > 0:
+        gps_fixes = np.array(good_fixes)
+        fix_locs = np.array(good_fix_locs)
+
+        ax.scatter(gps_fixes[:,0], gps_fixes[:,1], 0, c='grey', alpha=0.02)
         step = 20
-        for fix, loc in zip(gps_fixes[::step], filtered_locs[::step]):
+        for fix, loc in zip(gps_fixes[::step], fix_locs[::step]):
             xs = [fix[0], loc[0]]
             ys = [fix[1], loc[1]]
             zs = [0., loc[2]]
-            ax.plot(xs, ys, zs, c='grey', alpha=0.2)
             diff = np.sqrt((xs[0]-xs[1])**2+(ys[0]-ys[1])**2+(zs[0]-zs[1])**2)
-            ax.text(sum(xs)/2, sum(ys)/2, sum(zs)/2, s='{:.1f}'.format(diff))
+            if diff > 0.5:
+                ax.plot(xs, ys, zs, c='grey', alpha=0.1)
+                ax.text(sum(xs)/2, sum(ys)/2, sum(zs)/2, s='{:.1f}'.format(diff))
 
+    plt.xlabel('lat utm')
+    plt.ylabel('lon utm')
+
+    tstart = data['time_trace'][0]
+    tend = data['time_trace'][-1]
+    plt.title("Duration:{:.2f} mins".format((tend-tstart)/60))
 
     if equal_z:
         set_axes_equal(ax)
