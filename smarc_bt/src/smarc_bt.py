@@ -56,7 +56,8 @@ from bt_common import Sequence, \
                       ReadTopic, \
                       A_RunOnce, \
                       A_SimplePublisher, \
-                      Counter
+                      Counter, \
+                      Not
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
@@ -362,7 +363,7 @@ def const_tree(auv_config):
                 C_BuoysLocalised(auv_config.BUOY_READ_DETECTION),
                 # C_BuoyLocalisationPlanSet(),
                 CheckBlackboardVariableValue(
-                    bb_enums.BUOY_LOCALISATION_PLAN_SET, 
+                    bb_enums.BUOY_LOCALISATION_PLAN_SET,
                     True,
                     'C_BuoyLocalisationPlanSet'
                 ),
@@ -453,6 +454,10 @@ def const_tree(auv_config):
                                         sample_maneuver
                                     ])
 
+        unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
+                                                         variable_value = False,
+                                                         name = 'A_MissionFinalized->False')
+
 
         # and then execute them in order
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
@@ -460,6 +465,7 @@ def const_tree(auv_config):
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
                                          A_UpdateMissionLog(),
+                                         unfinalize,
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
@@ -468,7 +474,8 @@ def const_tree(auv_config):
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
-                                  follow_plan
+                                  follow_plan,
+                                  A_SaveMissionLog()
                         ])
 
 
@@ -482,12 +489,18 @@ def const_tree(auv_config):
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
+        plan_complete_or_stopped = Fallback(name="FB-PlanCompleteOrStopped",
+                                            children=[
+                                                      C_PlanCompleted(),
+                                                      Not(C_StartPlanReceived())
+                                            ])
+
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
-                                  C_PlanCompleted(),
+                                  plan_complete_or_stopped,
                                   publish_complete,
                                   unset_plan_is_go,
                                   A_SaveMissionLog()
