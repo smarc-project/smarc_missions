@@ -109,13 +109,23 @@ def const_tree(auv_config):
             variable_name = bb_enums.ABORT
         )
 
+
          # ReadTopic
          # name,
          # topic_name,
          # topic_type,
          # blackboard_variables,
          # max_period = None,
-         # allow_silence = True
+         # allow_silence = True -> If false, will fail if no message is received ever
+
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.RAW_GPS:None},
+            allow_silence = False
+        )
+
         read_alt = ReadTopic(
             name = "A_ReadDVL",
             topic_name = auv_config.DVL_TOPIC,
@@ -171,12 +181,6 @@ def const_tree(auv_config):
             latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
         )
 
-        read_gps = ReadTopic(
-            name = "A_ReadGPS",
-            topic_name = auv_config.GPS_TOPIC,
-            topic_type = NavSatFix,
-            blackboard_variables = {bb_enums.RAW_GPS:None},
-        )
 
         read_lolo = A_ReadLolo(
             robot_name = auv_config.robot_name,
@@ -218,13 +222,13 @@ def const_tree(auv_config):
                         children=[
                             read_abort,
                             read_leak,
+                            read_gps,
                             read_alt,
                             read_detection,
                             read_latlon,
                             read_roll,
                             read_pitch,
                             read_yaw,
-                            read_gps,
                             read_buoys,
                             read_lolo,
                             update_tf,

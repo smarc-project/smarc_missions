@@ -172,11 +172,10 @@ class MissionLog:
         self.velocity_trace.append(vels)
 
 
-
-
         # then add the raw gps
+        # but only if it is diffeent than the previous one?
         gps = bb.get(bb_enums.RAW_GPS)
-        if gps is None or gps.status.status == -1: # no fix
+        if gps is None or gps.status.status == -1 or abs(time.time() - gps.time) > 10: # no fix
             self.raw_gps_latlon_trace.append(None)
             gps_utm_point = None
         else:
