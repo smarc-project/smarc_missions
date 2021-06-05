@@ -171,10 +171,14 @@ target_link_libraries(mission_sim_waypoint_nav
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ #install(PROGRAMS
+   #test/fake_neptus_and_user.py
+   #DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ #)
+
+catkin_install_python(PROGRAMS test/fake_neptus_and_user.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html

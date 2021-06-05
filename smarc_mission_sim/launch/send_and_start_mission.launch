@@ -1,0 +1,5 @@
+<launch>
+
+<node name="neptus_plan_spoofer" pkg="smarc_mission_sim" type="fake_neptus_and_user.py"/>
+
+</launch>

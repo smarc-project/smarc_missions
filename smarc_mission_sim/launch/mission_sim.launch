@@ -30,7 +30,8 @@
     <arg name="robot_name" value="$(arg robot_name)"/>
 </include>
 
-<include file="$(find smarc_mission_sim)/launch/send_mission.launch"/>
-<include file="$(find smarc_mission_sim)/launch/start_mission.launch"/>
+<!-- <include file="$(find smarc_mission_sim)/launch/send_mission.launch"/> -->
+<!-- <include file="$(find smarc_mission_sim)/launch/start_mission.launch"/> -->
+<include file="$(find smarc_mission_sim)/launch/send_and_start_mission.launch"/>
 
 </launch>
