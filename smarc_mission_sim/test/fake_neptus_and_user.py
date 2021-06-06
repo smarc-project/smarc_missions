@@ -18,7 +18,7 @@ import actionlib
 import rospy
 import time
 
-from imc_ros_bridge.msg import PlanDB, PlanControl, PlanManeuver
+from imc_ros_bridge.msg import PlanDB, PlanControl, PlanManeuver, PlanControlState
 from sensor_msgs.msg import NavSatFix
 from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
 from std_msgs.msg import Header
@@ -29,6 +29,10 @@ PLANDB_TYPE_SUCCESS = 1
 PLANDB_OP_GET_INFO = 3
 PLANDB_TYPE_REQUEST = 0
 PLANDB_OP_GET_STATE = 5
+STATE_BLOCKED = 0
+STATE_READY = 1
+STATE_INITIALIZING = 2
+STATE_EXECUTING = 3
 
 
 class FakeGotoServer:
@@ -41,6 +45,7 @@ class FakeGotoServer:
         self.feedback = GotoWaypointActionFeedback()
 
         self.start_time = None
+
 
 
     def execute_cb(self, goal):
@@ -92,6 +97,7 @@ class FakeNeptus:
         self.plandb_pub = rospy.Publisher('/lolo/imc/plan_db', PlanDB, queue_size=1)
         self.plandb_sub = rospy.Subscriber('/lolo/imc/plan_db', PlanDB, callback = self.plandb_cb)
         self.plancontrol_pub = rospy.Publisher('/lolo/imc/plan_control', PlanControl, queue_size=1)
+        self.plancontrol_state_sub = rospy.Subscriber('lolo/imc/plan_control_state', PlanControlState, callback = self.plan_control_state_cb)
 
         self.pm = self.make_plandb_msg()
         self.pm_ask = self.make_plandb_msg(ask_ack=True)
@@ -104,6 +110,9 @@ class FakeNeptus:
         self.pc = pc
 
         self.plan_received = False
+        self.vehicle_state = STATE_BLOCKED
+        self.plan_complete = False
+        self.current_plan = None
 
     def plandb_cb(self, msg):
         if msg.plan_id == 'ci_plan' and \
@@ -112,6 +121,11 @@ class FakeNeptus:
             rospy.loginfo("Plan ACK by BT")
             self.plan_received = True
 
+    def plan_control_state_cb(self, msg):
+        self.vehicle_state = msg.state
+
+        if msg.plan_id == 'Mission complete' and msg.plan_progress == 100.0:
+            self.plan_complete = True
 
     def make_plandb_msg(self, ask_ack=False):
         if ask_ack:
@@ -193,17 +207,20 @@ class FakeNeptus:
                 return
 
     def start_plan(self):
-        # TODO wait for 'maneuver mode' instead of just sending it 5 times
-        for i in range(5):
+        while not self.vehicle_state == STATE_EXECUTING and not rospy.is_shutdown():
             self.plancontrol_pub.publish(self.pc)
             rospy.loginfo("Sent start")
             time.sleep(0.2)
+            if self.vehicle_state == STATE_EXECUTING:
+                rospy.loginfo("Mission started")
+                return
 
 
 
 
 
 if __name__ == '__main__':
+    init_time = time.time()
     rospy.init_node('fake_neptus_and_user')
 
     # first of all, the BT needs at least a GoToWaypoint action server to connect to
@@ -218,12 +235,12 @@ if __name__ == '__main__':
     gps_timer = rospy.Timer(rospy.Duration(1), fake_gps.publish)
 
     # once gps and actionsrever are there, we can start neptus
-    # and send a plan
     fake_neptus = FakeNeptus()
 
 
     rospy.loginfo("Waiting 2s")
     time.sleep(2)
+    # and send a plan
     fake_neptus.send_and_ask_ack()
 
     if fake_neptus.plan_received:
@@ -231,7 +248,21 @@ if __name__ == '__main__':
         time.sleep(0.5)
         fake_neptus.start_plan()
 
-    rospy.loginfo("Done")
+    # after some 5x#waypoints seconds, the mission should be complete
+    # hardcoded 2 waypoints right now
+    rospy.loginfo("Waiting for mission...")
+    time.sleep(12)
+    while not rospy.is_shutdown():
+        if fake_neptus.plan_complete:
+            rospy.loginfo("Mission complete!")
+            break
+        else:
+            rospy.loginfo("Mission running, status:{}".format(fake_neptus.vehicle_state))
+
+        time.sleep(1)
+
+    done_time = time.time()
+    rospy.loginfo("Done in {:.2f} seconds".format(done_time-init_time))
 
     # aaaand we are done?
 
