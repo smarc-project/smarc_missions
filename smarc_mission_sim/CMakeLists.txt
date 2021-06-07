@@ -140,7 +140,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(mission_sim_node src/mission_sim_node.cpp)
-add_executable(mission_sim_waypoint_nav src/mission_sim_waypoint_nav.cpp)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -151,16 +151,13 @@ add_executable(mission_sim_waypoint_nav src/mission_sim_waypoint_nav.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(mission_sim_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(mission_sim_waypoint_nav ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(mission_sim_node
   ${catkin_LIBRARIES}
 )
 
-target_link_libraries(mission_sim_waypoint_nav
-  ${catkin_LIBRARIES}
-)
 
 #############
 ## Install ##
@@ -176,13 +173,13 @@ target_link_libraries(mission_sim_waypoint_nav
    #DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  #)
 
-catkin_install_python(PROGRAMS test/fake_neptus_and_user.py
+catkin_install_python(PROGRAMS test/fake_neptus.py src/fake_hardware.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS mission_sim_node mission_sim_waypoint_nav
+install(TARGETS mission_sim_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -226,5 +223,5 @@ install(DIRECTORY launch/
 # catkin_add_nosetests(test)
 
 if(CATKIN_ENABLE_TESTING)
-  add_rostest(test/test-monitor-plan.launch)
+  add_rostest(test/fake_neptus.launch)
 endif()

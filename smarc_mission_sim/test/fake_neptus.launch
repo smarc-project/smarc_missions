@@ -1,0 +1,5 @@
+<launch>
+
+<node name="fake_neptus" pkg="smarc_mission_sim" type="fake_neptus.py"/>
+
+</launch>

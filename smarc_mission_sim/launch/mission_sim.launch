@@ -18,7 +18,7 @@
 </include>
 
 <node pkg="smarc_mission_sim" type="mission_sim_node" name="mission_sim_node" output="screen" ns="$(arg robot_name)"/>
-<include file="$(find smarc_mission_sim)/launch/send_and_start_mission.launch"/>
+<node name="fake_hardware" pkg="smarc_mission_sim" type="fake_hardware.py" />
 
 <include file="$(find bt_mission)/launch/mission.launch">
     <!-- utm_zone:=$UTM_ZONE utm_band:=$UTM_BAND --> 

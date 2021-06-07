@@ -10,18 +10,17 @@
 3) Create a plan control state message asking for the status of the plan
 4) Re-send plan until response is "got it"
 5) Send start command
-
-- meanwhile, publish GPS and have an action server to connect to
 """
 
-import actionlib
+from __future__ import print_function
+
 import rospy
 import time
+import rostest
+import unittest
+import sys
 
 from imc_ros_bridge.msg import PlanDB, PlanControl, PlanManeuver, PlanControlState
-from sensor_msgs.msg import NavSatFix
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
-from std_msgs.msg import Header
 
 
 # see smarc_bt/src/imc_enums for these
@@ -34,62 +33,6 @@ STATE_READY = 1
 STATE_INITIALIZING = 2
 STATE_EXECUTING = 3
 
-
-class FakeGotoServer:
-    def __init__(self, name):
-        self.name = name
-        self.server = actionlib.SimpleActionServer(self.name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start=False)
-        self.server.start()
-
-        self.result = GotoWaypointResult()
-        self.feedback = GotoWaypointActionFeedback()
-
-        self.start_time = None
-
-
-
-    def execute_cb(self, goal):
-        # we just return running for some seconds and then success
-        # that is all we need to get the BT to do things
-        while not rospy.is_shutdown():
-            if self.server.is_preempt_requested():
-                self.result.reached_waypoint = False
-                self.server.set_preempted(self.result, text="Preempted")
-                self.start_time = None
-                return
-
-            if self.start_time is not None and time.time() - self.start_time > 5:
-                self.result.reached_waypoint = True
-                self.server.set_succeeded(self.result, text="Success")
-                self.start_time = None
-                return
-
-            if self.start_time is None:
-                rospy.loginfo("Started")
-                self.start_time = time.time()
-
-
-            rospy.loginfo_throttle(1, "Running")
-
-
-
-class FakeGPS:
-    def __init__(self):
-        self.gps_pub = rospy.Publisher('/lolo/core/gps', NavSatFix, queue_size=1)
-        self.gps = NavSatFix()
-        self.gps.status.status = 0
-        self.gps.latitude = 0
-        self.gps.longitude = 0
-        h = Header()
-        h.stamp = rospy.Time.now()
-        self.gps.header = h
-
-    def publish(self, timer):
-        rospy.loginfo("Published GPS")
-        h = Header()
-        h.stamp = rospy.Time.now()
-        self.gps.header = h
-        self.gps_pub.publish(self.gps)
 
 
 class FakeNeptus:
@@ -216,55 +159,87 @@ class FakeNeptus:
                 return
 
 
+class TestMonitorPlan(unittest.TestCase):
+    def __init__(self, *args):
+        super(TestMonitorPlan, self).__init__(*args)
+
+    def test_monitor_plan(self):
+        init_time = time.time()
+        rospy.init_node('fake_neptus_and_user')
+
+        # wait for the latlon_to_utm service to exist before we send a mission
+        # to the BT. Normally this waiting is done by launching the BT last
+        # in the GUI.
+        service_exists = False
+        rospy.loginfo("Waiting for lat_lon_to_utm services")
+        while not service_exists:
+            time.sleep(1)
+            try:
+                rospy.wait_for_service('lolo/dr/lat_lon_to_utm', timeout=1)
+                service_exists = True
+                break
+            except:
+                try:
+                    rospy.wait_for_service('lolo/lat_lon_to_utm', timeout=1)
+                    service_exists = True
+                    break
+                except:
+                    continue
+
+        rospy.loginfo("Checking if the services exist")
+        self.assert_(service_exists)
+
+        # once gps and actionsrever are there, we can start neptus
+        fake_neptus = FakeNeptus()
+        # and send a plan
+        fake_neptus.send_and_ask_ack()
+
+        if fake_neptus.plan_received:
+            rospy.loginfo("Got ACK from BT")
+            time.sleep(0.5)
+            fake_neptus.start_plan()
+
+        # after some 5x#waypoints seconds, the mission should be complete
+        # hardcoded 2 waypoints right now
+        rospy.loginfo("Waiting for the mission...")
+        time.sleep(11)
+
+
+        # XXX this part can be changed to test for different things depending on the mission
+        # sent and the action servers being used.
+        # for the fake actions, just a simple check of iterating over points is good enough
+        timeout = time.time() + 100.0
+        completion_time = None
+        while not rospy.is_shutdown() and time.time() < timeout:
+            if fake_neptus.plan_complete:
+                rospy.loginfo("Mission complete!")
+                completion_time = time.time()
+                break
+            else:
+                rospy.loginfo("Mission running, status:{}".format(fake_neptus.vehicle_state))
+            time.sleep(0.5)
+
+        rospy.loginfo("Checking if the mission was completed in time")
+        # triple check the same thing
+        self.assert_(fake_neptus.plan_complete)
+        self.assert_(completion_time is not None)
+        self.assert_(completion_time <= timeout+1)
+
+        done_time = time.time()
+        rospy.loginfo("Done in {:.2f} seconds".format(done_time-init_time))
+
+
+
 
 
 
 if __name__ == '__main__':
-    init_time = time.time()
-    rospy.init_node('fake_neptus_and_user')
-
-    # first of all, the BT needs at least a GoToWaypoint action server to connect to
-    # in the setup phase.
-    # we also need this here so we can send some successes to the BT easily
-    fake_goto = FakeGotoServer(name='/lolo/ctrl/goto_waypoint')
-    fake_emergency = FakeGotoServer(name='/lolo/ctrl/emergency_surface_action')
-
-    # the BT will wait for _at least one_ gps before it does ANYTHING
-    # make sure there is at least that one gps fix, even if it is empty
-    fake_gps = FakeGPS()
-    gps_timer = rospy.Timer(rospy.Duration(1), fake_gps.publish)
-
-    # once gps and actionsrever are there, we can start neptus
-    fake_neptus = FakeNeptus()
+    rostest.rosrun('smarc_mission_sim',
+                   'fake_neptus',
+                   TestMonitorPlan,
+                   sys.argv)
 
 
-    rospy.loginfo("Waiting 2s")
-    time.sleep(2)
-    # and send a plan
-    fake_neptus.send_and_ask_ack()
-
-    if fake_neptus.plan_received:
-        rospy.loginfo("Got ACK from BT")
-        time.sleep(0.5)
-        fake_neptus.start_plan()
-
-    # after some 5x#waypoints seconds, the mission should be complete
-    # hardcoded 2 waypoints right now
-    rospy.loginfo("Waiting for mission...")
-    time.sleep(12)
-    while not rospy.is_shutdown():
-        if fake_neptus.plan_complete:
-            rospy.loginfo("Mission complete!")
-            break
-        else:
-            rospy.loginfo("Mission running, status:{}".format(fake_neptus.vehicle_state))
-
-        time.sleep(1)
-
-    done_time = time.time()
-    rospy.loginfo("Done in {:.2f} seconds".format(done_time-init_time))
-
-    # aaaand we are done?
 
 
 
