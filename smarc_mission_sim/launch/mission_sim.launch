@@ -18,9 +18,7 @@
 </include>
 
 <node pkg="smarc_mission_sim" type="mission_sim_node" name="mission_sim_node" output="screen" ns="$(arg robot_name)"/>
-<node pkg="smarc_mission_sim" type="mission_sim_waypoint_nav" name="mission_sim_waypoint_nav" output="screen" ns="$(arg robot_name)">
-    <param name="robot_name" value="$(arg robot_name)"/>
-</node>
+<node name="fake_hardware" pkg="smarc_mission_sim" type="fake_hardware.py" />
 
 <include file="$(find bt_mission)/launch/mission.launch">
     <!-- utm_zone:=$UTM_ZONE utm_band:=$UTM_BAND --> 
@@ -29,8 +27,5 @@
     <arg name="bridge_port" value="6002"/>
     <arg name="robot_name" value="$(arg robot_name)"/>
 </include>
-
-<include file="$(find smarc_mission_sim)/launch/send_mission.launch"/>
-<include file="$(find smarc_mission_sim)/launch/start_mission.launch"/>
 
 </launch>
