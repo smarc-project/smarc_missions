@@ -21,11 +21,13 @@ import unittest
 import sys
 
 from imc_ros_bridge.msg import PlanDB, PlanControl, PlanManeuver, PlanControlState
+from std_msgs.msg import Empty
 
 
 # see smarc_bt/src/imc_enums for these
 PLANDB_TYPE_SUCCESS = 1
 PLANDB_OP_GET_INFO = 3
+PLANDB_OP_SET = 0
 PLANDB_TYPE_REQUEST = 0
 PLANDB_OP_GET_STATE = 5
 STATE_BLOCKED = 0
@@ -60,7 +62,7 @@ class FakeNeptus:
     def plandb_cb(self, msg):
         if msg.plan_id == 'ci_plan' and \
            msg.type == PLANDB_TYPE_SUCCESS and \
-           msg.op == PLANDB_OP_GET_INFO:
+           msg.op == PLANDB_OP_GET_STATE:
             rospy.loginfo("Plan ACK by BT")
             self.plan_received = True
 
@@ -138,15 +140,19 @@ class FakeNeptus:
         return pm
 
     def send_and_ask_ack(self):
+        i = 0
         while not self.plan_received and not rospy.is_shutdown():
             rospy.loginfo("Sent plan")
             self.plandb_pub.publish(self.pm)
             time.sleep(0.5)
             rospy.loginfo("Asking for ACK")
             self.plandb_pub.publish(self.pm_ask)
-            time.sleep(0.5)
+            time.sleep(1)
+            i += 1
             if self.plan_received:
                 rospy.loginfo("Stopping sending the plan")
+                return
+            if i > 5:
                 return
 
     def start_plan(self):
@@ -163,9 +169,16 @@ class TestMonitorPlan(unittest.TestCase):
     def __init__(self, *args):
         super(TestMonitorPlan, self).__init__(*args)
 
+        self.complete_sub = rospy.Subscriber('lolo/core/mission_complete', Empty, callback=self.mission_complete_cb)
+        self.mission_complete_msg_received = False
+
+
+    def mission_complete_cb(self, msg):
+        self.mission_complete_msg_received = True
+
+
     def test_monitor_plan(self):
         init_time = time.time()
-        rospy.init_node('fake_neptus_and_user')
 
         # wait for the latlon_to_utm service to exist before we send a mission
         # to the BT. Normally this waiting is done by launching the BT last
@@ -194,6 +207,8 @@ class TestMonitorPlan(unittest.TestCase):
         # and send a plan
         fake_neptus.send_and_ask_ack()
 
+        self.assert_(fake_neptus.plan_received, "Plan not received by the BT within 5 trials!")
+
         if fake_neptus.plan_received:
             rospy.loginfo("Got ACK from BT")
             time.sleep(0.5)
@@ -221,9 +236,14 @@ class TestMonitorPlan(unittest.TestCase):
 
         rospy.loginfo("Checking if the mission was completed in time")
         # triple check the same thing
-        self.assert_(fake_neptus.plan_complete)
-        self.assert_(completion_time is not None)
-        self.assert_(completion_time <= timeout+1)
+        self.assert_(fake_neptus.plan_complete, "Mission complete not received!")
+        self.assert_(completion_time is not None, "Completion time is unknown!")
+        self.assert_(completion_time <= timeout+1, "Completion time is after the timeout!")
+
+        time.sleep(1)
+        self.assert_(self.mission_complete_msg_received, "core/mission_complete not received after mission!")
+
+
 
         done_time = time.time()
         rospy.loginfo("Done in {:.2f} seconds".format(done_time-init_time))
@@ -231,14 +251,12 @@ class TestMonitorPlan(unittest.TestCase):
 
 
 
-
-
 if __name__ == '__main__':
+    rospy.init_node('fake_neptus_and_user')
     rostest.rosrun('smarc_mission_sim',
                    'fake_neptus',
                    TestMonitorPlan,
                    sys.argv)
-
 
 
 

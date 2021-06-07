@@ -1,5 +1,6 @@
 <launch>
 
-<node name="fake_neptus" pkg="smarc_mission_sim" type="fake_neptus.py"/>
+	<include file="$(find smarc_mission_sim)/launch/mission_sim.launch"/>
+	<test test-name="fake_neptus" pkg="smarc_mission_sim" type="fake_neptus.py"/>
 
 </launch>
