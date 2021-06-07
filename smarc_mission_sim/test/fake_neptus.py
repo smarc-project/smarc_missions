@@ -144,10 +144,11 @@ class FakeNeptus:
         while not self.plan_received and not rospy.is_shutdown():
             rospy.loginfo("Sent plan")
             self.plandb_pub.publish(self.pm)
-            time.sleep(0.5)
+            time.sleep(2)
             rospy.loginfo("Asking for ACK")
-            self.plandb_pub.publish(self.pm_ask)
-            time.sleep(1)
+            for j in range(5):
+                self.plandb_pub.publish(self.pm_ask)
+                time.sleep(0.5)
             i += 1
             if self.plan_received:
                 rospy.loginfo("Stopping sending the plan")
