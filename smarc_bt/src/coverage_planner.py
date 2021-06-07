@@ -176,12 +176,16 @@ def create_mower_pattern(rect_width_d, rect_height_h, sweep_width_w, error_growt
     wp_list_x.append(pos_x)
     wp_list_y.append(pos_y)
     s_old = s_1
+    early_quit = False
     for i in range(23):
         pos_y += b
         wp_list_x.append(pos_x)
         wp_list_y.append(pos_y)
         s_new = s_next(s_old, error_growth_k, b)
         c_i = sweep_width_w - error_growth_k * (s_new + s_old + b)
+        if c_i <= 0:
+            early_quit = True
+            break
         #pos_y += -b
         #pos_y += c_i
         pos_y = wp_list_y[-3] + c_i
@@ -205,7 +209,11 @@ def create_mower_pattern(rect_width_d, rect_height_h, sweep_width_w, error_growt
         s_old = s_new
         if rect_height_h < pos_y + sweep_width_w / 2.0 - length_wp_path(wp_list_x, wp_list_y) * error_growth_k:
             break
-    return (wp_list_x, wp_list_y)
+
+    if early_quit:
+        return (wp_list_x[:-1], wp_list_y[:-1])
+    else:
+        return (wp_list_x, wp_list_y)
 
 
 def rotate_vec_vec(v1s, rads):
@@ -285,9 +293,9 @@ if __name__ == '__main__':
     except:
         pass
 
-    w = 50
-    h = 20
-    z = 20
+    w = 35
+    h = 35
+    z = 0
     polygon = [[z ,z],
                [z, z+h],
                [z+w,z+h],
@@ -300,8 +308,8 @@ if __name__ == '__main__':
     for i,p in enumerate(polygon):
         plt.text(p[0], p[1], s=str(i))
 
-    swath = 5
-    error_growth = 0.01
+    swath = 10
+    error_growth = 0.05
 
     coverage_path = create_coverage_path(polygon, swath, error_growth)
     plt.plot(coverage_path[:,0], coverage_path[:,1])

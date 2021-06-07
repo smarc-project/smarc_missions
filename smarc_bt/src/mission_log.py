@@ -108,6 +108,9 @@ class MissionLog:
         script_name = 'view.py'
         self.script_full_path = os.path.join(save_folder, script_name)
 
+        self.swath = None
+        self.loc_uncertainty_growth = None
+
 
     def vehicle_log(self, key, bb_key, bb):
         l = self.vehicle_data.get(key)
@@ -147,6 +150,8 @@ class MissionLog:
 
         ############################################
         # vehicle-agnostic stuff
+        self.swath = bb.get(bb_enums.SWATH)
+        self.loc_uncertainty_growth = bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH)
 
         # first add the auv pose
         world_trans = bb.get(bb_enums.WORLD_TRANS)
@@ -172,11 +177,10 @@ class MissionLog:
         self.velocity_trace.append(vels)
 
 
-
-
         # then add the raw gps
+        # but only if it is diffeent than the previous one?
         gps = bb.get(bb_enums.RAW_GPS)
-        if gps is None or gps.status.status == -1: # no fix
+        if gps is None or gps.status.status == -1 or abs(time.time() - gps.header.stamp.secs) > 10: # no fix
             self.raw_gps_latlon_trace.append(None)
             gps_utm_point = None
         else:
@@ -242,7 +246,10 @@ class MissionLog:
                 'tree_tip_trace':self.tree_tip_trace,
                 'mission_plan_wps':self.mission_plan_wps,
                 'time_trace':self.time_trace,
-                'altitude_trace':self.altitude_trace}
+                'altitude_trace':self.altitude_trace,
+                'vehicle_data':self.vehicle_data,
+                'swath':self.swath,
+                'loc_uncertainty_growth':self.loc_uncertainty_growth}
 
         with open(self.data_full_path, 'w+') as f:
             json.dump(data, f)
@@ -255,6 +262,8 @@ class MissionLog:
         except:
             print("Viewer script could not be written")
 
+
+viewer_script = """#! /usr/bin/env python3
 
 def set_axes_equal(ax):
     '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
@@ -285,7 +294,6 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-viewer_script = """#! /usr/bin/env python3
 
 if __name__ == '__main__':
     import numpy as np
@@ -305,18 +313,16 @@ if __name__ == '__main__':
     filename = os.path.join(os.path.expanduser("~"), "MissionLogs", filename)
 
     equal_z = False
-    try:
-        if sys.argv[2] == 'equal':
-            equal_z = True
-    except:
-        pass
+    if 'equalz' in sys.argv:
+        equal_z = True
 
     no_bottom = False
-    try:
-        if sys.argv[2] == 'nobottom':
-            no_bottom = True
-    except:
-        pass
+    if 'nobottom' in sys.argv:
+        no_bottom = True
+
+    no_swath = False
+    if 'noswath' in sys.argv:
+        no_swath = True
 
 
 
@@ -332,6 +338,8 @@ if __name__ == '__main__':
     gps_trace = np.array(data['raw_gps_trace'])
     mplan = np.array(data['mission_plan_wps'])
     altitude_trace = np.array(data['altitude_trace'])
+    swath = data.get('swath', 20)
+    err_growth = data.get('loc_uncertainty_growth',0.1)
 
 
     fig = plt.figure()
@@ -344,28 +352,45 @@ if __name__ == '__main__':
     ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2], "S")
     ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2], "E")
 
-    try:
-        rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
-        rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
-        rot_vecs_z = np.sin(pitch_trace)
-        rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
-        step = 9
-        ax.quiver(loc_trace[::step, 0],
-                  loc_trace[::step, 1],
-                  loc_trace[::step, 2],
-                  rot_vecs[::step, 0],
-                  rot_vecs[::step, 1],
-                  rot_vecs[::step, 2],
-                  length = 1,
-                  c='green')
-    except:
-        pass
+    rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
+    rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
+    rot_vecs_z = np.sin(pitch_trace)
+    rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
+    step = 9
+    ax.quiver(loc_trace[::step, 0],
+              loc_trace[::step, 1],
+              loc_trace[::step, 2],
+              rot_vecs[::step, 0],
+              rot_vecs[::step, 1],
+              rot_vecs[::step, 2],
+              length = 1,
+              color='green')
 
 
     if not no_bottom:
         # plot the altitude relative to the height of the auv
         bottom = loc_trace[:,2] - altitude_trace
         ax.plot(loc_trace[:,0], loc_trace[:,1], bottom, c='yellow')
+
+    if not no_swath and swath is not None:
+        bottom = loc_trace[:,2] - altitude_trace
+        bottom_mid = np.median(bottom)
+        left_xs, left_ys = np.cos(yaw_trace+np.pi/2), np.sin(yaw_trace+np.pi/2)
+        right_xs, right_ys = np.cos(yaw_trace-np.pi/2), np.sin(yaw_trace-np.pi/2)
+        left_xs *= swath/2
+        right_xs *= swath/2
+        left_ys *= swath/2
+        right_ys *= swath/2
+        left_xs += loc_trace[:,0]
+        right_xs += loc_trace[:,0]
+        left_ys += loc_trace[:,1]
+        right_ys += loc_trace[:,1]
+        for x1,x2,y1,y2 in zip(right_xs, left_xs, right_ys, left_ys):
+            ax.plot([x1,x2],[y1,y2],[bottom_mid, bottom_mid],
+                    c='purple', alpha=0.2)
+
+
+
 
 
     if len(mplan) > 1:
@@ -386,13 +411,13 @@ if __name__ == '__main__':
         gps_fixes = np.array(good_fixes)
         fix_locs = np.array(good_fix_locs)
 
-        ax.scatter(gps_fixes[:,0], gps_fixes[:,1], 0, c='grey', alpha=0.02)
+        ax.scatter(gps_fixes[:,0], gps_fixes[:,1], 0, c='grey', alpha=0.2)
         step = 20
         for fix, loc in zip(gps_fixes[::step], fix_locs[::step]):
             xs = [fix[0], loc[0]]
             ys = [fix[1], loc[1]]
             zs = [0., loc[2]]
-            diff = np.sqrt((xs[0]-xs[1])**2+(ys[0]-ys[1])**2+(zs[0]-zs[1])**2)
+            diff = np.sqrt((xs[0]-xs[1])**2+(ys[0]-ys[1])**2)
             if diff > 0.5:
                 ax.plot(xs, ys, zs, c='grey', alpha=0.1)
                 ax.text(sum(xs)/2, sum(ys)/2, sum(zs)/2, s='{:.1f}'.format(diff))
