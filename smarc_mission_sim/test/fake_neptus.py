@@ -178,7 +178,7 @@ class TestMonitorPlan(unittest.TestCase):
     def mission_complete_cb(self, msg):
         self.mission_complete_msg_received = True
 
-    def heartbeat_cb(sef, msg):
+    def heartbeat_cb(self, msg):
         self.heartbeats_received += 1
 
     def test_monitor_plan(self):
