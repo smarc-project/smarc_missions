@@ -172,10 +172,14 @@ class TestMonitorPlan(unittest.TestCase):
         self.complete_sub = rospy.Subscriber('lolo/core/mission_complete', Empty, callback=self.mission_complete_cb)
         self.mission_complete_msg_received = False
 
+        self.heartbeat_sub = rospy.Subscriber('lolo/core/heartbeat', Empty, callback=self.heartbeat_cb)
+        self.heartbeats_received = 0
 
     def mission_complete_cb(self, msg):
         self.mission_complete_msg_received = True
 
+    def heartbeat_cb(sef, msg):
+        self.heartbeats_received += 1
 
     def test_monitor_plan(self):
         init_time = time.time()
@@ -201,6 +205,14 @@ class TestMonitorPlan(unittest.TestCase):
 
         rospy.loginfo("Checking if the services exist")
         self.assert_(service_exists)
+
+        # wait for the BT to come alive too
+        # we can listen to its heartbeat
+        rospy.loginfo("Waiting for BT heartbeat")
+        while not rospy.is_shutdown() and self.heartbeats_received < 3:
+            time.sleep(1)
+        rospy.loginfo("BT is living!")
+
 
         # once gps and actionsrever are there, we can start neptus
         fake_neptus = FakeNeptus()
