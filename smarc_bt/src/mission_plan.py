@@ -220,18 +220,25 @@ class MissionPlan:
                                                   maneuver.lon,
                                                   -maneuver.z)
 
+
                 utm_poly_points = [(utm_x, utm_y)]
                 # this maneuver has an extra polygon with it
                 # that we want to generate waypoints inside of
                 # generate the waypoints here and add them as goto waypoints
-                utm_poly_points += [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
-                coverage_points = self.generate_coverage_pattern(utm_poly_points)
+                if len(maneuver.polygon) > 2:
+                    rospy.loginfo("Generating rectangular coverage pattern")
+                    utm_poly_points += [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
+                    coverage_points = self.generate_coverage_pattern(utm_poly_points)
+                else:
+                    rospy.loginfo("This polygon ({}) has too few polygons for a coverarea, it will be used as a simple waypoint!".format(man_id))
+                    coverage_points = utm_poly_points
+
 
                 for i,point in enumerate(coverage_points):
                     wp = Waypoint(
                         maneuver_id = man_id,
                         maneuver_imc_id = imc_enums.MANEUVER_GOTO,
-                        maneuver_name = str(man_name) + "_{}/{}".format(i+1, len(coverage_points)),
+                        maneuver_name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points)),
                         tf_frame = 'utm',
                         x = point[0],
                         y = point[1],
