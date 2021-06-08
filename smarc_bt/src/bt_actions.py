@@ -672,7 +672,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None and current_loc is not None:
             wp = mplan.get_current_wp()
-            h_dist = math.dist([wp.x, wp.y], current_loc[:2])
+            x,y = current_loc[:2]
+            h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
             h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
             v_dist = wp.z - current_loc[2]
             self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
