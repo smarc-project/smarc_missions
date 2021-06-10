@@ -7,6 +7,7 @@ import py_trees as pt
 import py_trees_ros as ptr
 
 import time
+import math
 import numpy as np
 
 import rospy
@@ -578,7 +579,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
             return
 
-        if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
+        if wp.maneuver_imc_id != imc_enums.MANEUVER_GOTO:
             rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
         # get the goal tolerance as a dynamic variable from the bb
@@ -666,12 +667,24 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.loginfo(self.feedback_message)
             return pt.Status.SUCCESS
 
+        # still running, set our feedback message to distance left
+        current_loc = self.bb.get(bb_enums.WORLD_TRANS)
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is not None and current_loc is not None:
+            wp = mplan.get_current_wp()
+            x,y = current_loc[:2]
+            h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
+            h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+            v_dist = wp.z - current_loc[2]
+            self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
+
+
 
         return pt.Status.RUNNING
 
     def feedback_cb(self, msg):
         fb = str(msg.ETA)
-        self.feedback_message = "ETA:"+fb
+        # self.feedback_message = "ETA:"+fb
         rospy.loginfo_throttle(5, fb)
 
 

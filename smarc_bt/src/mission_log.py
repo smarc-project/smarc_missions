@@ -12,6 +12,7 @@ import json
 import time
 
 from nav_msgs.msg import Path
+from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point, PoseStamped
 import rospy
 
@@ -61,6 +62,7 @@ class MissionLog:
         self.bottom_pub = rospy.Publisher('bt_viz/bottom', Path, queue_size=1)
 
         self.plan_pub = rospy.Publisher('bt_viz/mission_plan', Path, queue_size=1)
+        self.target_pub = rospy.Publisher('bt_viz/target_wp', Marker, queue_size=1)
 
         if mission_plan is not None:
             # used to check if log and mission plan are synched
@@ -227,9 +229,42 @@ class MissionLog:
                 ps.header = point.header
                 ps.pose.position.x = x
                 ps.pose.position.y = y
-                ps.pose.position.z = z
+                ps.pose.position.z = min(z,0)
                 self.plan_msg.poses.append(ps)
             self.plan_pub.publish(self.plan_msg)
+
+        current_loc = bb.get(bb_enums.WORLD_TRANS)
+        mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is not None and current_loc is not None:
+            wp = mplan.get_current_wp()
+            x,y,z = current_loc
+
+            arrow = Marker()
+            arrow.header.frame_id = 'utm'
+            arrow.ns = 'bt_viz'
+            arrow.id = 0
+            arrow.type = 0 # arrow
+            arrow.action = 0 # add/modify
+            arrow.color.r = 1
+            arrow.color.g = 0.2
+            arrow.color.b = 0.2
+            arrow.color.a = 0.5
+            arrow.scale.x = 0.5
+            arrow.scale.y = 0.7
+            arrow.scale.z = 1
+            p1 = Point()
+            p1.x = x
+            p1.y = y
+            p1.z = z
+            p2 = Point()
+            p2.x = wp.x
+            p2.y = wp.y
+            p2.z = wp.z
+            arrow.points = [p1,p2]
+            self.target_pub.publish(arrow)
+
+
+
 
 
 
