@@ -21,10 +21,10 @@ if not hasattr(rospy, 'logerr_throttle_identical'):  setattr(rospy, 'logerr_thro
 from py_trees.composites import Selector as Fallback
 
 # messages
-from std_msgs.msg import Float64, Empty
+from std_msgs.msg import Float64, Empty, Bool
 from smarc_msgs.msg import Leak, DVL
 from sensor_msgs.msg import NavSatFix
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
 
 from auv_config import AUVConfig
@@ -66,7 +66,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanDB, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
-                       A_VizPublishPlan, \
+                       A_PublishMissionPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
                        A_ReadBuoys, \
@@ -74,7 +74,8 @@ from bt_actions import A_GotoWaypoint, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
                        A_PublishFinalize, \
-                       A_ReadLolo
+                       A_ReadLolo, \
+                       A_ReadUnplannedWaypoint
 
 
 
@@ -181,6 +182,17 @@ def const_tree(auv_config):
             latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
         )
 
+        read_reloc_enable = ReadTopic(
+            name = "A_ReadRelocEnable",
+            topic_name = auv_config.RELOC_ENABLE_TOPIC,
+            topic_type = Bool,
+            blackboard_variables={bb_enums.RELOC_ENABLE : 'data'}
+        )
+
+
+        read_unplanned_wp = A_ReadUnplannedWaypoint(
+            ps_topic = auv_config.UNPLANNED_WAYPOINT_TOPIC)
+
 
         read_lolo = A_ReadLolo(
             robot_name = auv_config.robot_name,
@@ -205,7 +217,8 @@ def const_tree(auv_config):
                                      auv_config.LATLONTOUTM_SERVICE,
                                      auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
                 A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
-                A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
+                A_PublishMissionPlan(auv_config.PLAN_VIZ_TOPIC,
+                                     auv_config.PLAN_PATH_TOPIC)
                                      ])
             return update_neptus
 
@@ -233,7 +246,9 @@ def const_tree(auv_config):
                             read_lolo,
                             update_tf,
                             neptus_tree,
-                            publish_heartbeat
+                            publish_heartbeat,
+                            read_reloc_enable,
+                            read_unplanned_wp
                         ])
 
 
@@ -409,10 +424,29 @@ def const_tree(auv_config):
                                          A_SetNextPlanAction()
                                ])
 
+        # finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
+                                             # True,
+                                             # "C_MissionFinalized")
+        # Nacho's relocalization stuffs
+        reloc_enabled = CheckBlackboardVariableValue(bb_enums.RELOC_ENABLE,
+                                                     True,
+                                                     "C_RelocEnabled")
+        goto_reloc_wp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                       goal_tf_frame = auv_config.UTM_LINK,
+                                       node_name="A_GotoUnplannedWP",
+                                       wp_from_bb = bb_enums.UNPLANNED_WAYPOINT)
+
+        reloc_tree = Sequence(name="SQ-Relocalize",
+                              children=[
+                                  reloc_enabled,
+                                  goto_reloc_wp
+                              ])
+
         # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
+                                  reloc_tree,
                                   follow_plan,
                                   A_SaveMissionLog()
                         ])

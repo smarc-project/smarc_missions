@@ -16,6 +16,7 @@ import bb_enums
 from geometry_msgs.msg import PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
+from smarc_msgs.msg import GotoWaypointGoal
 
 from coverage_planner import create_coverage_path
 
@@ -190,6 +191,15 @@ class MissionPlan:
                                   'syringe1':maneuver.syringe1,
                                   'syringe2':maneuver.syringe2}
 
+                # convert the IMC enums into SMaRC enums
+                if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
+                elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
+                else:
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_NONE
+                    rospy.logwarn("Speed control of the waypoint is NONE!")
+
                 # these are in IMC enums, map to whatever enums the action that will consume
                 # will need when you are publishing it
                 waypoint = Waypoint(
@@ -201,8 +211,8 @@ class MissionPlan:
                     y = utm_y,
                     z = maneuver.z,
                     speed = maneuver.speed,
-                    z_unit = maneuver.z_units,
-                    speed_unit = maneuver.speed_units,
+                    z_unit = maneuver.z_units, #these are same on imc and smarc
+                    speed_unit = speed_unit,
                     extra_data = extra_data
                 )
                 waypoints.append(waypoint)

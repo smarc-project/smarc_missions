@@ -23,6 +23,7 @@ class AUVConfig(object):
         self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
         self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
+        self.PLAN_PATH_TOPIC = 'ctrl/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
         self.GPS_TOPIC = 'core/gps'
         self.ROLL_TOPIC = '/'+self.robot_name+'/dr/roll'
@@ -33,6 +34,9 @@ class AUVConfig(object):
         self.HEARTBEAT_TOPIC = 'core/heartbeat'
         self.MISSION_COMPLETE_TOPIC = 'core/mission_complete'
 
+        # Nacho's reloc topics
+        self.RELOC_ENABLE_TOPIC = 'localization/enable'
+
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
@@ -40,6 +44,8 @@ class AUVConfig(object):
         self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
         self.INSPECTION_ACTION_NAMESPACE = 'ctrl/panoramic_inspection_action'
         self.PLANNED_SURFACE_ACTION_NAMESPACE = 'ctrl/planned_surface_action'
+
+        self.UNPLANNED_WAYPOINT_TOPIC = 'ctrl/unplanned_waypoint'
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
         # in cases where the above service couldnt be found for some reason

@@ -15,7 +15,7 @@ import tf
 import actionlib
 
 #  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 from nav_msgs.msg import Path
@@ -31,8 +31,71 @@ import bb_enums
 import imc_enums
 import common_globals
 
-from mission_plan import MissionPlan
+from mission_plan import MissionPlan, Waypoint
 from mission_log import MissionLog
+
+
+class A_ReadUnplannedWaypoint(pt.behaviour.Behaviour):
+    def __init__(self,
+                 ps_topic):
+        """
+        subs to a PoseStamped topic and read it into the UNPLANNED_WAYPOINT
+        bb variable
+        """
+        super(A_ReadUnplannedWaypoint, self).__init__(name="A_ReadUnplannedWaypoint")
+
+        self.bb = pt.blackboard.Blackboard()
+        self.ps_topic = ps_topic
+        self.last_read_ps = None
+        self.last_read_time = None
+
+
+    def setup(self, timeout):
+        self.ps_sub = rospy.Subscriber(self.ps_topic, GotoWaypoint, self.cb)
+        return True
+
+    def cb(self, msg):
+        self.last_read_ps = msg
+        self.last_read_time = time.time()
+
+    def update(self):
+        if self.last_read_time is not None:
+            time_since = time.time() - self.last_read_time
+            self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "No msg rcvd"
+
+
+        wp = None
+        if self.last_read_ps is not None:
+            pos = self.last_read_ps.waypoint_pose.pose.position
+
+            if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
+                speed = self.last_read_ps.travel_rpm
+            else:
+                speed = self.last_read_ps.travel_speed
+
+            wp = Waypoint(
+                maneuver_id = 'unplanned_goto',
+                maneuver_imc_id = imc_enums.MANEUVER_GOTO,
+                maneuver_name = 'unplanned_goto',
+                x = pos.x,
+                y = pos.y,
+                z = pos.z,
+                z_unit = self.last_read_ps.z_control_mode,
+                speed = speed,
+                speed_unit = self.last_read_ps.speed_control_mode,
+                tf_frame = self.last_read_ps.waypoint_pose.header.frame_id,
+                extra_data = None)
+
+            if wp.tf_frame != 'utm':
+                rospy.logwarn("Unplanned WP is not in UTM frame? It is:{}".format(wp.tf_frame))
+
+        self.bb.set(bb_enums.UNPLANNED_WAYPOINT, wp)
+        self.last_read_ps = None
+        return pt.Status.SUCCESS
+
+
 
 
 class A_ReadLolo(pt.behaviour.Behaviour):
@@ -503,11 +566,13 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
 
 
+
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
                  action_namespace,
                  goal_tf_frame = 'utm',
-                 node_name = "A_GotoWaypoint"):
+                 node_name = "A_GotoWaypoint",
+                 wp_from_bb = None):
         """
         Runs an action server that will move the robot to the given waypoint
         """
@@ -538,6 +603,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         self.goal_tf_frame = goal_tf_frame
 
+        self.wp_from_bb = wp_from_bb
+
 
     def setup(self, timeout):
         """
@@ -564,15 +631,25 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
             return
 
-        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None:
-            rospy.logwarn("No mission plan found!")
-            return
+        # so we can pass a bb variable name to this action
+        # and it would go to that wp
+        if self.wp_from_bb is not None:
+            wp = self.bb.get(self.wp_from_bb)
+            rospy.loginfo("Acquired WP from the BB")
+        # otherwise default into following the mission plan
+        else:
+            mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            if mission_plan is None:
+                rospy.logwarn("No mission plan found!")
+                return
 
-        wp = mission_plan.get_current_wp()
+            wp = mission_plan.get_current_wp()
 
         if wp is None:
-            rospy.loginfo("No wp found to execute! Does the plan have any waypoints that we understand?")
+            if self.wp_from_bb is None:
+                rospy.loginfo("No wp found to execute! Does the plan have any waypoints that we understand?")
+            else:
+                rospy.loginfo_throttle(3, "Unplanned waypoint not found but it is enabled!")
             return
 
         if wp.tf_frame != self.goal_tf_frame:
@@ -595,21 +672,29 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # thankfully these are the same in IMC and in the Action
         # but Action doesnt have 'height'
         if wp.z_unit == imc_enums.Z_HEIGHT:
-            wp.z_unit = imc_enums.Z_NONE
-        goal.z_control_mode = wp.z_unit
+            goal.z_control_mode = imc_enums.Z_NONE
+        else:
+            goal.z_control_mode = wp.z_unit
         goal.travel_depth = wp.z
 
+        #XXX MOVED INTO MISSION_PLAN
         # 0=None, 1=RPM, 2=speed in the action
         # 0=speed, 1=rpm, 2=percentage in IMC
-        if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
-            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
-            goal.travel_rpm = wp.speed
-        elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
-            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+        # if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
+            # goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
+            # #TODO HArsha should also accept float RPMs.
+            # goal.travel_rpm = int(wp.speed)
+        # elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
+            # goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+            # goal.travel_speed = wp.speed
+        # else:
+            # goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
+            # rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
+        goal.speed_control_mode = wp.speed_unit
+        if wp.speed_unit == GotoWaypointGoal.SPEED_CONTROL_SPEED:
             goal.travel_speed = wp.speed
         else:
-            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
-            rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
+            goal.travel_rpm = int(wp.speed)
 
 
         self.action_goal = goal
@@ -1238,29 +1323,49 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         rospy.loginfo_throttle_identical(5, "Due to POI, set the mission plan to:"+str(mission_plan))
         return pt.Status.SUCCESS
 
-class A_VizPublishPlan(pt.behaviour.Behaviour):
+class A_PublishMissionPlan(pt.behaviour.Behaviour):
     """
     Publishes the current plans waypoints as a PoseArray
     """
-    def __init__(self, plan_viz_topic):
-        super(A_VizPublishPlan, self).__init__(name="A_VizPublishPlan")
+    def __init__(self, plan_viz_topic, plan_path_topic):
+        super(A_PublishMissionPlan, self).__init__(name="A_PublishMissionPlan")
         self.bb = pt.blackboard.Blackboard()
         self.pa_pub = None
         self.plan_viz_topic = plan_viz_topic
+        self.plan_path_topic = plan_path_topic
 
     def setup(self, timeout):
         self.pa_pub = rospy.Publisher(self.plan_viz_topic, PoseArray, queue_size=1)
+        self.pp_pub = rospy.Publisher(self.plan_path_topic, Path, queue_size=1)
         return True
 
 
     def update(self):
         mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission is not None:
+            # we wanna flip z's for rviz because it wants HEIGHT not DEPTH
             pa = mission.get_pose_array(flip_z=True)
         else:
             pa = PoseArray()
 
         self.pa_pub.publish(pa)
+
+        if mission is not None:
+            # we dont wanna flip z's into height for nacho
+            pa = mission.get_pose_array(flip_z=False)
+            pp = Path()
+            pp.header.frame_id = mission.plan_frame
+            for pose in pa.poses:
+                ps = PoseStamped()
+                ps.pose = pose
+                ps.header.frame_id = mission.plan_frame
+                pp.poses.append(ps)
+        else:
+            pp = Path()
+
+        self.pp_pub.publish(pp)
+
+
 
 
         return pt.Status.SUCCESS

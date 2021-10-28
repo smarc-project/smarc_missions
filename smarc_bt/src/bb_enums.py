@@ -57,9 +57,12 @@ LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 # Algae farm
 BUOYS = 'buoys'
 
+# Nacho's relocalization stuff
+RELOC_ENABLE = 'reloc_enable'
 
 # Goto action
 WAYPOINT_TOLERANCE = 'wp_tolerance'
+UNPLANNED_WAYPOINT = 'unplanned_wp'
 
 
 # Mission log object

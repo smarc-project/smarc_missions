@@ -38,6 +38,7 @@ class ReconfigServer(object):
                                "default:{}".format(config.WAYPOINT_TOLERANCE),
                                float(config.WAYPOINT_TOLERANCE), 0.1, 10)
 
+
         # coverage stuffs
         self.ddrc.add_variable(bb_enums.SWATH,
                                "default:{}".format(config.SWATH),
