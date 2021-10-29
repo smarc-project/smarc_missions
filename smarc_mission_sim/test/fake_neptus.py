@@ -146,9 +146,11 @@ class FakeNeptus:
             self.plandb_pub.publish(self.pm)
             time.sleep(2)
             rospy.loginfo("Asking for ACK")
-            for j in range(5):
+            # try a bunch of times to send the plan. 
+            # the CI online is really fiddly for some reason, this runs smoothly local...
+            for j in range(10):
                 self.plandb_pub.publish(self.pm_ask)
-                time.sleep(0.5)
+                time.sleep(1)
             i += 1
             if self.plan_received:
                 rospy.loginfo("Stopping sending the plan")
@@ -220,7 +222,7 @@ class TestMonitorPlan(unittest.TestCase):
         # and send a plan
         fake_neptus.send_and_ask_ack()
 
-        self.assert_(fake_neptus.plan_received, "Plan not received by the BT within 5 trials!")
+        self.assert_(fake_neptus.plan_received, "Plan not received by the BT within 10 trials!")
 
         if fake_neptus.plan_received:
             rospy.loginfo("Got ACK from BT")
