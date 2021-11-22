@@ -418,7 +418,6 @@ def const_tree(auv_config):
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
-                                         A_UpdateMissionLog(),
                                          unfinalize,
                                          execute_maneuver,
                                          A_SetNextPlanAction()
@@ -447,8 +446,7 @@ def const_tree(auv_config):
                         children=[
                                   C_PlanCompleted(),
                                   reloc_tree,
-                                  follow_plan,
-                                  A_SaveMissionLog()
+                                  follow_plan
                         ])
 
 
@@ -469,14 +467,17 @@ def const_tree(auv_config):
                                             ])
 
 
+
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
+                                  C_StartPlanReceived(),
+                                  A_UpdateMissionLog(),
                                   plan_complete_or_stopped,
                                   publish_complete,
-                                  unset_plan_is_go,
-                                  A_SaveMissionLog()
+                                  A_SaveMissionLog(),
+                                  unset_plan_is_go
                         ])
 
     # The root of the tree is here

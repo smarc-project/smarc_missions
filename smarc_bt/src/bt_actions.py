@@ -14,7 +14,6 @@ import rospy
 import tf
 import actionlib
 
-#  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
@@ -335,7 +334,7 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
                          robot_name = self.bb.get(bb_enums.ROBOT_NAME),
                          save_location = save_location)
         self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
-        rospy.loginfo("Started new mission log")
+        rospy.loginfo("Started new mission log {}".format(log.data_full_path))
         self.started_logs += 1
         return log
 
@@ -344,7 +343,6 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
         # only update if there is an unfinalized mission that has been started
         mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is None:
-            rospy.loginfo("Mission plan is None, can't make a log of this?")
             self.feedback_message = "No mission plan!"
             return pt.Status.FAILURE
 
@@ -353,14 +351,16 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
         if log is None:
             log = self.start_new_log(mplan)
 
+
         # check if the mission has changed in the meantime
         # this can happen when the user starts a mission, stops it,
         # and then starts a different one
         # we dont wanna log the incomplete one
         # did it change since we last got called?
-        if log.creation_time != mplan.creation_time:
+        if abs(log.creation_time - mplan.creation_time) > 5:
             # it changed!
             # re-start a log
+            print("Log was old...")
             log = self.start_new_log(mplan)
 
 
@@ -605,6 +605,11 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         self.wp_from_bb = wp_from_bb
 
+        # every X seconds, try to reconnect to the action server
+        # if the server wasnt up and ready when the BT was started
+        self.last_reconnect_attempt_time = 0
+        self.reconnect_attempt_period = 5
+
 
     def setup(self, timeout):
         """
@@ -677,19 +682,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             goal.z_control_mode = wp.z_unit
         goal.travel_depth = wp.z
 
-        #XXX MOVED INTO MISSION_PLAN
-        # 0=None, 1=RPM, 2=speed in the action
-        # 0=speed, 1=rpm, 2=percentage in IMC
-        # if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
-            # goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
-            # #TODO HArsha should also accept float RPMs.
-            # goal.travel_rpm = int(wp.speed)
-        # elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
-            # goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
-            # goal.travel_speed = wp.speed
-        # else:
-            # goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
-            # rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
         goal.speed_control_mode = wp.speed_unit
         if wp.speed_unit == GotoWaypointGoal.SPEED_CONTROL_SPEED:
             goal.travel_speed = wp.speed
@@ -712,8 +704,15 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         """
 
         if not self.action_server_ok:
-            self.feedback_message = "Action Server for gotowp action can not be used!"
-            rospy.logerr_throttle_identical(5,self.feedback_message)
+            self.feedback_message = "Action Server not available!"
+            rospy.logerr_throttle_identical(5, self.feedback_message)
+            t = time.time()
+            diff = t - self.last_reconnect_attempt_time
+            if diff < self.reconnect_attempt_period:
+                self.feedback_message = "Re-trying to connect in {}s".format(diff)
+            else:
+                self.setup(self.reconnect_attempt_period-1)
+
             return pt.Status.FAILURE
 
         # if your action client is not valid
@@ -817,10 +816,14 @@ class A_UpdateTF(pt.behaviour.Behaviour):
                                                                      rospy.Time(0))
             self.last_read_time = time.time()
         except (tf.LookupException, tf.ConnectivityException):
-            rospy.logerr_throttle_identical(5, "Could not get transform between {} and {}".format(self.utm_link, self.base_link))
+            msg = "Could not get transform between {} and {}".format(self.utm_link, self.base_link)
+            rospy.logerr_throttle_identical(5, msg + " Is the TF tree in one piece?")
+            self.feedback_message = msg
             return pt.Status.FAILURE
         except:
-            rospy.logerr_throttle_identical(5, "Could not do tf lookup for some other reason")
+            msg = "Could not do a tf lookup for some other reason."
+            rospy.logerr_throttle_identical(5, msg)
+            self.feedback_message = msg
             return pt.Status.FAILURE
 
         self.bb.set(bb_enums.WORLD_TRANS, world_trans)

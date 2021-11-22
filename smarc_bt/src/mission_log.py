@@ -237,31 +237,32 @@ class MissionLog:
         mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None and current_loc is not None:
             wp = mplan.get_current_wp()
-            x,y,z = current_loc
+            if wp is not None:
+                x,y,z = current_loc
 
-            arrow = Marker()
-            arrow.header.frame_id = 'utm'
-            arrow.ns = 'bt_viz'
-            arrow.id = 0
-            arrow.type = 0 # arrow
-            arrow.action = 0 # add/modify
-            arrow.color.r = 1
-            arrow.color.g = 0.2
-            arrow.color.b = 0.2
-            arrow.color.a = 0.5
-            arrow.scale.x = 0.5
-            arrow.scale.y = 0.7
-            arrow.scale.z = 1
-            p1 = Point()
-            p1.x = x
-            p1.y = y
-            p1.z = z
-            p2 = Point()
-            p2.x = wp.x
-            p2.y = wp.y
-            p2.z = wp.z
-            arrow.points = [p1,p2]
-            self.target_pub.publish(arrow)
+                arrow = Marker()
+                arrow.header.frame_id = 'utm'
+                arrow.ns = 'bt_viz'
+                arrow.id = 0
+                arrow.type = 0 # arrow
+                arrow.action = 0 # add/modify
+                arrow.color.r = 1
+                arrow.color.g = 0.2
+                arrow.color.b = 0.2
+                arrow.color.a = 0.5
+                arrow.scale.x = 0.5
+                arrow.scale.y = 0.7
+                arrow.scale.z = 1
+                p1 = Point()
+                p1.x = x
+                p1.y = y
+                p1.z = z
+                p2 = Point()
+                p2.x = wp.x
+                p2.y = wp.y
+                p2.z = wp.z
+                arrow.points = [p1,p2]
+                self.target_pub.publish(arrow)
 
 
 
