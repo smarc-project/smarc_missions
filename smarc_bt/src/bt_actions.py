@@ -449,6 +449,11 @@ class A_EmergencySurface(ptr.actions.ActionClient):
 
         self.action_server_ok = False
 
+        # every X seconds, try to reconnect to the action server
+        # if the server wasnt up and ready when the BT was started
+        self.last_reconnect_attempt_time = 0
+        self.reconnect_attempt_period = 5
+
     def setup(self, timeout):
         """
         Overwriting the normal ptr action setup to stop it from failiing the setup step
@@ -481,6 +486,12 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if not self.action_server_ok:
             self.feedback_message = "Action Server for emergency action can not be used!"
             rospy.logerr_throttle_identical(5,self.feedback_message)
+            t = time.time()
+            diff = t - self.last_reconnect_attempt_time
+            if diff < self.reconnect_attempt_period:
+                self.feedback_message = "Re-trying to connect in {}s".format(diff)
+            else:
+                self.setup(self.reconnect_attempt_period-1)
             return pt.Status.FAILURE
 
         # if your action client is not valid
