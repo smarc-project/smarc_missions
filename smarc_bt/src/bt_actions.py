@@ -687,7 +687,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         else:
             goal.travel_rpm = int(wp.speed)
 
-        goal.header.frame_id = wp.tf_frame
+        goal.waypoint_pose.header.frame_id = wp.tf_frame
 
         return goal
 
@@ -815,8 +815,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                 self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
                 self.sent_goal = True
                 self.last_live_update_time = time.time()
-
-            self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
+                self.feedback_message = "Sent goal just now"
+            else:
+                self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
 
         else:
             # no live updates, just report distance to planned wp

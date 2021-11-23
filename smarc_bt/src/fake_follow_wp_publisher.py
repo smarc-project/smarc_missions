@@ -24,8 +24,8 @@ wp_pub = rospy.Publisher('/sam/algae_farm/wp', GotoWaypoint)
 # left of the real farm
 center = (643740.969, 6459248.518)
 # radians per wp update
-rpu = math.pi/10
-radius = 10
+rpu = math.pi/3
+radius = 50
 
 current_radians = 0
 
@@ -35,7 +35,7 @@ enable = Bool()
 enable.data = True
 
 # seconds
-wp_update_period = 5
+wp_update_period = 20
 last_wp_update = time.time()
 
 while not rospy.is_shutdown():
