@@ -34,19 +34,22 @@ from mission_plan import MissionPlan, Waypoint
 from mission_log import MissionLog
 
 
-class A_ReadUnplannedWaypoint(pt.behaviour.Behaviour):
+class A_ReadWaypoint(pt.behaviour.Behaviour):
     def __init__(self,
-                 ps_topic):
+                 ps_topic,
+                 bb_key,
+                 reset = False):
         """
-        subs to a PoseStamped topic and read it into the UNPLANNED_WAYPOINT
-        bb variable
+        subs to a GotoWaypoint topic and read it into the given bb variable
         """
-        super(A_ReadUnplannedWaypoint, self).__init__(name="A_ReadUnplannedWaypoint")
+        super(A_ReadWaypoint, self).__init__(name="A_ReadWaypoint")
 
         self.bb = pt.blackboard.Blackboard()
         self.ps_topic = ps_topic
         self.last_read_ps = None
         self.last_read_time = None
+        self.bb_key = bb_key
+        self.reset = reset
 
 
     def setup(self, timeout):
@@ -65,7 +68,6 @@ class A_ReadUnplannedWaypoint(pt.behaviour.Behaviour):
             self.feedback_message = "No msg rcvd"
 
 
-        wp = None
         if self.last_read_ps is not None:
             pos = self.last_read_ps.waypoint_pose.pose.position
 
@@ -90,8 +92,13 @@ class A_ReadUnplannedWaypoint(pt.behaviour.Behaviour):
             if wp.tf_frame != 'utm':
                 rospy.logwarn("Unplanned WP is not in UTM frame? It is:{}".format(wp.tf_frame))
 
-        self.bb.set(bb_enums.UNPLANNED_WAYPOINT, wp)
-        self.last_read_ps = None
+            self.bb.set(self.bb_key, wp)
+
+
+        if self.reset:
+            self.last_read_ps = None
+            self.bb.set(self.bb_key, None)
+
         return pt.Status.SUCCESS
 
 
@@ -583,7 +590,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                  action_namespace,
                  goal_tf_frame = 'utm',
                  node_name = "A_GotoWaypoint",
-                 wp_from_bb = None):
+                 wp_from_bb = None,
+                 live_mode_enabled = False):
         """
         Runs an action server that will move the robot to the given waypoint
         """
@@ -614,12 +622,24 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         self.goal_tf_frame = goal_tf_frame
 
+        # if given, the action will read a wp from the bb instead of
+        # from the mission plan
         self.wp_from_bb = wp_from_bb
+
+        # If true, the action will re-send a goal every time it changes
+        # without stopping the action
+        self.live_mode_enabled = live_mode_enabled
+        self.last_live_update_time = -1
 
         # every X seconds, try to reconnect to the action server
         # if the server wasnt up and ready when the BT was started
         self.last_reconnect_attempt_time = 0
         self.reconnect_attempt_period = 5
+
+        # make sure there is a bb key given to get the wp from
+        # if live mode is needed
+        if self.live_mode_enabled and self.wp_from_bb is None:
+            assert False, "Live mode must be given a bb key to get the WP from!"
 
 
     def setup(self, timeout):
@@ -642,39 +662,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         return True
 
 
-    def initialise(self):
-        if not self.action_server_ok:
-            rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
-            return
-
-        # so we can pass a bb variable name to this action
-        # and it would go to that wp
-        if self.wp_from_bb is not None:
-            wp = self.bb.get(self.wp_from_bb)
-            rospy.loginfo("Acquired WP from the BB")
-        # otherwise default into following the mission plan
-        else:
-            mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-            if mission_plan is None:
-                rospy.logwarn("No mission plan found!")
-                return
-
-            wp = mission_plan.get_current_wp()
-
-        if wp is None:
-            if self.wp_from_bb is None:
-                rospy.loginfo("No wp found to execute! Does the plan have any waypoints that we understand?")
-            else:
-                rospy.loginfo_throttle(3, "Unplanned waypoint not found but it is enabled!")
-            return
-
-        if wp.tf_frame != self.goal_tf_frame:
-            rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
-            return
-
-        if wp.maneuver_imc_id != imc_enums.MANEUVER_GOTO:
-            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
-
+    def make_goal_from_wp(self, wp):
         # get the goal tolerance as a dynamic variable from the bb
         goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
 
@@ -699,11 +687,53 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         else:
             goal.travel_rpm = int(wp.speed)
 
+        goal.header.frame_id = wp.tf_frame
 
-        self.action_goal = goal
+        return goal
 
-        rospy.loginfo(">>> Goto waypoint action goal initialized:"+str(goal))
 
+
+    def initialise(self):
+        if not self.action_server_ok:
+            self.feedback_message = "No action server found for A_GotoWaypoint!"
+            rospy.logwarn_throttle(5, self.feedback_message)
+            return
+
+        # so we can pass a bb variable name to this action
+        # and it would go to that wp
+        if self.wp_from_bb is not None:
+            wp = self.bb.get(self.wp_from_bb)
+            rospy.loginfo_throttle_identical(5, "Acquired WP from the BB key:{}".format(self.wp_from_bb))
+        # otherwise default into following the mission plan
+        else:
+            mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            if mission_plan is None:
+                self.feedback_message = "No mission plan found!"
+                rospy.logwarn(self.feedback_message)
+                return
+
+            wp = mission_plan.get_current_wp()
+
+        if wp is None:
+            if self.wp_from_bb is None:
+                self.feedback_message = "No wp found to execute! Does the plan have any waypoints that we understand?"
+                rospy.loginfo_throttle(3, self.feedback_message)
+            else:
+                self.feedback_message = "Unplanned waypoint not found but it is enabled!"
+                rospy.loginfo_throttle(3, self.feedback_message)
+            return
+
+        if wp.tf_frame != self.goal_tf_frame:
+            self.feedback_message = 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame)
+            rospy.logerr_throttle(5, self.feedback_message)
+            return
+
+        if wp.maneuver_imc_id != imc_enums.MANEUVER_GOTO:
+            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
+
+
+        self.action_goal = self.make_goal_from_wp(wp)
+        rospy.loginfo("Goto waypoint goal initialized:"+str(self.action_goal))
         # ensure that we still need to send the goal
         self.sent_goal = False
 
@@ -746,7 +776,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             self.feedback_message = "Goal sent"
             return pt.Status.RUNNING
 
-
         # if the goal was aborted or preempted
         if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
@@ -762,25 +791,53 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.loginfo(self.feedback_message)
             return pt.Status.SUCCESS
 
-        # still running, set our feedback message to distance left
-        current_loc = self.bb.get(bb_enums.WORLD_TRANS)
-        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mplan is not None and current_loc is not None:
-            wp = mplan.get_current_wp()
-            x,y = current_loc[:2]
-            h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
-            h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
-            v_dist = wp.z - current_loc[2]
-            self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
 
+        # if we are in live mode, re-make a goal and send it again
+        if self.live_mode_enabled:
+            wp = self.bb.get(self.wp_from_bb)
+            if wp is None:
+                self.feedback_message = "wp in {} was reset while running!".format(self.wp_from_bb)
+                rospy.loginfo_throttle(3, self.feedback_message)
+                return pt.Status.FAILURE
+
+            # make sure it is not the exact same wp
+            # before making and sending a goal
+            goal_pos = self.action_goal.waypoint_pose.pose.position
+            xdiff = abs(goal_pos.x - wp.x)
+            ydiff = abs(goal_pos.y - wp.y)
+            goal_z = self.action_goal.travel_depth
+            zdiff = abs(goal_z - wp.z)
+            # if there is sufficient change in the wp from the previous one
+            # update the goal
+            # XXX maybe make the 0.5s a dynamic reconfig thing?
+            if any([xdiff > 0.5, ydiff > 0.5, zdiff > 0.5]):
+                self.action_goal = self.make_goal_from_wp(wp)
+                self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+                self.sent_goal = True
+                self.last_live_update_time = time.time()
+
+            self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
+
+        else:
+            # no live updates, just report distance to planned wp
+            # still running, set our feedback message to distance left
+            current_loc = self.bb.get(bb_enums.WORLD_TRANS)
+            mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            if mplan is not None and current_loc is not None:
+                wp = mplan.get_current_wp()
+                x,y = current_loc[:2]
+                h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
+                h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+                v_dist = wp.z - current_loc[2]
+                self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
 
 
         return pt.Status.RUNNING
 
+
     def feedback_cb(self, msg):
         fb = str(msg.ETA)
-        # self.feedback_message = "ETA:"+fb
-        rospy.loginfo_throttle(5, fb)
+        rospy.loginfo_throttle(5, "feedback from server:{}".format(fb))
 
 
 

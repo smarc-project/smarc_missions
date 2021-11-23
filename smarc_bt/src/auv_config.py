@@ -36,6 +36,10 @@ class AUVConfig(object):
 
         # Nacho's reloc topics
         self.RELOC_ENABLE_TOPIC = 'localization/enable'
+        self.RELOC_WP = 'localization/wp'
+        # Zheng and Li's algae farm thing
+        self.ALGAE_FOLLOW_ENABLE_TOPIC = 'algae_farm/enable'
+        self.ALGAE_FOLLOW_WP = 'algae_farm/wp'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
@@ -45,7 +49,6 @@ class AUVConfig(object):
         self.INSPECTION_ACTION_NAMESPACE = 'ctrl/panoramic_inspection_action'
         self.PLANNED_SURFACE_ACTION_NAMESPACE = 'ctrl/planned_surface_action'
 
-        self.UNPLANNED_WAYPOINT_TOPIC = 'ctrl/unplanned_waypoint'
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
         # in cases where the above service couldnt be found for some reason

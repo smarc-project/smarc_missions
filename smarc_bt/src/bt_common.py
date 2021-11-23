@@ -142,10 +142,16 @@ class ReadTopic(pt.behaviour.Behaviour):
     def update(self):
         if self.last_read_time is not None:
             time_since = time.time() - self.last_read_time
+
+            time_unit = 's'
+            if time_since > 120:
+                time_since = time_since/60
+                time_unit = 'm'
+
             if self.max_period is None:
-                self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+                self.feedback_message = "Last read:{:.2f}{} ago".format(time_since, time_unit)
             else:
-                self.feedback_message = "Last read:{:.2f}s ago, max={} before fail".format(time_since, self.max_period)
+                self.feedback_message = "Last read:{:.2f}{} ago, max={}s before fail".format(time_since, time_unit, self.max_period)
                 if time_since > self.max_period:
                     return pt.Status.FAILURE
 
@@ -194,8 +200,9 @@ class CheckBlackboardVariableValue(pt.behaviour.Behaviour):
 
     def update(self):
         current_value = self.bb.get(self.variable_name)
+        self.feedback_message = "Received value:"+str(current_value)
+
         if current_value is None or current_value != self.expected_value:
-            self.feedback_message = "Received value:"+str(current_value)
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS

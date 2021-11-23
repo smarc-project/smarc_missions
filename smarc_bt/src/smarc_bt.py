@@ -75,7 +75,7 @@ from bt_actions import A_GotoWaypoint, \
                        A_ManualMissionLog, \
                        A_PublishFinalize, \
                        A_ReadLolo, \
-                       A_ReadUnplannedWaypoint
+                       A_ReadWaypoint
 
 
 
@@ -189,9 +189,21 @@ def const_tree(auv_config):
             blackboard_variables={bb_enums.RELOC_ENABLE : 'data'}
         )
 
+        read_algae_follow_enable = ReadTopic(
+            name = "A_ReadAlgaeEnable",
+            topic_name = auv_config.ALGAE_FOLLOW_ENABLE_TOPIC,
+            topic_type = Bool,
+            blackboard_variables={bb_enums.ALGAE_FOLLOW_ENABLE: 'data'}
+        )
 
-        read_unplanned_wp = A_ReadUnplannedWaypoint(
-            ps_topic = auv_config.UNPLANNED_WAYPOINT_TOPIC)
+
+        read_reloc_wp = A_ReadWaypoint(
+            ps_topic = auv_config.RELOC_WP,
+            bb_key = bb_enums.RELOC_WP)
+
+        read_algae_follow_wp = A_ReadWaypoint(
+            ps_topic = auv_config.ALGAE_FOLLOW_WP,
+            bb_key = bb_enums.ALGAE_FOLLOW_WP)
 
 
         read_lolo = A_ReadLolo(
@@ -248,7 +260,9 @@ def const_tree(auv_config):
                             neptus_tree,
                             publish_heartbeat,
                             read_reloc_enable,
-                            read_unplanned_wp
+                            read_reloc_wp,
+                            read_algae_follow_enable,
+                            read_algae_follow_wp
                         ])
 
 
@@ -367,10 +381,10 @@ def const_tree(auv_config):
         # GOTO
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                      goal_tf_frame = auv_config.UTM_LINK)
-        wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
+        mission_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
                                  children=[
-                                     wp_is_goto,
+                                     mission_wp_is_goto,
                                      goto_action
                                  ])
 
@@ -379,10 +393,10 @@ def const_tree(auv_config):
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
         sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                        goal_tf_frame = auv_config.UTM_LINK)
-        wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
+        mission_wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
                                  children=[
-                                     wp_is_sample,
+                                     mission_wp_is_sample,
                                      sample_action
                                  ])
 
@@ -423,29 +437,54 @@ def const_tree(auv_config):
                                          A_SetNextPlanAction()
                                ])
 
-        # finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
-                                             # True,
-                                             # "C_MissionFinalized")
         # Nacho's relocalization stuffs
         reloc_enabled = CheckBlackboardVariableValue(bb_enums.RELOC_ENABLE,
                                                      True,
                                                      "C_RelocEnabled")
+
+        reloc_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                               bb_key = bb_enums.RELOC_WP)
+
         goto_reloc_wp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                        goal_tf_frame = auv_config.UTM_LINK,
-                                       node_name="A_GotoUnplannedWP",
-                                       wp_from_bb = bb_enums.UNPLANNED_WAYPOINT)
+                                       node_name="A_GotoRelocWP",
+                                       wp_from_bb = bb_enums.RELOC_WP)
 
         reloc_tree = Sequence(name="SQ-Relocalize",
                               children=[
                                   reloc_enabled,
+                                  reloc_wp_is_goto,
                                   goto_reloc_wp
                               ])
+
+        # Algae farm line following
+        algae_follow_enabled = CheckBlackboardVariableValue(bb_enums.ALGAE_FOLLOW_ENABLE,
+                                                            True,
+                                                            "C_AlgaeFollowEnabled")
+
+        algae_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                               bb_key = bb_enums.ALGAE_FOLLOW_WP)
+
+        follow_algae = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                      goal_tf_frame = auv_config.UTM_LINK,
+                                      node_name="A_FollowAlgae",
+                                      wp_from_bb = bb_enums.ALGAE_FOLLOW_WP,
+                                      live_mode_enabled = True)
+
+        algae_farm_tree = Sequence(name="SQ-FollowAlgaeFarm",
+                                   children=[
+                                       algae_follow_enabled,
+                                       algae_wp_is_goto,
+                                       follow_algae
+                                   ])
+
 
         # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
                                   reloc_tree,
+                                  algae_farm_tree,
                                   follow_plan
                         ])
 
