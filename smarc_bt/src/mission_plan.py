@@ -193,7 +193,7 @@ class MissionPlan:
 
                 # convert the IMC enums into SMaRC enums
                 if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
-                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_RPM
                 elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
                     speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
                 else:
