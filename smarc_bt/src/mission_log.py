@@ -213,6 +213,7 @@ class MissionLog:
         alt = bb.get(bb_enums.ALTITUDE)
         self.altitude_trace.append(alt)
 
+        # publish some visualization stuffs for rviz
         ps = PoseStamped()
         ps.header = point.header
         ps.pose.position.x = point.point.x
@@ -366,14 +367,14 @@ if __name__ == '__main__':
     with open(filename, 'r') as f:
         data = json.load(f)
 
-    nav_trace = np.array(data['navigation_trace'])
+    nav_trace = np.array(data['navigation_trace']).astype(float)
     loc_trace = nav_trace[:,:3]
     roll_trace = nav_trace[:,3]
     pitch_trace = nav_trace[:,4]
     yaw_trace = nav_trace[:,5]
+    altitude_trace = np.array(data['altitude_trace']).astype(float)
     gps_trace = np.array(data['raw_gps_trace'])
     mplan = np.array(data['mission_plan_wps'])
-    altitude_trace = np.array(data['altitude_trace'])
     swath = data.get('swath', 20)
     err_growth = data.get('loc_uncertainty_growth',0.1)
 
@@ -381,26 +382,32 @@ if __name__ == '__main__':
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    origin = np.array(list(loc_trace[0]))
-    #center on first nav point
-    loc_trace -= origin
-    ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='green')
-    ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2], "S")
-    ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2], "E")
+    if loc_trace is not None:
+        origin = np.array(list(loc_trace[0]))
+        #center on first nav point
+        loc_trace -= origin
+        ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='green')
+        ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2], "S")
+        ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2], "E")
+    else:
+        print("Loc trace was None")
 
-    rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
-    rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
-    rot_vecs_z = np.sin(pitch_trace)
-    rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
-    step = 9
-    ax.quiver(loc_trace[::step, 0],
-              loc_trace[::step, 1],
-              loc_trace[::step, 2],
-              rot_vecs[::step, 0],
-              rot_vecs[::step, 1],
-              rot_vecs[::step, 2],
-              length = 1,
-              color='green')
+    if yaw_trace is not None and pitch_trace is not None:
+        rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
+        rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
+        rot_vecs_z = np.sin(pitch_trace)
+        rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
+        step = 9
+        ax.quiver(loc_trace[::step, 0],
+                  loc_trace[::step, 1],
+                  loc_trace[::step, 2],
+                  rot_vecs[::step, 0],
+                  rot_vecs[::step, 1],
+                  rot_vecs[::step, 2],
+                  length = 1,
+                  color='green')
+    else:
+        print("Yaw or pitch traces were None")
 
 
     if not no_bottom:

@@ -18,7 +18,7 @@ rate = rospy.Rate(1/update_period)
 
 
 enable_pub = rospy.Publisher('/sam/algae_farm/enable', Bool, queue_size=1)
-wp_pub = rospy.Publisher('/sam/algae_farm/wp', GotoWaypoint)
+wp_pub = rospy.Publisher('/sam/algae_farm/wp', GotoWaypoint, queue_size=1)
 
 
 # left of the real farm
