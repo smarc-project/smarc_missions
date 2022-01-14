@@ -14,6 +14,7 @@
     <arg name="rpm2_cmd_topic" default="/$(arg robot_name)/core/thruster2_cmd" />
     <arg name="as_rpm1_topic" default="/$(arg robot_name)/ctrl/goto_waypoint/rpm1" />
     <arg name="as_rpm2_topic" default="/$(arg robot_name)/ctrl/goto_waypoint/rpm2" />
+    <arg name="rpm_enable_topic" default="/$(arg robot_name)/ctrl/goto_waypoint/rpm/enable" />
 
     <arg name="thrust_vector_cmd_topic" default="/$(arg robot_name)/core/thrust_vector_cmd" />
     <arg name="heading_setpoint_topic" default="/$(arg robot_name)/ctrl/yaw_setpoint" />
@@ -65,6 +66,7 @@
 		<param name="vel_feedback_topic" value="$(arg vel_feedback_topic)" />
 		<!--Hard override vel ctrl -->
 		<param name="use_constant_rpm" value="False" /> 
+		<param name="rpm_enable_topic" value="$(arg rpm_enable_topic)" />
 
 		<!--WP following augmentations for using VBS, crosstrack error and WP overshoot handling-->
   		<param name="vbs_diving_flag" value="True" />
@@ -90,5 +92,6 @@
         	<param name="as_rpm2_topic" value="$(arg as_rpm2_topic)" />
 		<param name="rpm1_cmd_topic" value="$(arg rpm1_cmd_topic)" />
         	<param name="rpm2_cmd_topic" value="$(arg rpm2_cmd_topic)" />
+		<param name="rpm_enable_topic" value="$(arg rpm_enable_topic)" />
     </node>
 </launch>
