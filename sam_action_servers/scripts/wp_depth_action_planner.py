@@ -104,7 +104,7 @@ class WPDepthPlanner(object):
         if left_turn:
             rudder_angle = -rudder_angle
 
-        thrust_rate = 11.
+        thrust_rate = 21.
         rate = rospy.Rate(thrust_rate)
 
         self.vec_pub.publish(0., rudder_angle, Header())
@@ -165,16 +165,19 @@ class WPDepthPlanner(object):
 
     def rpm_wp_following(self,forward_rpm,yaw_setpoint):
         rospy.loginfo_throttle_identical(5,"Using Constant RPM")
+        #rospy.loginfo("Using Constant RPM")
         #normal turning if the deviation is small
         self.toggle_vbs_ctrl.toggle(False)
         self.toggle_depth_ctrl.toggle(True)
         self.toggle_yaw_ctrl.toggle(True)
         self.yaw_pub.publish(yaw_setpoint)
+        self.toggle_speed_ctrl.toggle(False)
         # Thruster forward
         rpm1 = ThrusterRPM()
         rpm2 = ThrusterRPM()
         rpm1.rpm = int(forward_rpm)
         rpm2.rpm = int(forward_rpm)
+        self.rpm_enable_pub.publish(True)
         self.rpm1_pub.publish(rpm1)
         self.rpm2_pub.publish(rpm2)
         #rospy.loginfo("Thrusters forward")
@@ -235,6 +238,7 @@ class WPDepthPlanner(object):
     def execute_cb(self, goal):
 
         rospy.loginfo("Goal received")
+        rospy.loginfo(goal)
         self.start_time = time.time()
 
         #success = True
@@ -245,9 +249,9 @@ class WPDepthPlanner(object):
             self.nav_goal_frame = 'utm' #'utm'
 
         self.nav_goal.position.z = goal.travel_depth # assign waypoint depth from neptus, goal.z is 0.
-        if goal.speed_control_mode == 2:
+        if goal.speed_control_mode == GotoWaypointGoal.SPEED_CONTROL_SPEED: #2:
             self.vel_ctrl_flag = True # check if NEPTUS sets a velocity
-        elif goal.speed_control_mode == 1:
+        elif goal.speed_control_mode == GotoWaypointGoal.SPEED_CONTROL_RPM: # 1:
             self.vel_ctrl_flag = False # use RPM ctrl
             self.forward_rpm = goal.travel_rpm #take rpm from NEPTUS
 
@@ -277,7 +281,7 @@ class WPDepthPlanner(object):
 
         rospy.loginfo('Nav goal in local %s ' % self.nav_goal.position.x)
 
-        r = rospy.Rate(15.) # 10hz
+        r = rospy.Rate(20.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
             
@@ -379,37 +383,38 @@ class WPDepthPlanner(object):
                 #depth_setpoint = goal.travel_depth
                 #rospy.loginfo("Depth setpoint: %f", depth_setpoint)
 
-                ## Publish setpoints to controllers 
-                self.publish_depth_setpoint(depth_setpoint) # call function that uses vbs at low speeds, dynamic depth at higher speeds
+            ## Publish setpoints to controllers 
+            self.publish_depth_setpoint(depth_setpoint) # call function that uses vbs at low speeds, dynamic depth at higher speeds
 
-                if self.wp_distance < 8.0:
-                    wp_is_close = True
-                else:
-                    wp_is_close = False
+            #Not used currently, feature for turboturn when waypoint is close
+            '''if self.wp_distance < 8.0: 
+                wp_is_close = True
+            else:
+                wp_is_close = False'''
                 
-                if self.turbo_turn_flag:
-                #if turbo turn is included, turbo turn at large yaw deviations
-                    if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
-                        rospy.loginfo("Yaw error: %f", yaw_error)
-                        #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
-                        self.toggle_yaw_ctrl.toggle(False)
-                        self.toggle_speed_ctrl.toggle(False)
-                        self.turbo_turn(yaw_error)
-                        self.toggle_depth_ctrl.toggle(False)
-                        self.toggle_vbs_ctrl.toggle(True)
-                        #self.depth_pub.publish(depth_setpoint) #Already
-                    else:
-                    #if it is outside the turboturning range
-                        if self.vel_ctrl_flag:
-                            self.vel_wp_following(goal.travel_speed, yaw_setpoint)
-                        else:
-                            self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
+            if self.turbo_turn_flag:
+            #if turbo turn is included, turbo turn at large yaw deviations
+                if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
+                    rospy.loginfo("Yaw error: %f", yaw_error)
+                    #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
+                    self.toggle_yaw_ctrl.toggle(False)
+                    self.toggle_speed_ctrl.toggle(False)
+                    self.turbo_turn(yaw_error)
+                    self.toggle_depth_ctrl.toggle(False)
+                    self.toggle_vbs_ctrl.toggle(True)
+                    #self.depth_pub.publish(depth_setpoint) #Already
                 else:
-                    #if it is not turboturning
+                #if it is outside the turboturning range
                     if self.vel_ctrl_flag:
                         self.vel_wp_following(goal.travel_speed, yaw_setpoint)
                     else:
                         self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
+            else:
+                #if it is not turboturning
+                if self.vel_ctrl_flag:
+                    self.vel_wp_following(goal.travel_speed, yaw_setpoint)
+                else:
+                    self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
 
             if counter % 10 == 0: 
                 #periodically check if waypoint is reached
@@ -439,6 +444,7 @@ class WPDepthPlanner(object):
 
         rpm1_cmd_topic = rospy.get_param('~rpm1_cmd_topic', '/sam/core/thruster1_cmd')
         rpm2_cmd_topic = rospy.get_param('~rpm2_cmd_topic', '/sam/core/thruster2_cmd')
+        rpm_enable_topic = rospy.get_param('~rpm_enable_topic', '/sam/ctrl/goto_waypoint/rpm/enable')
         heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')
         depth_setpoint_topic = rospy.get_param('~depth_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
 
@@ -505,6 +511,7 @@ class WPDepthPlanner(object):
 
         self.rpm1_pub = rospy.Publisher(rpm1_cmd_topic, ThrusterRPM, queue_size=10)
         self.rpm2_pub = rospy.Publisher(rpm2_cmd_topic, ThrusterRPM, queue_size=10)
+        self.rpm_enable_pub = rospy.Publisher(rpm_enable_topic, Bool, queue_size=10)
         self.yaw_pub = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.depth_pub = rospy.Publisher(depth_setpoint_topic, Float64, queue_size=10)
         self.vel_pub = rospy.Publisher(vel_setpoint_topic, Float64, queue_size=10)
