@@ -1,0 +1,1 @@
+To test locally: `roslaunch fake_neptus.launch` launches all the nodes needed, and `./fake_neptus.py` will test the BT acting as as a fake neptus and user. Launch these in separate terminals to debug.

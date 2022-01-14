@@ -7,14 +7,14 @@ import py_trees as pt
 import py_trees_ros as ptr
 
 import time
+import math
 import numpy as np
 
 import rospy
 import tf
 import actionlib
 
-#  from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 from nav_msgs.msg import Path
@@ -30,8 +30,174 @@ import bb_enums
 import imc_enums
 import common_globals
 
-from mission_plan import MissionPlan
+from mission_plan import MissionPlan, Waypoint
 from mission_log import MissionLog
+
+
+class A_ReadWaypoint(pt.behaviour.Behaviour):
+    def __init__(self,
+                 ps_topic,
+                 bb_key,
+                 reset = False):
+        """
+        subs to a GotoWaypoint topic and read it into the given bb variable
+        """
+        super(A_ReadWaypoint, self).__init__(name="A_ReadWaypoint")
+
+        self.bb = pt.blackboard.Blackboard()
+        self.ps_topic = ps_topic
+        self.last_read_ps = None
+        self.last_read_time = None
+        self.bb_key = bb_key
+        self.reset = reset
+
+
+    def setup(self, timeout):
+        self.ps_sub = rospy.Subscriber(self.ps_topic, GotoWaypoint, self.cb)
+        return True
+
+    def cb(self, msg):
+        self.last_read_ps = msg
+        self.last_read_time = time.time()
+
+    def update(self):
+        if self.last_read_time is not None:
+            time_since = time.time() - self.last_read_time
+            self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+        else:
+            self.feedback_message = "No msg rcvd"
+
+
+        if self.last_read_ps is not None:
+            pos = self.last_read_ps.waypoint_pose.pose.position
+
+            if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
+                speed = self.last_read_ps.travel_rpm
+            else:
+                speed = self.last_read_ps.travel_speed
+
+            wp = Waypoint(
+                maneuver_id = 'unplanned_goto',
+                maneuver_imc_id = imc_enums.MANEUVER_GOTO,
+                maneuver_name = 'unplanned_goto',
+                x = pos.x,
+                y = pos.y,
+                z = pos.z,
+                z_unit = self.last_read_ps.z_control_mode,
+                speed = speed,
+                speed_unit = self.last_read_ps.speed_control_mode,
+                tf_frame = self.last_read_ps.waypoint_pose.header.frame_id,
+                extra_data = None)
+
+            if wp.tf_frame != 'utm':
+                rospy.logwarn("Unplanned WP is not in UTM frame? It is:{}".format(wp.tf_frame))
+
+            self.bb.set(self.bb_key, wp)
+
+
+        if self.reset:
+            self.last_read_ps = None
+            self.bb.set(self.bb_key, None)
+
+        return pt.Status.SUCCESS
+
+
+
+
+class A_ReadLolo(pt.behaviour.Behaviour):
+    def __init__(self,
+                 robot_name,
+                 elevator_topic,
+                 elevon_port_topic,
+                 elevon_strb_topic,
+                 aft_tank_topic,
+                 front_tank_topic):
+        super(A_ReadLolo, self).__init__(name="A_ReadLolo")
+        self.bb = pt.blackboard.Blackboard()
+        self.robot_name = robot_name
+        self.elevator_topic = elevator_topic
+        self.elevon_port_topic = elevon_port_topic
+        self.elevon_strb_topic = elevon_strb_topic
+        self.aft_tank_topic = aft_tank_topic
+        self.front_tank_topic = front_tank_topic
+
+        self.elevator_sub = None
+        self.elevon_port_sub = None
+        self.elevon_strb_sub = None
+        self.aft_tank_sub = None
+        self.front_tank_sub = None
+
+        self.elevator = None
+        self.elevon_port = None
+        self.elevon_strb = None
+        self.aft_tank = None
+        self.aft_tank_target = None
+        self.front_tank = None
+        self.front_tank_target = None
+
+        self.anim_frames = ['^','<','v','>']
+        self.elev_anim_frame = 0
+        self.elevonp_anim_frame = 0
+        self.elevons_anim_frame = 0
+        self.aft_anim_frame = 0
+        self.front_anim_frame = 0
+
+        self.disabled = False
+
+    def elev_cb(self, msg):
+        self.elevator = msg.data
+        self.elev_anim_frame = (self.elev_anim_frame + 1) %(len(self.anim_frames))
+    def elevon_port_cb(self, msg):
+        self.elevon_port = msg.data
+        self.elevonp_anim_frame = (self.elevonp_anim_frame + 1) %(len(self.anim_frames))
+    def elevon_strb_cb(self, msg):
+        self.elevon_strb = msg.data
+        self.elevons_anim_frame = (self.elevons_anim_frame + 1) %(len(self.anim_frames))
+    def aft_tank_cb(self, msg):
+        self.aft_tank = msg.percent_current
+        self.aft_tank_target = msg.percent_target
+        self.aft_anim_frame = (self.aft_anim_frame + 1) %(len(self.anim_frames))
+    def front_tank_cb(self, msg):
+        self.front_tank = msg.percent_current
+        self.front_tank_target = msg.percent_target
+        self.front_anim_frame = (self.front_anim_frame + 1) %(len(self.anim_frames))
+
+
+    def setup(self, timeout):
+        if 'lolo' not in self.robot_name:
+            self.disabled = True
+            return True
+        from lolo_msgs.msg import VbsTank
+        self.elevator_sub = rospy.Subscriber(self.elevator_topic, FloatStamped, self.elev_cb)
+        self.elevon_port_sub = rospy.Subscriber(self.elevon_port_topic, FloatStamped, self.elevon_port_cb)
+        self.elevon_strb_sub = rospy.Subscriber(self.elevon_strb_topic, FloatStamped, self.elevon_strb_cb)
+        self.aft_tank_sub = rospy.Subscriber(self.aft_tank_topic, VbsTank, self.aft_tank_cb)
+        self.front_tank_sub = rospy.Subscriber(self.front_tank_topic, VbsTank, self.front_tank_cb)
+        return True
+
+    def update(self):
+        if self.disabled:
+            self.feedback_message = "Robot not LOLO"
+            return pt.Status.SUCCESS
+
+        self.bb.set(bb_enums.LOLO_ELEVATOR, self.elevator)
+        self.bb.set(bb_enums.LOLO_ELEVON_PORT, self.elevon_port)
+        self.bb.set(bb_enums.LOLO_ELEVON_STRB, self.elevon_strb)
+        self.bb.set(bb_enums.LOLO_AFT_TANK, self.aft_tank)
+        self.bb.set(bb_enums.LOLO_AFT_TANK_TARGET, self.aft_tank_target)
+        self.bb.set(bb_enums.LOLO_FRONT_TANK, self.front_tank)
+        self.bb.set(bb_enums.LOLO_FRONT_TANK_TARGET, self.front_tank_target)
+
+
+        frame = 'elv{} enp{} ens{} aft{} frn{}'.format(
+            self.anim_frames[self.elev_anim_frame],
+            self.anim_frames[self.elevonp_anim_frame],
+            self.anim_frames[self.elevons_anim_frame],
+            self.anim_frames[self.aft_anim_frame],
+            self.anim_frames[self.front_anim_frame])
+        self.feedback_message = frame
+        return pt.Status.SUCCESS
+
 
 
 class A_PublishFinalize(pt.behaviour.Behaviour):
@@ -78,15 +244,25 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
 
 
 class A_ManualMissionLog(pt.behaviour.Behaviour):
-    def __init__(self):
+    def __init__(self,
+                 latlontoutm_service_name,
+                 latlontoutm_service_name_alternative):
         super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
         self.bb = pt.blackboard.Blackboard()
         self.started_logs = 0
         self.num_saved_logs = 0
 
+        # used just for the latlontoutm function only
+        self.mplan = MissionPlan(plandb_msg = None,
+                                 latlontoutm_service_name = latlontoutm_service_name,
+                                 latlontoutm_service_name_alternative = latlontoutm_service_name_alternative,
+                                 waypoints = [])
+
+
     def start_new_log(self):
         save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
         log = MissionLog(mission_plan = None,
+                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
                          save_location = save_location)
         self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, log)
         rospy.loginfo("Started new manual mission log")
@@ -113,27 +289,15 @@ class A_ManualMissionLog(pt.behaviour.Behaviour):
         if log is None:
             log = self.start_new_log()
 
-        # first add the auv pose
-        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
-        x,y = world_trans[0], world_trans[1]
-        z = -self.bb.get(bb_enums.DEPTH)
-        log.navigation_trace.append((x,y,z))
+        # check if there is already a mission plan
+        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        # otherwise use our default mplan
+        if mplan is None:
+            mplan = self.mplan
 
-        # then add the raw gps
-        gps = self.bb.get(bb_enums.RAW_GPS)
-        if gps is None or gps.status.status == -1: # no fix
-            gps_utm_point = None
-        else:
-            # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
-            if gps_utm_x is None:
-                gps_utm_point = None
-        log.raw_gps_trace.append(gps_utm_point)
-
-        # then add the tree tip and its status
-        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
-        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
-        log.tree_tip_trace.append((tree_tip, tip_status))
+        log.log(bb = self.bb,
+                mplan = mplan,
+                t = rospy.get_time())
 
         self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
 
@@ -174,9 +338,10 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
     def start_new_log(self, mplan):
         save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
         log = MissionLog(mission_plan = mplan,
+                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
                          save_location = save_location)
         self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
-        rospy.loginfo("Started new mission log")
+        rospy.loginfo("Started new mission log {}".format(log.data_full_path))
         self.started_logs += 1
         return log
 
@@ -185,7 +350,6 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
         # only update if there is an unfinalized mission that has been started
         mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is None:
-            rospy.loginfo("Mission plan is None, can't make a log of this?")
             self.feedback_message = "No mission plan!"
             return pt.Status.FAILURE
 
@@ -194,39 +358,22 @@ class A_UpdateMissionLog(pt.behaviour.Behaviour):
         if log is None:
             log = self.start_new_log(mplan)
 
+
         # check if the mission has changed in the meantime
         # this can happen when the user starts a mission, stops it,
         # and then starts a different one
         # we dont wanna log the incomplete one
         # did it change since we last got called?
-        if log.creation_time != mplan.creation_time:
+        if abs(log.creation_time - mplan.creation_time) > 5:
             # it changed!
             # re-start a log
+            print("Log was old...")
             log = self.start_new_log(mplan)
 
 
-        # now we got a valid mission plan
-        # first add the auv pose
-        world_trans = self.bb.get(bb_enums.WORLD_TRANS)
-        x,y = world_trans[0], world_trans[1]
-        z = -self.bb.get(bb_enums.DEPTH)
-        log.navigation_trace.append((x,y,z))
-
-        # then add the raw gps
-        gps = self.bb.get(bb_enums.RAW_GPS)
-        if gps is None or gps.status.status == -1: # no fix
-            gps_utm_point = None
-        else:
-            # translate the latlon to utm point using the same service as the mission plan
-            gps_utm_x, gps_utm_y = mplan.latlon_to_utm(gps.latitude, gps.lonitude)
-            if gps_utm_x is None:
-                gps_utm_point = None
-        log.raw_gps_trace.append(gps_utm_point)
-
-        # then add the tree tip and its status
-        tree_tip = self.bb.get(bb_enums.TREE_TIP_NAME)
-        tip_status = self.bb.get(bb_enums.TREE_TIP_STATUS)
-        log.tree_tip_trace.append((tree_tip, tip_status))
+        log.log(bb = self.bb,
+                mplan = mplan,
+                t = rospy.get_time())
 
         self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
 
@@ -309,6 +456,11 @@ class A_EmergencySurface(ptr.actions.ActionClient):
 
         self.action_server_ok = False
 
+        # every X seconds, try to reconnect to the action server
+        # if the server wasnt up and ready when the BT was started
+        self.last_reconnect_attempt_time = 0
+        self.reconnect_attempt_period = 5
+
     def setup(self, timeout):
         """
         Overwriting the normal ptr action setup to stop it from failiing the setup step
@@ -341,6 +493,12 @@ class A_EmergencySurface(ptr.actions.ActionClient):
         if not self.action_server_ok:
             self.feedback_message = "Action Server for emergency action can not be used!"
             rospy.logerr_throttle_identical(5,self.feedback_message)
+            t = time.time()
+            diff = t - self.last_reconnect_attempt_time
+            if diff < self.reconnect_attempt_period:
+                self.feedback_message = "Re-trying to connect in {}s".format(diff)
+            else:
+                self.setup(self.reconnect_attempt_period-1)
             return pt.Status.FAILURE
 
         # if your action client is not valid
@@ -426,11 +584,14 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
 
 
+
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
                  action_namespace,
                  goal_tf_frame = 'utm',
-                 node_name = "A_GotoWaypoint"):
+                 node_name = "A_GotoWaypoint",
+                 wp_from_bb = None,
+                 live_mode_enabled = False):
         """
         Runs an action server that will move the robot to the given waypoint
         """
@@ -461,6 +622,25 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         self.goal_tf_frame = goal_tf_frame
 
+        # if given, the action will read a wp from the bb instead of
+        # from the mission plan
+        self.wp_from_bb = wp_from_bb
+
+        # If true, the action will re-send a goal every time it changes
+        # without stopping the action
+        self.live_mode_enabled = live_mode_enabled
+        self.last_live_update_time = -1
+
+        # every X seconds, try to reconnect to the action server
+        # if the server wasnt up and ready when the BT was started
+        self.last_reconnect_attempt_time = 0
+        self.reconnect_attempt_period = 5
+
+        # make sure there is a bb key given to get the wp from
+        # if live mode is needed
+        if self.live_mode_enabled and self.wp_from_bb is None:
+            assert False, "Live mode must be given a bb key to get the WP from!"
+
 
     def setup(self, timeout):
         """
@@ -482,29 +662,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         return True
 
 
-    def initialise(self):
-        if not self.action_server_ok:
-            rospy.logwarn_throttle(5, "No action server found for A_GotoWaypoint!")
-            return
-
-        mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission_plan is None:
-            rospy.logwarn("No mission plan found!")
-            return
-
-        wp = mission_plan.get_current_wp()
-
-        if wp is None:
-            rospy.loginfo("No wp found to execute! Does the plan have any waypoints that we understand?")
-            return
-
-        if wp.tf_frame != self.goal_tf_frame:
-            rospy.logerr_throttle(5, 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame))
-            return
-
-        if wp.maneuver_id != imc_enums.MANEUVER_GOTO:
-            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
-
+    def make_goal_from_wp(self, wp):
         # get the goal tolerance as a dynamic variable from the bb
         goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
 
@@ -518,27 +676,64 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # thankfully these are the same in IMC and in the Action
         # but Action doesnt have 'height'
         if wp.z_unit == imc_enums.Z_HEIGHT:
-            wp.z_unit = imc_enums.Z_NONE
-        goal.z_control_mode = wp.z_unit
+            goal.z_control_mode = imc_enums.Z_NONE
+        else:
+            goal.z_control_mode = wp.z_unit
         goal.travel_depth = wp.z
 
-        # 0=None, 1=RPM, 2=speed in the action
-        # 0=speed, 1=rpm, 2=percentage in IMC
-        if wp.speed_unit == imc_enums.SPEED_UNIT_RPM:
-            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_RPM
-            goal.travel_rpm = wp.speed
-        elif wp.speed_unit == imc_enums.SPEED_UNIT_MPS:
-            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_SPEED
+        goal.speed_control_mode = wp.speed_unit
+        if wp.speed_unit == GotoWaypointGoal.SPEED_CONTROL_SPEED:
             goal.travel_speed = wp.speed
         else:
-            goal.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
-            rospy.logwarn_throttle(1, "Speed control of the waypoint action is NONE!")
+            goal.travel_rpm = int(wp.speed)
+
+        goal.waypoint_pose.header.frame_id = wp.tf_frame
+
+        return goal
 
 
-        self.action_goal = goal
 
-        rospy.loginfo(">>> Goto waypoint action goal initialized:"+str(goal))
+    def initialise(self):
+        if not self.action_server_ok:
+            self.feedback_message = "No action server found for A_GotoWaypoint!"
+            rospy.logwarn_throttle(5, self.feedback_message)
+            return
 
+        # so we can pass a bb variable name to this action
+        # and it would go to that wp
+        if self.wp_from_bb is not None:
+            wp = self.bb.get(self.wp_from_bb)
+            rospy.loginfo_throttle_identical(5, "Acquired WP from the BB key:{}".format(self.wp_from_bb))
+        # otherwise default into following the mission plan
+        else:
+            mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            if mission_plan is None:
+                self.feedback_message = "No mission plan found!"
+                rospy.logwarn(self.feedback_message)
+                return
+
+            wp = mission_plan.get_current_wp()
+
+        if wp is None:
+            if self.wp_from_bb is None:
+                self.feedback_message = "No wp found to execute! Does the plan have any waypoints that we understand?"
+                rospy.loginfo_throttle(3, self.feedback_message)
+            else:
+                self.feedback_message = "Unplanned waypoint not found but it is enabled!"
+                rospy.loginfo_throttle(3, self.feedback_message)
+            return
+
+        if wp.tf_frame != self.goal_tf_frame:
+            self.feedback_message = 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame)
+            rospy.logerr_throttle(5, self.feedback_message)
+            return
+
+        if wp.maneuver_imc_id != imc_enums.MANEUVER_GOTO:
+            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
+
+
+        self.action_goal = self.make_goal_from_wp(wp)
+        rospy.loginfo("Goto waypoint goal initialized:"+str(self.action_goal))
         # ensure that we still need to send the goal
         self.sent_goal = False
 
@@ -550,8 +745,15 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         """
 
         if not self.action_server_ok:
-            self.feedback_message = "Action Server for gotowp action can not be used!"
-            rospy.logerr_throttle_identical(5,self.feedback_message)
+            self.feedback_message = "Action Server not available!"
+            rospy.logerr_throttle_identical(5, self.feedback_message)
+            t = time.time()
+            diff = t - self.last_reconnect_attempt_time
+            if diff < self.reconnect_attempt_period:
+                self.feedback_message = "Re-trying to connect in {}s".format(diff)
+            else:
+                self.setup(self.reconnect_attempt_period-1)
+
             return pt.Status.FAILURE
 
         # if your action client is not valid
@@ -574,7 +776,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             self.feedback_message = "Goal sent"
             return pt.Status.RUNNING
 
-
         # if the goal was aborted or preempted
         if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
                                               actionlib_msgs.GoalStatus.PREEMPTED]:
@@ -591,12 +792,53 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             return pt.Status.SUCCESS
 
 
+        # if we are in live mode, re-make a goal and send it again
+        if self.live_mode_enabled:
+            wp = self.bb.get(self.wp_from_bb)
+            if wp is None:
+                self.feedback_message = "wp in {} was reset while running!".format(self.wp_from_bb)
+                rospy.loginfo_throttle(3, self.feedback_message)
+                return pt.Status.FAILURE
+
+            # make sure it is not the exact same wp
+            # before making and sending a goal
+            goal_pos = self.action_goal.waypoint_pose.pose.position
+            xdiff = abs(goal_pos.x - wp.x)
+            ydiff = abs(goal_pos.y - wp.y)
+            goal_z = self.action_goal.travel_depth
+            zdiff = abs(goal_z - wp.z)
+            # if there is sufficient change in the wp from the previous one
+            # update the goal
+            # XXX maybe make the 0.5s a dynamic reconfig thing?
+            if any([xdiff > 0.5, ydiff > 0.5, zdiff > 0.5]):
+                self.action_goal = self.make_goal_from_wp(wp)
+                self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+                self.sent_goal = True
+                self.last_live_update_time = time.time()
+                self.feedback_message = "Sent goal just now"
+            else:
+                self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
+
+        else:
+            # no live updates, just report distance to planned wp
+            # still running, set our feedback message to distance left
+            current_loc = self.bb.get(bb_enums.WORLD_TRANS)
+            mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            if mplan is not None and current_loc is not None:
+                wp = mplan.get_current_wp()
+                x,y = current_loc[:2]
+                h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
+                h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+                v_dist = wp.z - current_loc[2]
+                self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
+
+
         return pt.Status.RUNNING
+
 
     def feedback_cb(self, msg):
         fb = str(msg.ETA)
-        self.feedback_message = "ETA:"+fb
-        rospy.loginfo_throttle(5, fb)
+        rospy.loginfo_throttle(5, "feedback from server:{}".format(fb))
 
 
 
@@ -643,10 +885,14 @@ class A_UpdateTF(pt.behaviour.Behaviour):
                                                                      rospy.Time(0))
             self.last_read_time = time.time()
         except (tf.LookupException, tf.ConnectivityException):
-            rospy.logerr_throttle_identical(5, "Could not get transform between {} and {}".format(self.utm_link, self.base_link))
+            msg = "Could not get transform between {} and {}".format(self.utm_link, self.base_link)
+            rospy.logerr_throttle_identical(5, msg + " Is the TF tree in one piece?")
+            self.feedback_message = msg
             return pt.Status.FAILURE
         except:
-            rospy.logerr_throttle_identical(5, "Could not do tf lookup for some other reason")
+            msg = "Could not do a tf lookup for some other reason."
+            rospy.logerr_throttle_identical(5, msg)
+            self.feedback_message = msg
             return pt.Status.FAILURE
 
         self.bb.set(bb_enums.WORLD_TRANS, world_trans)
@@ -801,12 +1047,15 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
 
         # same thing with gps fix
         # the bridge only looks at lat lon height=altitude
-        self.gps_fix.latitude = lat
-        self.gps_fix.longitude = lon
-        self.gps_fix.altitude = -depth
-        self.gps_fix.header.seq = int(time.time())
-        self.gps_fix_pub.publish(self.gps_fix)
-        self.gps_nav_data_pub.publish(self.gps_fix)
+        # we read this from the raw gps instead
+        navsatfix = self.bb.get(bb_enums.RAW_GPS)
+        if navsatfix is not None:
+            self.gps_fix.latitude = navsatfix.latitude
+            self.gps_fix.longitude = navsatfix.longitude
+            self.gps_fix.altitude = -depth
+            self.gps_fix.header.seq = int(time.time())
+            self.gps_fix_pub.publish(self.gps_fix)
+            self.gps_nav_data_pub.publish(self.gps_fix)
 
         return pt.Status.SUCCESS
 
@@ -1146,29 +1395,49 @@ class A_UpdateMissonForPOI(pt.behaviour.Behaviour):
         rospy.loginfo_throttle_identical(5, "Due to POI, set the mission plan to:"+str(mission_plan))
         return pt.Status.SUCCESS
 
-class A_VizPublishPlan(pt.behaviour.Behaviour):
+class A_PublishMissionPlan(pt.behaviour.Behaviour):
     """
     Publishes the current plans waypoints as a PoseArray
     """
-    def __init__(self, plan_viz_topic):
-        super(A_VizPublishPlan, self).__init__(name="A_VizPublishPlan")
+    def __init__(self, plan_viz_topic, plan_path_topic):
+        super(A_PublishMissionPlan, self).__init__(name="A_PublishMissionPlan")
         self.bb = pt.blackboard.Blackboard()
         self.pa_pub = None
         self.plan_viz_topic = plan_viz_topic
+        self.plan_path_topic = plan_path_topic
 
     def setup(self, timeout):
         self.pa_pub = rospy.Publisher(self.plan_viz_topic, PoseArray, queue_size=1)
+        self.pp_pub = rospy.Publisher(self.plan_path_topic, Path, queue_size=1)
         return True
 
 
     def update(self):
         mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mission is not None:
+            # we wanna flip z's for rviz because it wants HEIGHT not DEPTH
             pa = mission.get_pose_array(flip_z=True)
         else:
             pa = PoseArray()
 
         self.pa_pub.publish(pa)
+
+        if mission is not None:
+            # we dont wanna flip z's into height for nacho
+            pa = mission.get_pose_array(flip_z=False)
+            pp = Path()
+            pp.header.frame_id = mission.plan_frame
+            for pose in pa.poses:
+                ps = PoseStamped()
+                ps.pose = pose
+                ps.header.frame_id = mission.plan_frame
+                pp.poses.append(ps)
+        else:
+            pp = Path()
+
+        self.pp_pub.publish(pp)
+
+
 
 
         return pt.Status.SUCCESS

@@ -1,0 +1,61 @@
+SQ-ROOT
+[o] SQ-DataIngestion
+    --> A_ReadAbort
+    --> A_ReadLeak
+    --> A_ReadGPS
+    --> A_ReadDVL
+    --> A_ReadCameraDetection
+    --> A_ReadLatlon
+    --> A_ReadRoll
+    --> A_ReadPitch
+    --> A_ReadYaw
+    --> A_ReadBuoys
+    --> A_ReadLolo
+    --> A_UpdateTF
+    [o] SQ-UpdateNeptus
+        --> A_UpdateNeptusEstimatedState
+        --> A_UpdateNeptusPlanControlState
+        --> A_UpdateNeptusVehicleState
+        --> A_UpdateNeptusPlanDB
+        --> A_UpdateNeptusPlanControl
+        --> A_VizPublishPlan
+    --> A_SimplePublisher_core/heartbeat
+--> A_ManualMissionLog
+[o] FB_SafetyOK
+    [o] SQ-SafetyChecks
+        --> C_NoAbortReceived
+        --> C_AltOK
+        --> C_DepthOK
+        --> C_LeakOK
+    [o] SQ-CountEmergenciesAndSkip
+        --> A_EmergencyCounter
+        --> A_SetNextPlanAction
+    [o] SQ-ABORT
+        --> A_SimplePublisher_core/abort
+        --> A_EmergencySurface
+[o] FB-Run
+    [o] SQ-FinalizeMission
+        --> C_HaveCoarseMission
+        --> C_PlanIsNotChanged
+        [o] FB-PlanCompleteOrStopped
+            --> C_PlanCompleted
+            --> Not-C_StartPlanReceived'>
+        --> A_PublishFinalize
+        --> A_SetPlanIsGo->False
+        --> A_SaveMissionLog
+    [o] FB-ExecuteMissionPlan
+        --> C_PlanCompleted
+        [o] SQ-FollowMissionPlan
+            --> C_HaveCoarseMission
+            --> C_StartPlanReceived
+            --> A_UpdateMissionLog
+            --> A_MissionFinalized->False
+            [o] FB-ExecuteManeuver
+                [o] SQ-GotoWaypoint
+                    --> C_CheckWaypointType = goto
+                    --> A_GotoWaypoint
+                [o] SQ-SampleWaypoint
+                    --> C_CheckWaypointType = sample
+                    --> A_GotoWaypoint
+            --> A_SetNextPlanAction
+        --> A_SaveMissionLog

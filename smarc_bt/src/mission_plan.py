@@ -16,6 +16,7 @@ import bb_enums
 from geometry_msgs.msg import PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
+from smarc_msgs.msg import GotoWaypointGoal
 
 from coverage_planner import create_coverage_path
 
@@ -66,7 +67,10 @@ class MissionPlan:
         A container object to keep things related to the mission plan.
         """
         self.plandb_msg = plandb_msg
-        self.plan_id = plandb_msg.plan_id
+        if plandb_msg is not None:
+            self.plan_id = plandb_msg.plan_id
+        else:
+            self.plan_id = 'NOPLAN'
         self.plan_frame = plan_frame
         self.coverage_swath = coverage_swath
         self.vehicle_localization_error_growth = vehicle_localization_error_growth
@@ -117,21 +121,24 @@ class MissionPlan:
     def latlon_to_utm(self,
                       lat,
                       lon,
-                      z):
-        rospy.loginfo("Waiting at most 1s for latlontoutm service "+str(self.latlontoutm_service_name))
+                      z,
+                      in_degrees=False):
         try:
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
         except:
             rospy.logwarn(str(self.latlontoutm_service_name)+" service not found!")
             return (None, None)
 
-        rospy.loginfo("Got latlontoutm service")
         try:
             latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
                                                      LatLonToUTM)
             gp = GeoPoint()
-            gp.latitude = np.degrees(lat)
-            gp.longitude = np.degrees(lon)
+            if in_degrees:
+                gp.latitude = lat
+                gp.longitude = lon
+            else:
+                gp.latitude = np.degrees(lat)
+                gp.longitude = np.degrees(lon)
             gp.altitude = z
             res = latlontoutm_service(gp)
             return (res.utm_point.x, res.utm_point.y)
@@ -184,6 +191,15 @@ class MissionPlan:
                                   'syringe1':maneuver.syringe1,
                                   'syringe2':maneuver.syringe2}
 
+                # convert the IMC enums into SMaRC enums
+                if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
+                elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
+                else:
+                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_NONE
+                    rospy.logwarn("Speed control of the waypoint is NONE!")
+
                 # these are in IMC enums, map to whatever enums the action that will consume
                 # will need when you are publishing it
                 waypoint = Waypoint(
@@ -195,8 +211,8 @@ class MissionPlan:
                     y = utm_y,
                     z = maneuver.z,
                     speed = maneuver.speed,
-                    z_unit = maneuver.z_units,
-                    speed_unit = maneuver.speed_units,
+                    z_unit = maneuver.z_units, #these are same on imc and smarc
+                    speed_unit = speed_unit,
                     extra_data = extra_data
                 )
                 waypoints.append(waypoint)
@@ -214,18 +230,25 @@ class MissionPlan:
                                                   maneuver.lon,
                                                   -maneuver.z)
 
+
                 utm_poly_points = [(utm_x, utm_y)]
                 # this maneuver has an extra polygon with it
                 # that we want to generate waypoints inside of
                 # generate the waypoints here and add them as goto waypoints
-                utm_poly_points += [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
-                coverage_points = self.generate_coverage_pattern(utm_poly_points)
+                if len(maneuver.polygon) > 2:
+                    rospy.loginfo("Generating rectangular coverage pattern")
+                    utm_poly_points += [self.latlon_to_utm(polyvert.lat, polyvert.lon, -maneuver.z) for polyvert in maneuver.polygon]
+                    coverage_points = self.generate_coverage_pattern(utm_poly_points)
+                else:
+                    rospy.loginfo("This polygon ({}) has too few polygons for a coverarea, it will be used as a simple waypoint!".format(man_id))
+                    coverage_points = utm_poly_points
+
 
                 for i,point in enumerate(coverage_points):
                     wp = Waypoint(
                         maneuver_id = man_id,
                         maneuver_imc_id = imc_enums.MANEUVER_GOTO,
-                        maneuver_name = str(man_name) + "_{}/{}".format(i+1, len(coverage_points)),
+                        maneuver_name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points)),
                         tf_frame = 'utm',
                         x = point[0],
                         y = point[1],

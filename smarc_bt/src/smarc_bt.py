@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
@@ -11,14 +11,20 @@ import rospy
 import py_trees as pt
 import py_trees_ros as ptr
 
+if not hasattr(rospy, 'loginfo_throttle_identical'): setattr(rospy, 'loginfo_throttle_identical', rospy.loginfo_throttle)
+if not hasattr(rospy, 'logwarn_throttle_identical'): setattr(rospy, 'logwarn_throttle_identical', rospy.logwarn_throttle)
+if not hasattr(rospy, 'logwarn_once'): setattr(rospy, 'logwarn_once', rospy.logwarn)
+if not hasattr(rospy, 'logerr_throttle_identical'):  setattr(rospy, 'logerr_throttle_identical', rospy.logerr_throttle)
+
+
 # just convenience really
 from py_trees.composites import Selector as Fallback
 
 # messages
-from std_msgs.msg import Float64, Empty
+from std_msgs.msg import Float64, Empty, Bool
 from smarc_msgs.msg import Leak, DVL
 from sensor_msgs.msg import NavSatFix
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
 
 from auv_config import AUVConfig
@@ -47,7 +53,8 @@ from bt_common import Sequence, \
                       ReadTopic, \
                       A_RunOnce, \
                       A_SimplePublisher, \
-                      Counter
+                      Counter, \
+                      Not
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
@@ -59,14 +66,16 @@ from bt_actions import A_GotoWaypoint, \
                        A_UpdateNeptusPlanDB, \
                        A_UpdateNeptusPlanControl, \
                        A_UpdateMissonForPOI, \
-                       A_VizPublishPlan, \
+                       A_PublishMissionPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
                        A_ReadBuoys, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
-                       A_PublishFinalize
+                       A_PublishFinalize, \
+                       A_ReadLolo, \
+                       A_ReadWaypoint
 
 
 
@@ -92,6 +101,7 @@ def const_tree(auv_config):
 
     # just for clarity when looking at the bb in the field
     bb.set(bb_enums.MISSION_FINALIZED, False)
+    bb.set(bb_enums.ROBOT_NAME, auv_config.robot_name)
 
     def const_data_ingestion_tree():
         read_abort = ptr.subscribers.EventToBlackboard(
@@ -100,18 +110,29 @@ def const_tree(auv_config):
             variable_name = bb_enums.ABORT
         )
 
+
          # ReadTopic
          # name,
          # topic_name,
          # topic_type,
          # blackboard_variables,
          # max_period = None,
-         # allow_silence = True
+         # allow_silence = True -> If false, will fail if no message is received ever
+
+        read_gps = ReadTopic(
+            name = "A_ReadGPS",
+            topic_name = auv_config.GPS_TOPIC,
+            topic_type = NavSatFix,
+            blackboard_variables = {bb_enums.RAW_GPS:None},
+            allow_silence = False
+        )
+
         read_alt = ReadTopic(
-            name = "A_ReadAlt",
-            topic_name = auv_config.ALTITUDE_TOPIC,
+            name = "A_ReadDVL",
+            topic_name = auv_config.DVL_TOPIC,
             topic_type = DVL,
-            blackboard_variables = {bb_enums.ALTITUDE:'altitude'}
+            blackboard_variables = {bb_enums.ALTITUDE:'altitude',
+                                    bb_enums.DVL_VELOCITY:'velocity'}
         )
 
         read_leak = ReadTopic(
@@ -135,6 +156,24 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.CURRENT_LATITUDE : 'latitude',
                                     bb_enums.CURRENT_LONGITUDE : 'longitude'}
         )
+        read_roll = ReadTopic(
+            name = "A_ReadRoll",
+            topic_name = auv_config.ROLL_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.ROLL : 'data'}
+        )
+        read_pitch = ReadTopic(
+            name = "A_ReadPitch",
+            topic_name = auv_config.PITCH_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.PITCH : 'data'}
+        )
+        read_yaw = ReadTopic(
+            name = "A_ReadYaw",
+            topic_name = auv_config.YAW_TOPIC,
+            topic_type = Float64,
+            blackboard_variables = {bb_enums.YAW : 'data'}
+        )
 
         read_buoys = A_ReadBuoys(
             topic_name=auv_config.BUOY_TOPIC,
@@ -143,13 +182,37 @@ def const_tree(auv_config):
             latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
         )
 
-        read_gps = ReadTopic(
-            name = "A_ReadGPS",
-            topic_name = auv_config.GPS_TOPIC,
-            topic_type = NavSatFix,
-            blackboard_variables = {bb_enums.RAW_GPS:None},
+        read_reloc_enable = ReadTopic(
+            name = "A_ReadRelocEnable",
+            topic_name = auv_config.RELOC_ENABLE_TOPIC,
+            topic_type = Bool,
+            blackboard_variables={bb_enums.RELOC_ENABLE : 'data'}
         )
 
+        read_algae_follow_enable = ReadTopic(
+            name = "A_ReadAlgaeEnable",
+            topic_name = auv_config.ALGAE_FOLLOW_ENABLE_TOPIC,
+            topic_type = Bool,
+            blackboard_variables={bb_enums.ALGAE_FOLLOW_ENABLE: 'data'}
+        )
+
+
+        read_reloc_wp = A_ReadWaypoint(
+            ps_topic = auv_config.RELOC_WP,
+            bb_key = bb_enums.RELOC_WP)
+
+        read_algae_follow_wp = A_ReadWaypoint(
+            ps_topic = auv_config.ALGAE_FOLLOW_WP,
+            bb_key = bb_enums.ALGAE_FOLLOW_WP)
+
+
+        read_lolo = A_ReadLolo(
+            robot_name = auv_config.robot_name,
+            elevator_topic = auv_config.LOLO_ELEVATOR_TOPIC,
+            elevon_port_topic = auv_config.LOLO_ELEVON_PORT_TOPIC,
+            elevon_strb_topic = auv_config.LOLO_ELEVON_STRB_TOPIC,
+            aft_tank_topic = auv_config.LOLO_AFT_TANK_TOPIC,
+            front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
 
 
         def const_neptus_tree():
@@ -166,7 +229,8 @@ def const_tree(auv_config):
                                      auv_config.LATLONTOUTM_SERVICE,
                                      auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
                 A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
-                A_VizPublishPlan(auv_config.PLAN_VIZ_TOPIC)
+                A_PublishMissionPlan(auv_config.PLAN_VIZ_TOPIC,
+                                     auv_config.PLAN_PATH_TOPIC)
                                      ])
             return update_neptus
 
@@ -183,13 +247,22 @@ def const_tree(auv_config):
                         children=[
                             read_abort,
                             read_leak,
+                            read_gps,
                             read_alt,
                             read_detection,
                             read_latlon,
+                            read_roll,
+                            read_pitch,
+                            read_yaw,
                             read_buoys,
+                            read_lolo,
                             update_tf,
                             neptus_tree,
-                            publish_heartbeat
+                            publish_heartbeat,
+                            read_reloc_enable,
+                            read_reloc_wp,
+                            read_algae_follow_enable,
+                            read_algae_follow_wp
                         ])
 
 
@@ -303,14 +376,15 @@ def const_tree(auv_config):
 
 
 
+
     def const_execute_mission_tree():
         # GOTO
         goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                      goal_tf_frame = auv_config.UTM_LINK)
-        wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
+        mission_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
                                  children=[
-                                     wp_is_goto,
+                                     mission_wp_is_goto,
                                      goto_action
                                  ])
 
@@ -319,10 +393,10 @@ def const_tree(auv_config):
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
         sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
                                        goal_tf_frame = auv_config.UTM_LINK)
-        wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
+        mission_wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
                                  children=[
-                                     wp_is_sample,
+                                     mission_wp_is_sample,
                                      sample_action
                                  ])
 
@@ -348,21 +422,69 @@ def const_tree(auv_config):
                                         sample_maneuver
                                     ])
 
+        unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
+                                                         variable_value = False,
+                                                         name = 'A_MissionFinalized->False')
+
 
         # and then execute them in order
         follow_plan = Sequence(name="SQ-FollowMissionPlan",
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
-                                         A_UpdateMissionLog(),
+                                         unfinalize,
                                          execute_maneuver,
                                          A_SetNextPlanAction()
                                ])
+
+        # Nacho's relocalization stuffs
+        reloc_enabled = CheckBlackboardVariableValue(bb_enums.RELOC_ENABLE,
+                                                     True,
+                                                     "C_RelocEnabled")
+
+        reloc_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                               bb_key = bb_enums.RELOC_WP)
+
+        goto_reloc_wp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                       goal_tf_frame = auv_config.UTM_LINK,
+                                       node_name="A_GotoRelocWP",
+                                       wp_from_bb = bb_enums.RELOC_WP)
+
+        reloc_tree = Sequence(name="SQ-Relocalize",
+                              children=[
+                                  reloc_enabled,
+                                  reloc_wp_is_goto,
+                                  goto_reloc_wp
+                              ])
+
+        # Algae farm line following
+        algae_follow_enabled = CheckBlackboardVariableValue(bb_enums.ALGAE_FOLLOW_ENABLE,
+                                                            True,
+                                                            "C_AlgaeFollowEnabled")
+
+        algae_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                               bb_key = bb_enums.ALGAE_FOLLOW_WP)
+
+        follow_algae = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
+                                      goal_tf_frame = auv_config.UTM_LINK,
+                                      node_name="A_FollowAlgae",
+                                      wp_from_bb = bb_enums.ALGAE_FOLLOW_WP,
+                                      live_mode_enabled = True)
+
+        algae_farm_tree = Sequence(name="SQ-FollowAlgaeFarm",
+                                   children=[
+                                       algae_follow_enabled,
+                                       algae_wp_is_goto,
+                                       follow_algae
+                                   ])
+
 
         # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
                                   C_PlanCompleted(),
+                                  reloc_tree,
+                                  algae_farm_tree,
                                   follow_plan
                         ])
 
@@ -377,15 +499,24 @@ def const_tree(auv_config):
                                                                variable_value = False,
                                                                name = 'A_SetPlanIsGo->False')
 
+        plan_complete_or_stopped = Fallback(name="FB-PlanCompleteOrStopped",
+                                            children=[
+                                                      C_PlanCompleted(),
+                                                      Not(C_StartPlanReceived())
+                                            ])
+
+
 
         return Sequence(name="SQ-FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
-                                  C_PlanCompleted(),
+                                  C_StartPlanReceived(),
+                                  A_UpdateMissionLog(),
+                                  plan_complete_or_stopped,
                                   publish_complete,
-                                  unset_plan_is_go,
-                                  A_SaveMissionLog()
+                                  A_SaveMissionLog(),
+                                  unset_plan_is_go
                         ])
 
     # The root of the tree is here
@@ -408,12 +539,14 @@ def const_tree(auv_config):
                             #  const_leader_follower()
                         ])
 
+    manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
+                                        latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE)
 
 
     root = Sequence(name='SQ-ROOT',
                     children=[
                               const_data_ingestion_tree(),
-                              A_ManualMissionLog(),
+                              manual_logging,
                               const_safety_tree(),
                              # const_dvl_tree(),
                               run_tree

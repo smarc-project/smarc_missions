@@ -173,8 +173,8 @@ class WPDepthPlanner(object):
         # Thruster forward
         rpm1 = ThrusterRPM()
         rpm2 = ThrusterRPM()
-        rpm1.rpm = forward_rpm
-        rpm2.rpm = forward_rpm
+        rpm1.rpm = int(forward_rpm)
+        rpm2.rpm = int(forward_rpm)
         self.rpm1_pub.publish(rpm1)
         self.rpm2_pub.publish(rpm2)
         #rospy.loginfo("Thrusters forward")
@@ -467,7 +467,7 @@ class WPDepthPlanner(object):
 
 
 	    #related to velocity regulation instead of rpm
-        #self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
+        self.vel_ctrl_flag = rospy.get_param('~vel_ctrl_flag', False)
         #self.vel_setpoint = rospy.get_param('~vel_setpoint', 0.5) #velocity setpoint in m/s
         self.roll_setpoint = rospy.get_param('~roll_setpoint', 0)
         vel_setpoint_topic = rospy.get_param('~vel_setpoint_topic', '/sam/ctrl/dynamic_velocity/u_setpoint')

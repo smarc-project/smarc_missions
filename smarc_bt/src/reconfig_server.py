@@ -28,22 +28,24 @@ class ReconfigServer(object):
         # name, description, default value, min, max, edit_method
         self.ddrc.add_variable(bb_enums.MIN_ALTITUDE,
                                "default:{}".format(config.MIN_ALTITUDE),
-                               config.MIN_ALTITUDE, -1, 50)
+                               float(config.MIN_ALTITUDE), -1, 50)
+
         self.ddrc.add_variable(bb_enums.MAX_DEPTH,
                                "default:{}".format(config.MAX_DEPTH),
-                               config.MAX_DEPTH, 0, 50)
+                               float(config.MAX_DEPTH), 0, 50)
 
         self.ddrc.add_variable(bb_enums.WAYPOINT_TOLERANCE,
                                "default:{}".format(config.WAYPOINT_TOLERANCE),
-                               config.WAYPOINT_TOLERANCE, 0.1, 10)
+                               float(config.WAYPOINT_TOLERANCE), 0.1, 10)
+
 
         # coverage stuffs
         self.ddrc.add_variable(bb_enums.SWATH,
                                "default:{}".format(config.SWATH),
-                               config.SWATH, 1, 100)
+                               float(config.SWATH), 1, 100)
         self.ddrc.add_variable(bb_enums.LOCALIZATION_ERROR_GROWTH,
                                "default:{}".format(config.LOCALIZATION_ERROR_GROWTH),
-                               config.LOCALIZATION_ERROR_GROWTH, 0, 0.1)
+                               float(config.LOCALIZATION_ERROR_GROWTH), 0, 0.1)
 
         self.ddrc.add_variable(bb_enums.MISSION_LOG_FOLDER,
                                "default:{}".format(config.MISSION_LOG_FOLDER),

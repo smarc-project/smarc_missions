@@ -20,10 +20,14 @@ class C_CheckWaypointType(pt.behaviour.Behaviour):
 
     Use the imc_enums.MANEUVER_XXX as the expected wp type
     """
-    def __init__(self, expected_wp_type):
+    def __init__(self,
+                 expected_wp_type,
+                 bb_key = None):
         self.bb = pt.blackboard.Blackboard()
         self.expected_wp_type = expected_wp_type
         self.expected_wp_type_str = C_CheckWaypointType.imc_id_to_str(self.expected_wp_type)
+
+        self.bb_key = bb_key
 
         super(C_CheckWaypointType, self).__init__(name="C_CheckWaypointType = {}".format(self.expected_wp_type_str))
 
@@ -39,12 +43,17 @@ class C_CheckWaypointType(pt.behaviour.Behaviour):
 
     def update(self):
         self.feedback_message = "Got None"
-        mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mission is None:
-            return pt.Status.FAILURE
+
+        if self.bb_key is None:
+            mission = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+            if mission is None:
+                return pt.Status.FAILURE
 
 
-        wp = mission.get_current_wp()
+            wp = mission.get_current_wp()
+        else:
+            wp = self.bb.get(self.bb_key)
+
         if wp is None:
             return pt.Status.FAILURE
 
