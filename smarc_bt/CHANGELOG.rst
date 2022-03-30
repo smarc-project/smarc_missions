@@ -2,8 +2,8 @@
 Changelog for package smarc_bt
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.4 (2022-03-30)
+------------------
 * Debug
 * Added live-updating wp following for the algae farm scenario.
 * Added retry to emergency surface as well

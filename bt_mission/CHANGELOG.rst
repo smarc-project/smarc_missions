@@ -2,8 +2,8 @@
 Changelog for package bt_mission
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.4 (2022-03-30)
+------------------
 * Removed launch of buoy publisher in mission.launch
 * Merge branch 'noetic-devel' of https://github.com/smarc-project/smarc_missions into noetic-devel
 * - Added buoy marker publisher to mission launch file (I know it doesn't truly belong there).

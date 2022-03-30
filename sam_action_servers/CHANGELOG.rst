@@ -2,8 +2,8 @@
 Changelog for package sam_action_servers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.4 (2022-03-30)
+------------------
 * Added unplanned -live- waypoints that can be followed in the middle of a mission
 * Merge branch 'noetic-devel' into noetic-devel
 * Merge pull request `#66 <https://github.com/smarc-project/smarc_missions/issues/66>`_ from svbhat/noetic-devel

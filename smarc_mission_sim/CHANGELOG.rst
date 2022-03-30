@@ -2,8 +2,8 @@
 Changelog for package smarc_mission_sim
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.4 (2022-03-30)
+------------------
 * Added readme to tests, increased trial count and time between.
 * Merge pull request `#70 <https://github.com/smarc-project/smarc_missions/issues/70>`_ from KKalem/new_ci
   New ci
