@@ -158,12 +158,12 @@ class MissionLog:
         vehicle = bb.get(bb_enums.VEHICLE_STATE)
 
         # first add the auv pose
-        x,y = self.vehicle.position_utm
+        x,y = vehicle.position_utm
         z = -vehicle.depth
         roll, pitch, yaw = vehicle.orientation_rpy
         self.navigation_trace.append((x,y,z, roll,pitch,yaw))
 
-        point = bb.get(bb_enums.LOCATION_POINT_STAMPED)
+        point = vehicle.position_point_stamped
         ps = PoseStamped()
         ps.header = point.header
         ps.pose.position.x = point.point.x
@@ -173,14 +173,14 @@ class MissionLog:
         self.path_pub.publish(self.path_msg)
 
         # velocities from dvl
-        vel_msg = self.vehicle.dvl_velocity_msg
+        vel_msg = vehicle.dvl_velocity_msg
         vels = (vel_msg.x, vel_msg.y, vel_msg.z)
         self.velocity_trace.append(vels)
 
 
         # then add the raw gps
         # but only if it is diffeent than the previous one?
-        gps = self.vehicle.raw_gps_obj
+        gps = vehicle.raw_gps_obj
         if gps is None or gps.status.status == -1 or abs(time.time() - gps.header.stamp.secs) > 10: # no fix
             self.raw_gps_latlon_trace.append(None)
             gps_utm_point = None
@@ -209,7 +209,7 @@ class MissionLog:
         self.time_trace.append(t)
 
         # simple enough
-        alt = self.vehicle.altitude
+        alt = vehicle.altitude
         self.altitude_trace.append(alt)
 
         # publish some visualization stuffs for rviz
@@ -233,13 +233,13 @@ class MissionLog:
                 self.plan_msg.poses.append(ps)
             self.plan_pub.publish(self.plan_msg)
 
-        current_loc = self.vehicle.position_utm
+        current_loc = vehicle.position_utm
         mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None and current_loc is not None:
             wp = mplan.get_current_wp()
             if wp is not None:
                 x,y = current_loc
-                z = -self.vehicle.depth
+                z = -vehicle.depth
 
                 arrow = Marker()
                 arrow.header.frame_id = 'utm'

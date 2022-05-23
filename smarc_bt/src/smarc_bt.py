@@ -58,7 +58,6 @@ from bt_common import Sequence, \
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
-                       A_UpdateTF, \
                        A_EmergencySurface, \
                        A_UpdateNeptusEstimatedState, \
                        A_UpdateNeptusPlanControlState, \
@@ -192,7 +191,6 @@ def const_tree(auv_config):
             return update_neptus
 
 
-        update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
         neptus_tree = const_neptus_tree()
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
                                               message_object = Empty())
@@ -203,17 +201,9 @@ def const_tree(auv_config):
                         blackbox_level=1,
                         children=[
                             read_abort,
-                            read_leak,
-                            read_gps,
-                            read_alt,
                             read_detection,
-                            read_latlon,
-                            read_roll,
-                            read_pitch,
-                            read_yaw,
                             read_buoys,
                             read_lolo,
-                            update_tf,
                             neptus_tree,
                             publish_heartbeat,
                             read_reloc_enable,
@@ -544,9 +534,13 @@ def main():
         rospy.logerr("TF Listener could not be setup! Exiting!")
         return
 
+    # put the vehicle model inside the bb
+    bb = pt.blackboard.Blackboard()
+    bb.set(bb_enums.VEHICLE_STATE, vehicle)
+
     # construct the BT with the config and a vehicle model
     rospy.loginfo("Constructing tree")
-    tree = const_tree(config, vehicle)
+    tree = const_tree(config)
     rospy.loginfo("Setting up tree")
     setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
     # make sure the BT is happy
@@ -559,21 +553,18 @@ def main():
     # if needed
     # this will put it in the ~/.ros folder if run from launch file
     last_ran_tree_path = 'last_ran_tree.txt'
+    bt_viz = pt.display.ascii_tree(tree.root)
     with open(last_ran_tree_path, 'w+') as f:
-        f.write(viz)
+        f.write(bt_viz)
         rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
 
     # print out the config and the BT on screen
     rospy.loginfo(config)
-    rospy.loginfo(pt.display.ascii_tree(tree.root))
+    rospy.loginfo(bt_viz)
 
     # setup the ticking freq and the BlackBoard
     rate = rospy.Rate(common_globals.BT_TICK_RATE)
-    bb = pt.blackboard.Blackboard()
-
-    # put the vehicle model inside the bb
-    bb.set(bb_enums.VEHICLE_STATE, vehicle)
 
     rospy.loginfo("Ticktocking....")
     while not rospy.is_shutdown():

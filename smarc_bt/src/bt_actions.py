@@ -597,6 +597,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         """
 
         self.bb = pt.blackboard.Blackboard()
+        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
         self.node_name = node_name
 
         list_of_maneuvers = self.bb.get(bb_enums.MANEUVER_ACTIONS)
