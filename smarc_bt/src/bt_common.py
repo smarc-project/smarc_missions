@@ -161,7 +161,7 @@ class ReadTopic(pt.behaviour.Behaviour):
                     self.feedback_message = "No msg received ever"
                 else:
                     self.feedback_message = "No message in topic! Silence not allowed!"
-                    rospy.logwarn_throttle(2, "Waiting for the first message")
+                    rospy.logwarn_throttle(2, "Waiting for the first message({})".format(self.topic_name))
                     return pt.Status.FAILURE
             return pt.Status.SUCCESS
 

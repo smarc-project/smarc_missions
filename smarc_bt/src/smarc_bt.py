@@ -84,6 +84,10 @@ import bb_enums
 import imc_enums
 import common_globals
 
+# packed up object to keep vehicle-state up to date
+# to avoid having a million subscibers inside the tree
+from vehicle import Vehicle
+
 def const_tree(auv_config):
     """
     construct the entire tree.
@@ -586,6 +590,19 @@ def main():
         viz = pt.display.ascii_tree(tree.root)
         rospy.loginfo(viz)
 
+        rospy.loginfo("Setting up vehicle")
+        vehicle = Vehicle(config)
+        tf_listener = vehicle.setup_tf()
+
+
+        if not setup_ok:
+            rospy.logerr("Tree could not be setup! Exiting!")
+            return
+
+        if tf_listener is None:
+            rospy.logerr("TF Listener could not be setup! Exiting!")
+            return
+
         # this will put it in the ~/.ros folder if run from launch file
         last_ran_tree_path = 'last_ran_tree.txt'
         with open(last_ran_tree_path, 'w+') as f:
@@ -593,33 +610,32 @@ def main():
             rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
 
-        if setup_ok:
-            rospy.loginfo(config)
-            rospy.loginfo("Ticktocking....")
-            rate = rospy.Rate(common_globals.BT_TICK_RATE)
+        rospy.loginfo(config)
+        rospy.loginfo("Ticktocking....")
+        rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
-            bb = pt.blackboard.Blackboard()
+        bb = pt.blackboard.Blackboard()
 
-            while not rospy.is_shutdown():
-                # some info _about the tree_ in the BB.
-                # better do this outside the tree
-                tip = tree.tip()
-                if tip is None:
-                    bb.set(bb_enums.TREE_TIP_NAME, '')
-                    bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
-                else:
-                    bb.set(bb_enums.TREE_TIP_NAME, tip.name)
-                    bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
+        while not rospy.is_shutdown():
+            # some info _about the tree_ in the BB.
+            # better do this outside the tree
+            tip = tree.tip()
+            if tip is None:
+                bb.set(bb_enums.TREE_TIP_NAME, '')
+                bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
+            else:
+                bb.set(bb_enums.TREE_TIP_NAME, tip.name)
+                bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
-                # an actual tick, finally.
-                tree.tick()
+            # update the TF of the vehicle first
+            vehicle.tick(tf_listener)
+            print(vehicle)
+            # an actual tick, finally.
+            tree.tick()
 
-                # use py-trees-tree-watcher if you can
-                #  pt.display.print_ascii_tree(tree.root, show_status=True)
-                rate.sleep()
-
-        else:
-            rospy.logerr("Tree could not be setup! Exiting!")
+            # use py-trees-tree-watcher if you can
+            #  pt.display.print_ascii_tree(tree.root, show_status=True)
+            rate.sleep()
 
     except rospy.ROSInitException:
         rospy.loginfo("ROS Interrupt")
