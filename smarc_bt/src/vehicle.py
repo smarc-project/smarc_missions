@@ -37,8 +37,6 @@ class StringAnimation(object):
         return self._str
 
 
-
-
 class Vehicle(object):
     """
     A common vehicle object to keep track of all common
@@ -81,7 +79,24 @@ class Vehicle(object):
         self._animation = StringAnimation(num_slots=5)
 
 
-    def setup_tf(self, timeout_secs=120):
+    def __str__(self):
+        return "TF,Alt,Leak,Latlon,GPS : "+self._animation.__str__()+"\ntf:"+self._status_str_tf+"\nleak:"+self._status_str_leak
+
+
+    def _init_tf_vars(self):
+        # these will come from the TF tree
+        # and are None'd at every update attempt
+        # position does not include height or depth to avoid confusion
+        # use depth for that
+        self.position_utm = [None, None]
+        self.orientation_quat = [None, None, None, None]
+        self.orientation_rpy = [None, None, None]
+        self.depth = None
+        # for convenicent use in ROS elsewhere
+        self.position_point_stamped = None
+
+
+    def setup_tf_listener(self, timeout_secs=120):
         """
         create a tf listener to be used later and return it
         because we cant store a tf listener in the blackboard of a BT
@@ -99,23 +114,6 @@ class Vehicle(object):
         except:
             self._status_str_tf = "waitForTransform failed from '{}' to '{}' after {}s, is the TF tree in one piece?".format(self.auv_config.UTM_LINK, self.auv_config.BASE_LINK, timeout_secs)
             return None
-
-
-    def __str__(self):
-        return "TF,Alt,Leak,Latlon,GPS : "+self._animation.__str__()+"\ntf:"+self._status_str_tf+"\nleak:"+self._status_str_leak
-
-
-    def _init_tf_vars(self):
-        # these will come from the TF tree
-        # and are None'd at every update attempt
-        # position does not include height or depth to avoid confusion
-        # use depth for that
-        self.position_utm = [None, None]
-        self.orientation_quat = [None, None, None, None]
-        self.orientation_rpy = [None, None, None]
-        self.depth = None
-        # for convenicent use in ROS elsewhere
-        self.position_point_stamped = None
 
 
     def tick(self, tf_listener):

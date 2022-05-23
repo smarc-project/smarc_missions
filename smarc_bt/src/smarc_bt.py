@@ -560,15 +560,15 @@ def const_tree(auv_config):
 
 
 def main():
-    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-
+    # create a config object that will handle all the rosparams and such
+    # and then auto-generate the launch file from it
     config = AUVConfig()
+    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
     launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
     try:
         config.generate_launch_file(launch_path)
     except Exception as e:
-        print("Did not generate the launch file")
-        print(e)
+        print("Did not generate the launch file, will continue: \n{}".format(e))
 
     # init the node
     rospy.init_node("bt", log_level=rospy.INFO)
@@ -582,66 +582,74 @@ def main():
     # this will update stuff in the BB
     reconfig = ReconfigServer(config)
 
-    try:
-        rospy.loginfo("Constructing tree")
-        tree = const_tree(config)
-        rospy.loginfo("Setting up tree")
-        setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
-        viz = pt.display.ascii_tree(tree.root)
-        rospy.loginfo(viz)
+    # first construct a vehicle that will hold and sub to most things
+    rospy.loginfo("Setting up vehicle")
+    vehicle = Vehicle(config)
+    tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
+    # if for whatever reason the TF is not working, everything else is moot
+    if tf_listener is None:
+        rospy.logerr("TF Listener could not be setup! Exiting!")
+        return
 
-        rospy.loginfo("Setting up vehicle")
-        vehicle = Vehicle(config)
-        tf_listener = vehicle.setup_tf()
-
-
-        if not setup_ok:
-            rospy.logerr("Tree could not be setup! Exiting!")
-            return
-
-        if tf_listener is None:
-            rospy.logerr("TF Listener could not be setup! Exiting!")
-            return
-
-        # this will put it in the ~/.ros folder if run from launch file
-        last_ran_tree_path = 'last_ran_tree.txt'
-        with open(last_ran_tree_path, 'w+') as f:
-            f.write(viz)
-            rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
+    # construct the BT with the config and a vehicle model
+    rospy.loginfo("Constructing tree")
+    tree = const_tree(config, vehicle)
+    rospy.loginfo("Setting up tree")
+    setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+    # make sure the BT is happy
+    if not setup_ok:
+        rospy.logerr("Tree could not be setup! Exiting!")
+        return
 
 
-        rospy.loginfo(config)
-        rospy.loginfo("Ticktocking....")
-        rate = rospy.Rate(common_globals.BT_TICK_RATE)
+    # write the structure of the tree to file, useful for post-mortem inspections
+    # if needed
+    # this will put it in the ~/.ros folder if run from launch file
+    last_ran_tree_path = 'last_ran_tree.txt'
+    with open(last_ran_tree_path, 'w+') as f:
+        f.write(viz)
+        rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
-        bb = pt.blackboard.Blackboard()
 
-        while not rospy.is_shutdown():
-            # some info _about the tree_ in the BB.
-            # better do this outside the tree
-            tip = tree.tip()
-            if tip is None:
-                bb.set(bb_enums.TREE_TIP_NAME, '')
-                bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
-            else:
-                bb.set(bb_enums.TREE_TIP_NAME, tip.name)
-                bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
+    # print out the config and the BT on screen
+    rospy.loginfo(config)
+    rospy.loginfo(pt.display.ascii_tree(tree.root))
 
-            # update the TF of the vehicle first
-            vehicle.tick(tf_listener)
-            print(vehicle)
-            # an actual tick, finally.
-            tree.tick()
+    # setup the ticking freq and the BlackBoard
+    rate = rospy.Rate(common_globals.BT_TICK_RATE)
+    bb = pt.blackboard.Blackboard()
 
-            # use py-trees-tree-watcher if you can
-            #  pt.display.print_ascii_tree(tree.root, show_status=True)
-            rate.sleep()
+    # put the vehicle model inside the bb
+    bb.set(bb_enums.VEHICLE_STATE, vehicle)
 
-    except rospy.ROSInitException:
-        rospy.loginfo("ROS Interrupt")
+    rospy.loginfo("Ticktocking....")
+    while not rospy.is_shutdown():
+        # some info _about the tree_ in the BB.
+        # better do this outside the tree
+        tip = tree.tip()
+        if tip is None:
+            bb.set(bb_enums.TREE_TIP_NAME, '')
+            bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
+        else:
+            bb.set(bb_enums.TREE_TIP_NAME, tip.name)
+            bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
+
+        # update the TF of the vehicle first
+        vehicle.tick(tf_listener)
+        print(vehicle)
+        # an actual tick, finally.
+        tree.tick()
+
+        # use py-trees-tree-watcher if you can
+        #  pt.display.print_ascii_tree(tree.root, show_status=True)
+        rate.sleep()
+
 
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except rospy.ROSInitException:
+        rospy.loginfo("ROS Interrupt")
 

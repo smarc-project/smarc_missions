@@ -5,6 +5,8 @@
 
 ROBOT_NAME = 'robot_name'
 
+VEHICLE_STATE = 'vehicle_state'
+
 ABORT = 'abort'
 LEAK = 'leak'
 
