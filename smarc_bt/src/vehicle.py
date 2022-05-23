@@ -37,6 +37,7 @@ class StringAnimation(object):
         return self._str
 
 
+
 class Vehicle(object):
     """
     A common vehicle object to keep track of all common
@@ -54,7 +55,7 @@ class Vehicle(object):
 
         # these will come from dvl
         self.altitude = None
-        self.dvl_velocity = None
+        self.dvl_velocity_msg = None
         self._dvl_sub = rospy.Subscriber(self.auv_config.DVL_TOPIC, DVL, self._dvl_cb, queue_size=2)
         self._status_str_dvl = "Uninitialized"
         self._last_update_dvl = -1
@@ -164,7 +165,7 @@ class Vehicle(object):
 
     def _dvl_cb(self, msg):
         self.altitude = msg.altitude
-        self.dvl_velocity = msg.velocity
+        self.dvl_velocity_msg = msg.velocity
         self._last_update_dvl = time.time()
         self._status_str_dvl = "Working"
         self._animation.update(1)

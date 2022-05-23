@@ -822,14 +822,14 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         else:
             # no live updates, just report distance to planned wp
             # still running, set our feedback message to distance left
-            current_loc = self.bb.get(bb_enums.WORLD_TRANS)
+            current_loc = self.vehicle.position_utm
             mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
             if mplan is not None and current_loc is not None:
                 wp = mplan.get_current_wp()
-                x,y = current_loc[:2]
+                x,y = current_loc
                 h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
                 h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
-                v_dist = wp.z - current_loc[2]
+                v_dist = wp.z - self.vehicle.depth
                 self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
 
 
@@ -842,76 +842,77 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
 
 
-class A_UpdateTF(pt.behaviour.Behaviour):
-    def __init__(self, utm_link, base_link):
-        """
-        reads the current translation and orientation from the TF tree
-        and puts that into the BB
+# deprecated, use the vehicle object (bb_enums.VEHICLE_STATE)
+# class A_UpdateTF(pt.behaviour.Behaviour):
+    # def __init__(self, utm_link, base_link):
+        # """
+        # reads the current translation and orientation from the TF tree
+        # and puts that into the BB
 
-        utm_link and base_link are tf link names where utm_link is essentially the world coordinates.
-        check the neptus-related actions too for more info on utm_link
-        """
-        super(A_UpdateTF, self).__init__("A_UpdateTF")
-        self.bb = pt.blackboard.Blackboard()
-        self.utm_link = utm_link
-        self.base_link = base_link
-        self.listener = tf.TransformListener()
-        self.tf_ok = False
+        # utm_link and base_link are tf link names where utm_link is essentially the world coordinates.
+        # check the neptus-related actions too for more info on utm_link
+        # """
+        # super(A_UpdateTF, self).__init__("A_UpdateTF")
+        # self.bb = pt.blackboard.Blackboard()
+        # self.utm_link = utm_link
+        # self.base_link = base_link
+        # self.listener = tf.TransformListener()
+        # self.tf_ok = False
 
-        self.last_read_time = None
-
-
-    def setup(self, timeout):
-        try:
-            rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.utm_link, self.base_link))
-            self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(timeout))
-            rospy.loginfo_throttle(3, "...Got it")
-            self.tf_ok = True
-        except:
-            rospy.logerr_throttle(5, "Could not find from "+self.utm_link+" to "+self.base_link + "... Nothing except safety will be run")
-
-        return True
-
-    def update(self):
-        if self.last_read_time is not None:
-            time_since = time.time() - self.last_read_time
-            self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
-        else:
-            self.feedback_message = "No msg received ever"
-
-        try:
-            (world_trans, world_rot) = self.listener.lookupTransform(self.utm_link,
-                                                                     self.base_link,
-                                                                     rospy.Time(0))
-            self.last_read_time = time.time()
-        except (tf.LookupException, tf.ConnectivityException):
-            msg = "Could not get transform between {} and {}".format(self.utm_link, self.base_link)
-            rospy.logerr_throttle_identical(5, msg + " Is the TF tree in one piece?")
-            self.feedback_message = msg
-            return pt.Status.FAILURE
-        except:
-            msg = "Could not do a tf lookup for some other reason."
-            rospy.logerr_throttle_identical(5, msg)
-            self.feedback_message = msg
-            return pt.Status.FAILURE
-
-        self.bb.set(bb_enums.WORLD_TRANS, world_trans)
-        self.bb.set(bb_enums.WORLD_ROT, world_rot)
-        # also create this pointstamped object so that we can transform this
-        # easily to w/e other frame is needed later
-        ps = PointStamped()
-        ps.header.frame_id = self.utm_link
-        ps.header.stamp = rospy.Time(0)
-        ps.point.x = world_trans[0]
-        ps.point.y = world_trans[1]
-        ps.point.z = world_trans[2]
-        self.bb.set(bb_enums.LOCATION_POINT_STAMPED, ps)
-
-        # the Z component is UP, so invert to get "depth"
-        self.bb.set(bb_enums.DEPTH, -world_trans[2])
+        # self.last_read_time = None
 
 
-        return pt.Status.SUCCESS
+    # def setup(self, timeout):
+        # try:
+            # rospy.loginfo_throttle(3, "Waiting for transform from {} to {}...".format(self.utm_link, self.base_link))
+            # self.listener.waitForTransform(self.utm_link, self.base_link, rospy.Time(), rospy.Duration(timeout))
+            # rospy.loginfo_throttle(3, "...Got it")
+            # self.tf_ok = True
+        # except:
+            # rospy.logerr_throttle(5, "Could not find from "+self.utm_link+" to "+self.base_link + "... Nothing except safety will be run")
+
+        # return True
+
+    # def update(self):
+        # if self.last_read_time is not None:
+            # time_since = time.time() - self.last_read_time
+            # self.feedback_message = "Last read:{:.2f}s ago".format(time_since)
+        # else:
+            # self.feedback_message = "No msg received ever"
+
+        # try:
+            # (world_trans, world_rot) = self.listener.lookupTransform(self.utm_link,
+                                                                     # self.base_link,
+                                                                     # rospy.Time(0))
+            # self.last_read_time = time.time()
+        # except (tf.LookupException, tf.ConnectivityException):
+            # msg = "Could not get transform between {} and {}".format(self.utm_link, self.base_link)
+            # rospy.logerr_throttle_identical(5, msg + " Is the TF tree in one piece?")
+            # self.feedback_message = msg
+            # return pt.Status.FAILURE
+        # except:
+            # msg = "Could not do a tf lookup for some other reason."
+            # rospy.logerr_throttle_identical(5, msg)
+            # self.feedback_message = msg
+            # return pt.Status.FAILURE
+
+        # self.bb.set(bb_enums.WORLD_TRANS, world_trans)
+        # self.bb.set(bb_enums.WORLD_ROT, world_rot)
+        # # also create this pointstamped object so that we can transform this
+        # # easily to w/e other frame is needed later
+        # ps = PointStamped()
+        # ps.header.frame_id = self.utm_link
+        # ps.header.stamp = rospy.Time(0)
+        # ps.point.x = world_trans[0]
+        # ps.point.y = world_trans[1]
+        # ps.point.z = world_trans[2]
+        # self.bb.set(bb_enums.LOCATION_POINT_STAMPED, ps)
+
+        # # the Z component is UP, so invert to get "depth"
+        # self.bb.set(bb_enums.DEPTH, -world_trans[2])
+
+
+        # return pt.Status.SUCCESS
 
 
 
@@ -1004,6 +1005,7 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
                  gps_nav_data_topic):
         super(A_UpdateNeptusEstimatedState, self).__init__("A_UpdateNeptusEstimatedState")
         self.bb = pt.blackboard.Blackboard()
+        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
         self.estimated_state_pub = None
         self.estimated_state_topic = estimated_state_topic
         self.e_state = EstimatedState()
@@ -1022,25 +1024,24 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
 
 
     def update(self):
-        lat = self.bb.get(bb_enums.CURRENT_LATITUDE)
-        lon = self.bb.get(bb_enums.CURRENT_LONGITUDE)
-        depth = self.bb.get(bb_enums.DEPTH)
-        world_rot = self.bb.get(bb_enums.WORLD_ROT)
+        lat, lon = self.vehicle.position_latlon
+        depth = self.vehicle.depth
+        rpy = self.vehicle.orientation_rpy
 
         if depth is None:
             reason = "depth was None, using 0"
             self.feedback_message = reason
             depth = 0
 
-        if lat is None or lon is None or world_rot is None:
-            rospy.logwarn_throttle_identical(10, "Could not update neptus estimated state because lat/lon/world_rot was None!")
+        if lat is None or lon is None or rpy is None:
+            rospy.logwarn_throttle_identical(10, "Could not update neptus estimated state because lat/lon/rpy was None!")
             return pt.Status.SUCCESS
 
         # construct message for neptus
         self.e_state.lat = np.radians(lat)
         self.e_state.lon= np.radians(lon)
         self.e_state.depth = depth
-        roll, pitch, yaw = tf.transformations.euler_from_quaternion(world_rot)
+        roll, pitch, yaw = rpy
         self.e_state.psi = np.pi/2. - yaw
         # send the message to neptus
         self.estimated_state_pub.publish(self.e_state)
@@ -1048,7 +1049,7 @@ class A_UpdateNeptusEstimatedState(pt.behaviour.Behaviour):
         # same thing with gps fix
         # the bridge only looks at lat lon height=altitude
         # we read this from the raw gps instead
-        navsatfix = self.bb.get(bb_enums.RAW_GPS)
+        navsatfix = self.vehicle.raw_gps_obj
         if navsatfix is not None:
             self.gps_fix.latitude = navsatfix.latitude
             self.gps_fix.longitude = navsatfix.longitude

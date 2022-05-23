@@ -123,28 +123,6 @@ def const_tree(auv_config):
          # max_period = None,
          # allow_silence = True -> If false, will fail if no message is received ever
 
-        read_gps = ReadTopic(
-            name = "A_ReadGPS",
-            topic_name = auv_config.GPS_TOPIC,
-            topic_type = NavSatFix,
-            blackboard_variables = {bb_enums.RAW_GPS:None},
-            allow_silence = False
-        )
-
-        read_alt = ReadTopic(
-            name = "A_ReadDVL",
-            topic_name = auv_config.DVL_TOPIC,
-            topic_type = DVL,
-            blackboard_variables = {bb_enums.ALTITUDE:'altitude',
-                                    bb_enums.DVL_VELOCITY:'velocity'}
-        )
-
-        read_leak = ReadTopic(
-            name = "A_ReadLeak",
-            topic_name = auv_config.LEAK_TOPIC,
-            topic_type = Leak,
-            blackboard_variables = {bb_enums.LEAK:'value'}
-        )
 
         read_detection = ReadTopic(
             name = "A_ReadCameraDetection",
@@ -153,31 +131,6 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
         )
 
-        read_latlon = ReadTopic(
-            name = "A_ReadLatlon",
-            topic_name = auv_config.LATLON_TOPIC,
-            topic_type = GeoPoint,
-            blackboard_variables = {bb_enums.CURRENT_LATITUDE : 'latitude',
-                                    bb_enums.CURRENT_LONGITUDE : 'longitude'}
-        )
-        read_roll = ReadTopic(
-            name = "A_ReadRoll",
-            topic_name = auv_config.ROLL_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.ROLL : 'data'}
-        )
-        read_pitch = ReadTopic(
-            name = "A_ReadPitch",
-            topic_name = auv_config.PITCH_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.PITCH : 'data'}
-        )
-        read_yaw = ReadTopic(
-            name = "A_ReadYaw",
-            topic_name = auv_config.YAW_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.YAW : 'data'}
-        )
 
         read_buoys = A_ReadBuoys(
             topic_name=auv_config.BUOY_TOPIC,
