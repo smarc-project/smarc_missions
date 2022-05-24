@@ -59,12 +59,6 @@ from bt_common import Sequence, \
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_EmergencySurface, \
-                       A_UpdateNeptusEstimatedState, \
-                       A_UpdateNeptusPlanControlState, \
-                       A_UpdateNeptusVehicleState, \
-                       A_UpdateNeptusPlanDB, \
-                       A_UpdateNeptusPlanControl, \
-                       A_UpdateMissonForPOI, \
                        A_PublishMissionPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
@@ -86,6 +80,7 @@ import common_globals
 # packed up object to keep vehicle-state up to date
 # to avoid having a million subscibers inside the tree
 from vehicle import Vehicle
+from neptus_handler import NeptusHandler
 
 def const_tree(auv_config):
     """
@@ -171,27 +166,7 @@ def const_tree(auv_config):
             front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
 
 
-        def const_neptus_tree():
-            update_neptus = Sequence(name="SQ-UpdateNeptus",
-                                     children=[
-                A_UpdateNeptusEstimatedState(auv_config.ESTIMATED_STATE_TOPIC,
-                                             auv_config.GPSFIX_TOPIC,
-                                             auv_config.GPS_NAV_DATA_TOPIC),
-                A_UpdateNeptusPlanControlState(auv_config.PLAN_CONTROL_STATE_TOPIC),
-                A_UpdateNeptusVehicleState(auv_config.VEHICLE_STATE_TOPIC),
-                A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
-                                     auv_config.UTM_LINK,
-                                     auv_config.LOCAL_LINK,
-                                     auv_config.LATLONTOUTM_SERVICE,
-                                     auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
-                A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
-                A_PublishMissionPlan(auv_config.PLAN_VIZ_TOPIC,
-                                     auv_config.PLAN_PATH_TOPIC)
-                                     ])
-            return update_neptus
 
-
-        neptus_tree = const_neptus_tree()
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
                                               message_object = Empty())
 
@@ -204,7 +179,6 @@ def const_tree(auv_config):
                             read_detection,
                             read_buoys,
                             read_lolo,
-                            neptus_tree,
                             publish_heartbeat,
                             read_reloc_enable,
                             read_reloc_wp,
@@ -275,37 +249,6 @@ def const_tree(auv_config):
                             abort
                         ])
 
-
-    def const_leader_follower():
-        return Sequence(name="SQ_LeaderFollower",
-                        children=[
-                            C_LeaderFollowerEnabled(config.ENABLE_LEADER_FOLLOWER),
-                            C_LeaderExists(config.BASE_LINK,
-                                           config.LEADER_LINK),
-                            C_LeaderIsFarEnough(config.BASE_LINK,
-                                                config.LEADER_LINK,
-                                                config.MIN_DISTANCE_TO_LEADER),
-                            A_FollowLeader(config.FOLLOW_ACTION_NAMESPACE,
-                                           config.LEADER_LINK)
-                        ])
-
-
-
-    def const_autonomous_updates():
-        poi_tree = Fallback(name="FB_Poi",
-                            children=[
-                                C_NoNewPOIDetected(common_globals.POI_DIST),
-                                A_UpdateMissonForPOI(auv_config.UTM_LINK,
-                                                     auv_config.LOCAL_LINK,
-                                                     auv_config.POI_DETECTOR_LINK,
-                                                     auv_config.LATLONTOUTM_SERVICE)
-                            ])
-
-        return Fallback(name="FB_AutonomousUpdates",
-                        children=[
-                          C_AutonomyDisabled(),
-                          poi_tree
-                        ])
 
 
     def const_synch_tree():
@@ -483,7 +426,6 @@ def const_tree(auv_config):
                             # finalized,
                             const_finalize_mission(),
                             planned_mission
-                            #  const_leader_follower()
                         ])
 
     manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
@@ -538,6 +480,11 @@ def main():
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.VEHICLE_STATE, vehicle)
 
+    # construct the neptus handler that handles talking to neptus
+    # since the BT doesnt really care about the stuff from neptus beyond
+    # signals, it doesnt need these as actions and such
+    neptus_handler = NeptusHandler(config, vehicle, bb)
+
     # construct the BT with the config and a vehicle model
     rospy.loginfo("Constructing tree")
     tree = const_tree(config)
@@ -579,8 +526,10 @@ def main():
             bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
         # update the TF of the vehicle first
+        # print(vehicle)
         vehicle.tick(tf_listener)
-        print(vehicle)
+        # print(neptus_handler)
+        neptus_handler.tick()
         # an actual tick, finally.
         tree.tick()
 
