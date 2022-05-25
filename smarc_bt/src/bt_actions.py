@@ -434,119 +434,6 @@ class A_SetDVLRunning(pt.behaviour.Behaviour):
 
 
 
-class A_EmergencySurface(ptr.actions.ActionClient):
-    def __init__(self, emergency_action_namespace):
-        """
-        What to do when an emergency happens. This should be a very simple
-        action that is super unlikely to fail, ever. It should also 'just work'
-        without a goal.
-        Like surfacing.
-        """
-        self.bb = pt.blackboard.Blackboard()
-        self.action_goal_handle = None
-
-        ptr.actions.ActionClient.__init__(
-            self,
-            name="A_EmergencySurface",
-            action_spec=GotoWaypointAction,
-            action_goal=None,
-            action_namespace= emergency_action_namespace,
-            override_feedback_message_on_running="EMERGENCY SURFACING"
-        )
-
-        self.action_server_ok = False
-
-        # every X seconds, try to reconnect to the action server
-        # if the server wasnt up and ready when the BT was started
-        self.last_reconnect_attempt_time = 0
-        self.reconnect_attempt_period = 5
-
-    def setup(self, timeout):
-        """
-        Overwriting the normal ptr action setup to stop it from failiing the setup step
-        and instead handling this failure in the tree.
-        """
-        self.logger.debug("%s.setup()" % self.__class__.__name__)
-        self.action_client = actionlib.SimpleActionClient(
-            self.action_namespace,
-            self.action_spec
-        )
-        if not self.action_client.wait_for_server(rospy.Duration(timeout)):
-            self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
-            self.action_client = None
-            self.action_server_ok = False
-        else:
-            self.action_server_ok = True
-
-        return True
-
-    def initialise(self):
-        if not self.action_server_ok:
-            rospy.logwarn_throttle_identical(5, "No Action Server found for emergency action, will just block the tree!")
-            return
-        self.feedback_message = "EMERGENCY SURFACING"
-        # construct the message
-        self.action_goal = GotoWaypointGoal()
-        self.sent_goal = False
-
-    def update(self):
-        if not self.action_server_ok:
-            self.feedback_message = "Action Server for emergency action can not be used!"
-            rospy.logerr_throttle_identical(5,self.feedback_message)
-            t = time.time()
-            diff = t - self.last_reconnect_attempt_time
-            if diff < self.reconnect_attempt_period:
-                self.feedback_message = "Re-trying to connect in {}s".format(diff)
-            else:
-                self.setup(self.reconnect_attempt_period-1)
-            return pt.Status.FAILURE
-
-        # if your action client is not valid
-        if not self.action_client:
-            self.feedback_message = "ActionClient for emergency action is invalid!"
-            rospy.logwarn_throttle_identical(5,self.feedback_message)
-            return pt.Status.FAILURE
-
-        # if the action_goal is invalid
-        if not self.action_goal:
-            self.feedback_message = "No action_goal!"
-            rospy.logwarn(self.feedback_message)
-            return pt.Status.FAILURE
-
-        # if goal hasn't been sent yet
-        if not self.sent_goal:
-            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
-            self.sent_goal = True
-            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
-            self.feedback_message = "Emergency goal sent"
-            return pt.Status.RUNNING
-
-
-        # if the goal was aborted or preempted
-        if self.action_client.get_state() in [actionlib_msgs.GoalStatus.ABORTED,
-                                              actionlib_msgs.GoalStatus.PREEMPTED]:
-            self.feedback_message = "Aborted emergency"
-            rospy.loginfo(self.feedback_message)
-            return pt.Status.FAILURE
-
-        result = self.action_client.get_result()
-
-        # if the goal was accomplished
-        if result:
-            self.feedback_message = "Completed emergency"
-            rospy.loginfo(self.feedback_message)
-            return pt.Status.SUCCESS
-
-
-        # if we're still trying to accomplish the goal
-        return pt.Status.RUNNING
-
-    def feedback_cb(self, msg):
-        pass
-
-
-
-
 class A_SetNextPlanAction(pt.behaviour.Behaviour):
     def __init__(self, do_not_visit=False):
         """
@@ -591,9 +478,14 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                  goal_tf_frame = 'utm',
                  node_name = "A_GotoWaypoint",
                  wp_from_bb = None,
-                 live_mode_enabled = False):
+                 live_mode_enabled = False,
+                 goalless = False):
         """
         Runs an action server that will move the robot to the given waypoint
+
+        wp_from_bb -> if given, the waypoint will be taken from the given bb variable
+        live_mode_enabled -> if True, the waypoint will be re-submitted every tick to the server, wp_from_bb must be given
+        goalless -> if True, only an empty goal will be sent to the sever, useful as a "signal to start"
         """
 
         self.bb = pt.blackboard.Blackboard()
@@ -641,6 +533,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # if live mode is needed
         if self.live_mode_enabled and self.wp_from_bb is None:
             assert False, "Live mode must be given a bb key to get the WP from!"
+
+        # if True, will not attempt to fill in a goal, will submit empty goal objects
+        self.goalless = goalless
 
 
     def setup(self, timeout):
@@ -698,6 +593,13 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         if not self.action_server_ok:
             self.feedback_message = "No action server found for A_GotoWaypoint!"
             rospy.logwarn_throttle(5, self.feedback_message)
+            return
+
+        # quick exit for the goalless version
+        if self.goalless:
+            self.feedback_message = "Goalless initialized"
+            self.action_goal = GotoWaypointGoal()
+            self.sent_goal = False
             return
 
         # so we can pass a bb variable name to this action
@@ -821,18 +723,20 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                 self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
 
         else:
-            # no live updates, just report distance to planned wp
-            # still running, set our feedback message to distance left
-            current_loc = self.vehicle.position_utm
-            mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-            if mplan is not None and current_loc is not None:
-                wp = mplan.get_current_wp()
-                x,y = current_loc
-                h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
-                h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
-                v_dist = wp.z - self.vehicle.depth
-                self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
-
+            if self.goalless:
+                self.feedback_message = "Running goalless"
+            else:
+                # no live updates, just report distance to planned wp
+                # still running, set our feedback message to distance left
+                current_loc = self.vehicle.position_utm
+                mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+                if mplan is not None and current_loc is not None:
+                    wp = mplan.get_current_wp()
+                    x,y = current_loc
+                    h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
+                    h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
+                    v_dist = wp.z - self.vehicle.depth
+                    self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
 
         return pt.Status.RUNNING
 

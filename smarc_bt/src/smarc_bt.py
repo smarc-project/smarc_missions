@@ -58,7 +58,6 @@ from bt_common import Sequence, \
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
-                       A_EmergencySurface, \
                        A_PublishMissionPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
@@ -237,7 +236,9 @@ def const_tree(auv_config):
                          children = [
                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
                                               message_object = Empty()),
-                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                             A_GotoWaypoint(action_namespace = auv_config.EMERGENCY_ACTION_NAMESPACE,
+                                            node_name = 'A_EmergencySurface',
+                                            goalless = True)
                          ])
 
 
