@@ -228,8 +228,10 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
             try:
                 self.pub.publish(self.message_object)
                 self.last_published_time = time.time()
-                self.feedback_message = "Just published"
                 self.bb.set(bb_enums.MISSION_FINALIZED, True)
+                mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+                mission_plan.plan_is_go = False
+                self.feedback_message = "Mission finalized, plan is go<-False"
                 return pt.Status.SUCCESS
             except:
                 msg = "Couldn't publish"

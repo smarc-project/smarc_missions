@@ -134,7 +134,7 @@ class NeptusHandler(object):
             current_man_id = mission_plan.waypoint_man_ids[current_wp_index]
             total = len(mission_plan.waypoints)
             self._plan_control_state_msg.plan_id = str(mission_plan.plan_id)
-            if self._bb.get(bb_enums.PLAN_IS_GO):
+            if mission_plan.plan_is_go:
                 self._plan_control_state_msg.man_id = current_man_id
 
             plan_progress = (current_wp_index * 100.0) / total # percent float
@@ -233,7 +233,6 @@ class NeptusHandler(object):
         self._bb.set(bb_enums.MISSION_PLAN_OBJ, mission_plan)
         self._bb.set(bb_enums.ENABLE_AUTONOMY, False)
         self._bb.set(bb_enums.MISSION_FINALIZED, False)
-        self._bb.set(bb_enums.PLAN_IS_GO, False)
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
 
     def _handle_plandb_msg(self):
@@ -319,12 +318,12 @@ class NeptusHandler(object):
         if plan_id is None:
             plan_id=''
 
+        current_mission_plan = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
         # separate well-defined ifs for possible future shenanigans.
         if typee==0 and op==0 and plan_id!='' and flags==1:
             # start button
             # check if the start was given for our current plan
-            current_mission_plan = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
-            self._bb.set(bb_enums.PLAN_IS_GO, True)
+            current_mission_plan.plan_is_go = True
             self._bb.set(bb_enums.ENABLE_AUTONOMY, False)
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
                 rospy.loginfo("Started plan:{}".format(plan_id))
@@ -336,7 +335,7 @@ class NeptusHandler(object):
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
-            self._bb.set(bb_enums.PLAN_IS_GO, False)
+            current_mission_plan.plan_is_go = False
             self._bb.set(bb_enums.ENABLE_AUTONOMY, False)
 
         # this string is hardcoded in Neptus, so we hardcode it here too!

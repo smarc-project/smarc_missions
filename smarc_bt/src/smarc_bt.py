@@ -383,13 +383,6 @@ def const_tree(auv_config):
     def const_finalize_mission():
         publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
-
-
-
-        unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
-                                                               variable_value = False,
-                                                               name = 'A_SetPlanIsGo->False')
-
         plan_complete_or_stopped = Fallback(name="FB-PlanCompleteOrStopped",
                                             children=[
                                                       C_PlanCompleted(),
@@ -406,8 +399,7 @@ def const_tree(auv_config):
                                   A_UpdateMissionLog(),
                                   plan_complete_or_stopped,
                                   publish_complete,
-                                  A_SaveMissionLog(),
-                                  unset_plan_is_go
+                                  A_SaveMissionLog()
                         ])
 
     # The root of the tree is here

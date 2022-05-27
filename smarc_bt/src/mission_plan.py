@@ -71,6 +71,7 @@ class MissionPlan:
             self.plan_id = plandb_msg.plan_id
         else:
             self.plan_id = 'NOPLAN'
+
         self.plan_frame = plan_frame
         self.coverage_swath = coverage_swath
         self.vehicle_localization_error_growth = vehicle_localization_error_growth
@@ -95,7 +96,6 @@ class MissionPlan:
                 rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
                 self.no_service = True
 
-        self.aborted = False
 
         # a list of names for each maneuver
         # good for feedback
@@ -116,6 +116,9 @@ class MissionPlan:
 
         # used to report when the mission was received
         self.creation_time = time.time()
+
+        # state of this plan
+        self.plan_is_go = False
 
 
     def latlon_to_utm(self,

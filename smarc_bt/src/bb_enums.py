@@ -12,7 +12,6 @@ MAX_DEPTH = 'max_depth'
 MIN_ALTITUDE = 'min_altitude'
 
 MISSION_PLAN_OBJ = 'misison_plan'
-PLAN_IS_GO = 'plan_is_go'
 MANEUVER_ACTIONS = 'maneuver_actions'
 
 BASE_LINK = 'base_link'
@@ -38,6 +37,7 @@ DVL_IS_RUNNING = 'dvl_is_running'
 MISSION_FINALIZED = 'mission_finalized'
 
 # coverage stuffs
+# these are in the BB becse they could be dynamic
 SWATH = 'swath'
 LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 

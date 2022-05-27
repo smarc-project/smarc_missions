@@ -183,17 +183,17 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
         super(C_StartPlanReceived, self).__init__(name="C_StartPlanReceived")
 
     def update(self):
-        plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
         plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if plan is None:
             self.feedback_message = "No plan"
             return pt.Status.FAILURE
 
-        self.feedback_message = "Plan is go:{} for plan {}".format(plan_is_go, plan.plan_id)
-        if plan_is_go is None or plan_is_go == False:
+        self.feedback_message = "Plan is go:{} for plan {}".format(plan.plan_is_go, plan.plan_id)
+        if plan.plan_is_go:
+            return pt.Status.SUCCESS
+        else:
             rospy.loginfo_throttle_identical(5, "Waiting for start plan")
             return pt.Status.FAILURE
-        return pt.Status.SUCCESS
 
 
 class C_PlanCompleted(pt.behaviour.Behaviour):
@@ -275,7 +275,6 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(10, self.feedback_message)
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
-            # self.bb.set(bb_enums.PLAN_IS_GO, False)
             return pt.Status.FAILURE
 
         if self.last_known_id != current_plan.plan_id:
@@ -284,7 +283,7 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(10, self.feedback_message)
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
-            self.bb.set(bb_enums.PLAN_IS_GO, False)
+            current_plan.plan_is_go = False
             return pt.Status.FAILURE
 
         self.feedback_message = "last_id:{}, current_id:{}".format(self.last_known_id, current_plan.plan_id)
