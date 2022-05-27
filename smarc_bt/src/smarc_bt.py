@@ -80,6 +80,7 @@ import common_globals
 # to avoid having a million subscibers inside the tree
 from vehicle import Vehicle
 from neptus_handler import NeptusHandler
+from mqtt_handler import MQTTHandler
 
 def const_tree(auv_config):
     """
@@ -477,6 +478,7 @@ def main():
     # since the BT doesnt really care about the stuff from neptus beyond
     # signals, it doesnt need these as actions and such
     neptus_handler = NeptusHandler(config, vehicle, bb)
+    mqtt_handler = MQTTHandler(config, vehicle, bb)
 
     # construct the BT with the config and a vehicle model
     rospy.loginfo("Constructing tree")
@@ -523,6 +525,7 @@ def main():
         vehicle.tick(tf_listener)
         # print(neptus_handler)
         neptus_handler.tick()
+        mqtt_handler.tick()
         # an actual tick, finally.
         tree.tick()
 
