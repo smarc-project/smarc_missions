@@ -10,7 +10,7 @@ from sensor_msgs.msg import NavSatFix
 import rospy, time
 import numpy as np
 
-from mission_plan import MissionPlan, Waypoint
+from mission_plan import MissionPlan
 
 class NeptusHandler(object):
     """

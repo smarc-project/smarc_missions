@@ -47,6 +47,7 @@ class Vehicle(object):
                  auv_config):
 
         self.auv_config = auv_config
+        self.robot_name = auv_config.robot_name
 
         self._init_tf_vars()
         # some state strings to be reported in case of trouble
@@ -81,7 +82,18 @@ class Vehicle(object):
 
 
     def __str__(self):
-        return "TF,Alt,Leak,Latlon,GPS : "+self._animation.__str__()+"\ntf:"+self._status_str_tf+"\nleak:"+self._status_str_leak
+        anim = self._animation.__str__()
+        status = [
+            ('TF', anim[0], 'Depth:{}'.format(self.depth)),
+            ('DVL', anim[1], 'Alt:{}'.format(self.altitude)),
+            ('Leak', anim[2], self._status_str_leak),
+            ('Latlon', anim[3], str(self.position_latlon)),
+            ('GPS', anim[4], self._status_str_gps)
+        ]
+        s = ""
+        for name, frame, string in status:
+            s += "{}:{} - {}\n".format(name, frame, string)
+        return s
 
 
     def _init_tf_vars(self):
