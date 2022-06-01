@@ -70,12 +70,13 @@ class C_AtDVLDepth(pt.behaviour.Behaviour):
     Returns SUCCESS if at some specified depth
     """
     def __init__(self, dvl_depth):
-        self.bb = pt.blackboard.Blackboard()
+        bb = pt.blackboard.Blackboard()
+        self.vehicle = bb.get(bb_enums.VEHICLE_STATE)
         self.dvl_depth = dvl_depth
         super(C_AtDVLDepth, self).__init__(name="C_AtDVLDepth")
 
     def update(self):
-        depth = self.bb.get(bb_enums.DEPTH)
+        depth = self.vehicle.depth
         if depth is None or depth < self.dvl_depth:
             msg = "Not deep enough for DVL: {}".format(depth)
             rospy.loginfo_throttle(10, msg)
@@ -107,11 +108,12 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
 
 class C_LeakOK(pt.behaviour.Behaviour):
     def __init__(self):
-        self.bb = pt.blackboard.Blackboard()
+        bb = pt.blackboard.Blackboard()
+        self.vehicle = bb.get(bb_enums.VEHICLE_STATE)
         super(C_LeakOK, self).__init__(name="C_LeakOK")
 
     def update(self):
-        if self.bb.get(bb_enums.LEAK) == True:
+        if self.vehicle.leak == True:
             self.feedback_message = "\n\n\n!!!! LEAK !!!!\n\n\n"
             return pt.Status.FAILURE
         else:
@@ -121,13 +123,14 @@ class C_LeakOK(pt.behaviour.Behaviour):
 class C_DepthOK(pt.behaviour.Behaviour):
     def __init__(self):
         self.bb = pt.blackboard.Blackboard()
+        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
         self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
         super(C_DepthOK, self).__init__(name="C_DepthOK")
 
 
     def update(self):
         self.max_depth = self.bb.get(bb_enums.MAX_DEPTH)
-        depth = self.bb.get(bb_enums.DEPTH)
+        depth = self.vehicle.depth
 
         if depth is None:
             rospy.logwarn_throttle(5, "NO DEPTH READ! Success anyways")
@@ -148,11 +151,12 @@ class C_AltOK(pt.behaviour.Behaviour):
     def __init__(self):
         self.bb = pt.blackboard.Blackboard()
         self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
+        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
         super(C_AltOK, self).__init__(name="C_AltOK")
 
     def update(self):
         self.min_alt = self.bb.get(bb_enums.MIN_ALTITUDE)
-        alt = self.bb.get(bb_enums.ALTITUDE)
+        alt = self.vehicle.altitude
         if alt is None:
             rospy.logwarn_throttle(10, "NO ALTITUDE READ! The tree will run anyways")
             self.feedback_message = "Last read:None, min:{m:.2f}".format(m=self.min_alt)
@@ -179,17 +183,17 @@ class C_StartPlanReceived(pt.behaviour.Behaviour):
         super(C_StartPlanReceived, self).__init__(name="C_StartPlanReceived")
 
     def update(self):
-        plan_is_go = self.bb.get(bb_enums.PLAN_IS_GO)
         plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if plan is None:
             self.feedback_message = "No plan"
             return pt.Status.FAILURE
 
-        self.feedback_message = "Plan is go:{} for plan {}".format(plan_is_go, plan.plan_id)
-        if plan_is_go is None or plan_is_go == False:
+        self.feedback_message = "Plan is go:{} for plan {}".format(plan.plan_is_go, plan.plan_id)
+        if plan.plan_is_go:
+            return pt.Status.SUCCESS
+        else:
             rospy.loginfo_throttle_identical(5, "Waiting for start plan")
             return pt.Status.FAILURE
-        return pt.Status.SUCCESS
 
 
 class C_PlanCompleted(pt.behaviour.Behaviour):
@@ -271,7 +275,6 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(10, self.feedback_message)
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
-            # self.bb.set(bb_enums.PLAN_IS_GO, False)
             return pt.Status.FAILURE
 
         if self.last_known_id != current_plan.plan_id:
@@ -280,7 +283,7 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(10, self.feedback_message)
             self.last_known_id = current_plan.plan_id
             self.last_known_time = current_plan.creation_time
-            self.bb.set(bb_enums.PLAN_IS_GO, False)
+            current_plan.plan_is_go = False
             return pt.Status.FAILURE
 
         self.feedback_message = "last_id:{}, current_id:{}".format(self.last_known_id, current_plan.plan_id)
