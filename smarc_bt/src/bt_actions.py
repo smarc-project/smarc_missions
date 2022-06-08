@@ -564,8 +564,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # if True, will not attempt to fill in a goal, will submit empty goal objects
         self.goalless = goalless
 
-        self.sent_goal_pub = rospy.Publisher(auv_config.CURRENT_WP_GEO_TOPIC, GeoPoint, queue_size=1)
-
 
     def setup(self, timeout):
         """
@@ -599,14 +597,14 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # 0=None, 1=Depth, 2=Altitude in the action
         # thankfully these are the same in IMC and in the Action
         # but Action doesnt have 'height'
-        if wp.waypoint.z_unit == imc_enums.Z_HEIGHT:
+        if wp.z_unit == imc_enums.Z_HEIGHT:
             goal.waypoint.z_control_mode = imc_enums.Z_NONE
         else:
             goal.waypoint.z_control_mode = wp.z_unit
         goal.waypoint.travel_depth = wp.z
 
         goal.waypoint.speed_control_mode = wp.speed_unit
-        if wp.waypoint.speed_unit == GotoWaypointGoal.SPEED_CONTROL_SPEED:
+        if wp.speed_unit == GotoWaypoint.SPEED_CONTROL_SPEED:
             goal.waypoint.travel_speed = wp.speed
         else:
             goal.waypoint.travel_rpm = int(wp.speed)
@@ -621,7 +619,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
     def send_goal(self):
         self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
         self.sent_goal = True
-        self.sent_goal_pub.publish(self.action_goal.waypoint)
 
 
     def initialise(self):
