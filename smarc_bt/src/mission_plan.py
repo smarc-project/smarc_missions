@@ -91,7 +91,7 @@ class MissionPlan:
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
         except:
             rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to!")
-            self.latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE_NAME_ALTERNATIVE
+            self.latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
             rospy.logwarn("Setting the service to the alternative:{}".format(self.latlontoutm_service_name))
             try:
                 rospy.loginfo("Waiting (10s) lat_lon_to_utm service alternative:{}".format(self.latlontoutm_service_name))
