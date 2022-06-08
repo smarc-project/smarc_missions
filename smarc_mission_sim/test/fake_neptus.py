@@ -150,7 +150,9 @@ class FakeNeptus:
             # the CI online is really fiddly for some reason, this runs smoothly local...
             for j in range(10):
                 self.plandb_pub.publish(self.pm_ask)
-                time.sleep(1)
+                self.plandb_pub.publish(self.pm_ask)
+                self.plandb_pub.publish(self.pm_ask)
+                time.sleep(3)
             i += 1
             if self.plan_received:
                 rospy.loginfo("Stopping sending the plan")
