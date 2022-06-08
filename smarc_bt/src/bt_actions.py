@@ -619,6 +619,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
     def send_goal(self):
         self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
         self.sent_goal = True
+        self.vehicle.last_goto_wp = self.action_goal.waypoint
 
 
     def initialise(self):

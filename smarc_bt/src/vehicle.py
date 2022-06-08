@@ -8,7 +8,7 @@ import time
 import rospy, tf
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
-from smarc_msgs.msg import DVL, Leak
+from smarc_msgs.msg import DVL, Leak, GotoWaypoint
 from sensor_msgs.msg import NavSatFix
 
 
@@ -77,8 +77,11 @@ class Vehicle(object):
         self._status_str_gps = "Uninitialized"
         self._last_update_gps = -1
 
+
         # for visualizations
         self._animation = StringAnimation(num_slots=5)
+        self.last_goto_wp = GotoWaypoint()
+        self._last_wp_pub = rospy.Publisher(self.auv_config.LAST_WP_TOPIC, GotoWaypoint, queue_size=1)
 
 
     def __str__(self):
@@ -134,6 +137,7 @@ class Vehicle(object):
         mimic the behaviour of the BT, since this should be in lock-step with it
         """
         self._update_tf(tf_listener)
+        self._last_wp_pub.publish(self.last_goto_wp)
 
 
     def _update_tf(self, listener):

@@ -76,7 +76,7 @@ class AUVConfig(object):
         self.GPS_NAV_DATA_TOPIC = 'imc/gps_nav_data'
 
         # mqtt related stuff
-        self.CURRENT_WP_GEO_TOPIC = 'mission_exec/current_geo_wp'
+        self.LAST_WP_TOPIC = 'mission_exec/last_wp'
 
         # hard values
         self.MAX_DEPTH = 20

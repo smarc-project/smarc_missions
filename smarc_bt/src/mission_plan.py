@@ -37,6 +37,9 @@ class Waypoint:
                  extra_data):
 
 
+        if lat < 3 or lon < 3:
+            lat = np.degrees(lat)
+            lon = np.degrees(lon)
         self.lat = lat
         self.lon = lon
         self.maneuver_id = maneuver_id
@@ -121,9 +124,6 @@ class MissionPlan:
 
         # state of this plan
         self.plan_is_go = False
-
-        self.current_wp_pub = rospy.Publisher(auv_config.CURRENT_WP_GEO_TOPIC , GeoPoint, queue_size=1)
-
 
     def latlon_to_utm(self,
                       lat,
