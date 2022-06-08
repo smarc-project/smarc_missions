@@ -51,6 +51,7 @@ class AUVConfig(object):
 
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
+        self.UTM_TO_LATLON_SERVICE= '/'+self.robot_name+'/dr/utm_to_lat_lon'
         # in cases where the above service couldnt be found for some reason
         self.LATLONTOUTM_SERVICE_ALTERNATIVE = '/'+self.robot_name+'/lat_lon_to_utm'
 
@@ -73,6 +74,9 @@ class AUVConfig(object):
         self.ABORT_TOPIC = 'imc/abort'
         self.GPSFIX_TOPIC = 'imc/gps_fix'
         self.GPS_NAV_DATA_TOPIC = 'imc/gps_nav_data'
+
+        # mqtt related stuff
+        self.CURRENT_WP_GEO_TOPIC = 'mission_exec/current_geo_wp'
 
         # hard values
         self.MAX_DEPTH = 20

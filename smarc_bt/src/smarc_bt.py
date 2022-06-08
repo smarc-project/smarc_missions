@@ -356,8 +356,7 @@ def const_tree(auv_config):
         algae_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
                                                bb_key = bb_enums.ALGAE_FOLLOW_WP)
 
-        follow_algae = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                      goal_tf_frame = auv_config.UTM_LINK,
+        follow_algae = A_GotoWaypoint(auv_config = auv_config,
                                       node_name="A_FollowAlgae",
                                       wp_from_bb = bb_enums.ALGAE_FOLLOW_WP,
                                       live_mode_enabled = True)
@@ -421,8 +420,7 @@ def const_tree(auv_config):
                             planned_mission
                         ])
 
-    manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
-                                        latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE)
+    manual_logging = A_ManualMissionLog(config = auv_config)
 
 
     root = Sequence(name='SQ-ROOT',

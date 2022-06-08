@@ -15,11 +15,13 @@ import tf
 import actionlib
 
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
+from smarc_msgs.srv import UTMToLatLon
 import actionlib_msgs.msg as actionlib_msgs
-from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
+from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
 from nav_msgs.msg import Path
 from std_msgs.msg import Float64, Header, Bool, Empty
 from visualization_msgs.msg import MarkerArray
+from geographic_msgs.msg import GeoPoint
 # from sensor_msgs.msg import NavSatFix
 
 from std_srvs.srv import SetBool
@@ -38,6 +40,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
     def __init__(self,
                  ps_topic,
                  bb_key,
+                 utm_to_lat_lon_service_name,
                  reset = False):
         """
         subs to a GotoWaypoint topic and read it into the given bb variable
@@ -49,11 +52,19 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         self.last_read_ps = None
         self.last_read_time = None
         self.bb_key = bb_key
+        self.utm_to_lat_lon_service_name = utm_to_lat_lon_service_name
+        self.got_service = False
         self.reset = reset
 
 
     def setup(self, timeout):
         self.ps_sub = rospy.Subscriber(self.ps_topic, GotoWaypoint, self.cb)
+        try:
+            rospy.loginfo("Waiting for utm to latlon service")
+            rospy.wait_for_service(self.utm_to_lat_lon_service_name, timeout=timeout)
+            self.got_service = True
+        except:
+            rospy.logwarn("Could not connect to {}, live WPs wont be updated in the map".format(self.utm_to_lat_lon_service_name))
         return True
 
     def cb(self, msg):
@@ -76,7 +87,25 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
             else:
                 speed = self.last_read_ps.travel_speed
 
+
+            lat = 0
+            lon = 0
+            if self.got_service:
+                try:
+                    serv = rospy.ServiceProxy(self.utm_to_lat_lon_service, UTMToLatLon)
+                    p = Point()
+                    p.x = pos.x
+                    p.y = pos.y
+                    p.z = pos.z
+                    res = serv(p)
+                    lat = res.lat_lon_point.latitude
+                    lon = res.lat_lon_point.longitude
+                except Exception as e:
+                    print(e)
+
             wp = Waypoint(
+                lat = lat,
+                lon = lon,
                 maneuver_id = 'unplanned_goto',
                 maneuver_imc_id = imc_enums.MANEUVER_GOTO,
                 maneuver_name = 'unplanned_goto',
@@ -246,9 +275,7 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
 
 
 class A_ManualMissionLog(pt.behaviour.Behaviour):
-    def __init__(self,
-                 latlontoutm_service_name,
-                 latlontoutm_service_name_alternative):
+    def __init__(self, config):
         super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
         self.bb = pt.blackboard.Blackboard()
         self.started_logs = 0
@@ -256,8 +283,7 @@ class A_ManualMissionLog(pt.behaviour.Behaviour):
 
         # used just for the latlontoutm function only
         self.mplan = MissionPlan(plandb_msg = None,
-                                 latlontoutm_service_name = latlontoutm_service_name,
-                                 latlontoutm_service_name_alternative = latlontoutm_service_name_alternative,
+                                 auv_config = config,
                                  waypoints = [])
 
 
@@ -476,8 +502,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
-                 action_namespace,
-                 goal_tf_frame = 'utm',
+                 auv_config,
                  node_name = "A_GotoWaypoint",
                  wp_from_bb = None,
                  live_mode_enabled = False,
@@ -509,13 +534,13 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             name = self.node_name,
             action_spec = GotoWaypointAction,
             action_goal = None,
-            action_namespace = action_namespace,
+            action_namespace = auv_config.ACTION_NAMESPACE,
             override_feedback_message_on_running = "Moving to waypoint"
         )
 
         self.action_server_ok = False
 
-        self.goal_tf_frame = goal_tf_frame
+        self.goal_tf_frame = auv_config.UTM_LINK
 
         # if given, the action will read a wp from the bb instead of
         # from the mission plan
@@ -539,6 +564,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # if True, will not attempt to fill in a goal, will submit empty goal objects
         self.goalless = goalless
 
+        self.sent_goal_pub = rospy.Publisher(auv_config.CURRENT_WP_GEO_TOPIC, GeoPoint, queue_size=1)
+
 
     def setup(self, timeout):
         """
@@ -556,7 +583,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         else:
             self.action_server_ok = True
 
-
         return True
 
 
@@ -566,29 +592,36 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         # construct the message
         goal = GotoWaypointGoal()
-        goal.waypoint_pose.pose.position.x = wp.x
-        goal.waypoint_pose.pose.position.y = wp.y
-        goal.goal_tolerance = goal_tolerance
+        goal.waypoint.pose.pose.position.x = wp.x
+        goal.waypoint.pose.pose.position.y = wp.y
+        goal.waypoint.goal_tolerance = goal_tolerance
 
         # 0=None, 1=Depth, 2=Altitude in the action
         # thankfully these are the same in IMC and in the Action
         # but Action doesnt have 'height'
-        if wp.z_unit == imc_enums.Z_HEIGHT:
-            goal.z_control_mode = imc_enums.Z_NONE
+        if wp.waypoint.z_unit == imc_enums.Z_HEIGHT:
+            goal.waypoint.z_control_mode = imc_enums.Z_NONE
         else:
-            goal.z_control_mode = wp.z_unit
-        goal.travel_depth = wp.z
+            goal.waypoint.z_control_mode = wp.z_unit
+        goal.waypoint.travel_depth = wp.z
 
-        goal.speed_control_mode = wp.speed_unit
-        if wp.speed_unit == GotoWaypointGoal.SPEED_CONTROL_SPEED:
-            goal.travel_speed = wp.speed
+        goal.waypoint.speed_control_mode = wp.speed_unit
+        if wp.waypoint.speed_unit == GotoWaypointGoal.SPEED_CONTROL_SPEED:
+            goal.waypoint.travel_speed = wp.speed
         else:
-            goal.travel_rpm = int(wp.speed)
+            goal.waypoint.travel_rpm = int(wp.speed)
 
-        goal.waypoint_pose.header.frame_id = wp.tf_frame
+        goal.waypoint.pose.header.frame_id = wp.tf_frame
+
+        goal.waypoint.lat = wp.lat
+        goal.waypoint.lon = wp.lon
 
         return goal
 
+    def send_goal(self):
+        self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
+        self.sent_goal = True
+        self.sent_goal_pub.publish(self.action_goal.waypoint)
 
 
     def initialise(self):
@@ -642,6 +675,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # ensure that we still need to send the goal
         self.sent_goal = False
 
+
+
+
     def update(self):
         """
         Check only to see whether the underlying action server has
@@ -675,8 +711,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         # if goal hasn't been sent yet
         if not self.sent_goal:
-            self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
-            self.sent_goal = True
+            self.send_goal()
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Goal sent"
             return pt.Status.RUNNING
@@ -717,8 +752,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             # XXX maybe make the 0.5s a dynamic reconfig thing?
             if any([xdiff > 0.5, ydiff > 0.5, zdiff > 0.5]):
                 self.action_goal = self.make_goal_from_wp(wp)
-                self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
-                self.sent_goal = True
+                self.send_goal()
                 self.last_live_update_time = time.time()
                 self.feedback_message = "Sent goal just now"
             else:
@@ -883,7 +917,6 @@ class A_FollowLeader(ptr.actions.ActionClient):
         # if goal hasn't been sent yet
         if not self.sent_goal:
             self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
-            self.sent_goal = True
             rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Goal sent"
             return pt.Status.RUNNING
