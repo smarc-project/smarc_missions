@@ -16,12 +16,14 @@ import bb_enums
 from geometry_msgs.msg import PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
-from smarc_msgs.msg import GotoWaypointGoal
+from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint
 
 from coverage_planner import create_coverage_path
 
 class Waypoint:
     def __init__(self,
+                 lat,
+                 lon,
                  maneuver_id,
                  maneuver_imc_id,
                  maneuver_name,
@@ -35,6 +37,11 @@ class Waypoint:
                  extra_data):
 
 
+        if lat < 3 or lon < 3:
+            lat = np.degrees(lat)
+            lon = np.degrees(lon)
+        self.lat = lat
+        self.lon = lon
         self.maneuver_id = maneuver_id
         self.maneuver_imc_id = maneuver_imc_id
         self.maneuver_name = maneuver_name
@@ -56,11 +63,9 @@ class Waypoint:
 class MissionPlan:
     def __init__(self,
                  plandb_msg,
-                 latlontoutm_service_name,
-                 latlontoutm_service_name_alternative,
+                 auv_config,
                  coverage_swath = None,
                  vehicle_localization_error_growth = None,
-                 plan_frame = 'utm',
                  waypoints=None
                  ):
         """
@@ -72,7 +77,7 @@ class MissionPlan:
         else:
             self.plan_id = 'NOPLAN'
 
-        self.plan_frame = plan_frame
+        self.plan_frame = auv_config.UTM_LINK
         self.coverage_swath = coverage_swath
         self.vehicle_localization_error_growth = vehicle_localization_error_growth
 
@@ -80,13 +85,13 @@ class MissionPlan:
         # if not, test the backup
         # if that fails too, raise exception
         self.no_service = False
-        self.latlontoutm_service_name = latlontoutm_service_name
+        self.latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE
         try:
             rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
         except:
             rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to!")
-            self.latlontoutm_service_name = latlontoutm_service_name_alternative
+            self.latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
             rospy.logwarn("Setting the service to the alternative:{}".format(self.latlontoutm_service_name))
             try:
                 rospy.loginfo("Waiting (10s) lat_lon_to_utm service alternative:{}".format(self.latlontoutm_service_name))
@@ -119,7 +124,6 @@ class MissionPlan:
 
         # state of this plan
         self.plan_is_go = False
-
 
     def latlon_to_utm(self,
                       lat,
@@ -196,9 +200,9 @@ class MissionPlan:
 
                 # convert the IMC enums into SMaRC enums
                 if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
-                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_RPM
+                    speed_unit = GotoWaypoint.SPEED_CONTROL_RPM
                 elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
-                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_SPEED
+                    speed_unit = GotoWaypoint.SPEED_CONTROL_SPEED
                 else:
                     speed_unit = GotoWaypointGoal.SPEED_CONTROL_NONE
                     rospy.logwarn("Speed control of the waypoint is NONE!")
@@ -206,6 +210,8 @@ class MissionPlan:
                 # these are in IMC enums, map to whatever enums the action that will consume
                 # will need when you are publishing it
                 waypoint = Waypoint(
+                    lat = maneuver.lat,
+                    lon = maneuver.lon,
                     maneuver_id = man_id,
                     maneuver_imc_id = man_imc_id,
                     maneuver_name= man_name,
@@ -249,6 +255,8 @@ class MissionPlan:
 
                 for i,point in enumerate(coverage_points):
                     wp = Waypoint(
+                        lat = maneuver.lat,
+                        lon = maneuver.lon,
                         maneuver_id = man_id,
                         maneuver_imc_id = imc_enums.MANEUVER_GOTO,
                         maneuver_name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points)),
@@ -259,7 +267,7 @@ class MissionPlan:
                         speed = maneuver.speed,
                         z_unit = maneuver.z_units,
                         speed_unit = maneuver.speed_units,
-                        extra_data = {}
+                        extra_data = {"poly":maneuver.polygon}
                     )
                     waypoints.append(wp)
 

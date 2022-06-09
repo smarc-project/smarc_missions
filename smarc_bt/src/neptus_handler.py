@@ -219,10 +219,8 @@ class NeptusHandler(object):
 
     def _handle_set_plan(self, plandb_msg):
         # there is a plan we can at least look at
-        mission_plan = MissionPlan(plan_frame = self._config.UTM_LINK,
+        mission_plan = MissionPlan(auv_config = self._config,
                                    plandb_msg = plandb_msg,
-                                   latlontoutm_service_name = self._config.LATLONTOUTM_SERVICE,
-                                   latlontoutm_service_name_alternative = self._config.LATLONTOUTM_SERVICE_ALTERNATIVE,
                                    coverage_swath = self._bb.get(bb_enums.SWATH),
                                    vehicle_localization_error_growth = self._bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH))
 

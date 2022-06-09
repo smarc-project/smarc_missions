@@ -149,11 +149,13 @@ def const_tree(auv_config):
 
         read_reloc_wp = A_ReadWaypoint(
             ps_topic = auv_config.RELOC_WP,
-            bb_key = bb_enums.RELOC_WP)
+            bb_key = bb_enums.RELOC_WP,
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
 
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
-            bb_key = bb_enums.ALGAE_FOLLOW_WP)
+            bb_key = bb_enums.ALGAE_FOLLOW_WP,
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
 
 
         read_lolo = A_ReadLolo(
@@ -236,7 +238,7 @@ def const_tree(auv_config):
                          children = [
                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
                                               message_object = Empty()),
-                             A_GotoWaypoint(action_namespace = auv_config.EMERGENCY_ACTION_NAMESPACE,
+                             A_GotoWaypoint(auv_config = auv_config,
                                             node_name = 'A_EmergencySurface',
                                             goalless = True)
                          ])
@@ -270,8 +272,7 @@ def const_tree(auv_config):
 
     def const_execute_mission_tree():
         # GOTO
-        goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                     goal_tf_frame = auv_config.UTM_LINK)
+        goto_action = A_GotoWaypoint(auv_config = auv_config)
         mission_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
                                  children=[
@@ -282,8 +283,8 @@ def const_tree(auv_config):
 
         # SAMPLE
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
-        sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tf_frame = auv_config.UTM_LINK)
+        sample_action = A_GotoWaypoint(auv_config = auv_config,
+                                       node_name = "A_SampleWaypoint")
         mission_wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
                                  children=[
@@ -291,19 +292,6 @@ def const_tree(auv_config):
                                      sample_action
                                  ])
 
-
-        #############################################################################################
-        # INSPECT
-        #TODO add an inspection maneuver  into bridge and neptus etc.
-        # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
-        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
-        #                                   goal_tf_frame = auv_config.UTM_LINK)
-        # inspection_maneuver = Sequence(name="SQ-InspectWP",
-                                       # children=[
-                                           # wp_is_inspect,
-                                           # inspection_action
-                                       # ])
-        #############################################################################################
 
 
         # put the known plannable maneuvers in here as each others backups
@@ -336,8 +324,7 @@ def const_tree(auv_config):
         reloc_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
                                                bb_key = bb_enums.RELOC_WP)
 
-        goto_reloc_wp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tf_frame = auv_config.UTM_LINK,
+        goto_reloc_wp = A_GotoWaypoint(auv_config = auv_config,
                                        node_name="A_GotoRelocWP",
                                        wp_from_bb = bb_enums.RELOC_WP)
 
@@ -356,8 +343,7 @@ def const_tree(auv_config):
         algae_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
                                                bb_key = bb_enums.ALGAE_FOLLOW_WP)
 
-        follow_algae = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                      goal_tf_frame = auv_config.UTM_LINK,
+        follow_algae = A_GotoWaypoint(auv_config = auv_config,
                                       node_name="A_FollowAlgae",
                                       wp_from_bb = bb_enums.ALGAE_FOLLOW_WP,
                                       live_mode_enabled = True)
@@ -421,8 +407,7 @@ def const_tree(auv_config):
                             planned_mission
                         ])
 
-    manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
-                                        latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE)
+    manual_logging = A_ManualMissionLog(config = auv_config)
 
 
     root = Sequence(name='SQ-ROOT',
