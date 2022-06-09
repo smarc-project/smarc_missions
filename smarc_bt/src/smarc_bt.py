@@ -58,14 +58,6 @@ from bt_common import Sequence, \
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
-                       A_UpdateTF, \
-                       A_EmergencySurface, \
-                       A_UpdateNeptusEstimatedState, \
-                       A_UpdateNeptusPlanControlState, \
-                       A_UpdateNeptusVehicleState, \
-                       A_UpdateNeptusPlanDB, \
-                       A_UpdateNeptusPlanControl, \
-                       A_UpdateMissonForPOI, \
                        A_PublishMissionPlan, \
                        A_FollowLeader, \
                        A_SetDVLRunning, \
@@ -83,6 +75,11 @@ from bt_actions import A_GotoWaypoint, \
 import bb_enums
 import imc_enums
 import common_globals
+
+# packed up object to keep vehicle-state up to date
+# to avoid having a million subscibers inside the tree
+from vehicle import Vehicle
+from neptus_handler import NeptusHandler
 
 def const_tree(auv_config):
     """
@@ -119,28 +116,6 @@ def const_tree(auv_config):
          # max_period = None,
          # allow_silence = True -> If false, will fail if no message is received ever
 
-        read_gps = ReadTopic(
-            name = "A_ReadGPS",
-            topic_name = auv_config.GPS_TOPIC,
-            topic_type = NavSatFix,
-            blackboard_variables = {bb_enums.RAW_GPS:None},
-            allow_silence = False
-        )
-
-        read_alt = ReadTopic(
-            name = "A_ReadDVL",
-            topic_name = auv_config.DVL_TOPIC,
-            topic_type = DVL,
-            blackboard_variables = {bb_enums.ALTITUDE:'altitude',
-                                    bb_enums.DVL_VELOCITY:'velocity'}
-        )
-
-        read_leak = ReadTopic(
-            name = "A_ReadLeak",
-            topic_name = auv_config.LEAK_TOPIC,
-            topic_type = Leak,
-            blackboard_variables = {bb_enums.LEAK:'value'}
-        )
 
         read_detection = ReadTopic(
             name = "A_ReadCameraDetection",
@@ -149,31 +124,6 @@ def const_tree(auv_config):
             blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
         )
 
-        read_latlon = ReadTopic(
-            name = "A_ReadLatlon",
-            topic_name = auv_config.LATLON_TOPIC,
-            topic_type = GeoPoint,
-            blackboard_variables = {bb_enums.CURRENT_LATITUDE : 'latitude',
-                                    bb_enums.CURRENT_LONGITUDE : 'longitude'}
-        )
-        read_roll = ReadTopic(
-            name = "A_ReadRoll",
-            topic_name = auv_config.ROLL_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.ROLL : 'data'}
-        )
-        read_pitch = ReadTopic(
-            name = "A_ReadPitch",
-            topic_name = auv_config.PITCH_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.PITCH : 'data'}
-        )
-        read_yaw = ReadTopic(
-            name = "A_ReadYaw",
-            topic_name = auv_config.YAW_TOPIC,
-            topic_type = Float64,
-            blackboard_variables = {bb_enums.YAW : 'data'}
-        )
 
         read_buoys = A_ReadBuoys(
             topic_name=auv_config.BUOY_TOPIC,
@@ -199,11 +149,13 @@ def const_tree(auv_config):
 
         read_reloc_wp = A_ReadWaypoint(
             ps_topic = auv_config.RELOC_WP,
-            bb_key = bb_enums.RELOC_WP)
+            bb_key = bb_enums.RELOC_WP,
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
 
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
-            bb_key = bb_enums.ALGAE_FOLLOW_WP)
+            bb_key = bb_enums.ALGAE_FOLLOW_WP,
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
 
 
         read_lolo = A_ReadLolo(
@@ -215,28 +167,7 @@ def const_tree(auv_config):
             front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
 
 
-        def const_neptus_tree():
-            update_neptus = Sequence(name="SQ-UpdateNeptus",
-                                     children=[
-                A_UpdateNeptusEstimatedState(auv_config.ESTIMATED_STATE_TOPIC,
-                                             auv_config.GPSFIX_TOPIC,
-                                             auv_config.GPS_NAV_DATA_TOPIC),
-                A_UpdateNeptusPlanControlState(auv_config.PLAN_CONTROL_STATE_TOPIC),
-                A_UpdateNeptusVehicleState(auv_config.VEHICLE_STATE_TOPIC),
-                A_UpdateNeptusPlanDB(auv_config.PLANDB_TOPIC,
-                                     auv_config.UTM_LINK,
-                                     auv_config.LOCAL_LINK,
-                                     auv_config.LATLONTOUTM_SERVICE,
-                                     auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE),
-                A_UpdateNeptusPlanControl(auv_config.PLAN_CONTROL_TOPIC),
-                A_PublishMissionPlan(auv_config.PLAN_VIZ_TOPIC,
-                                     auv_config.PLAN_PATH_TOPIC)
-                                     ])
-            return update_neptus
 
-
-        update_tf = A_UpdateTF(auv_config.UTM_LINK, auv_config.BASE_LINK)
-        neptus_tree = const_neptus_tree()
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
                                               message_object = Empty())
 
@@ -246,18 +177,9 @@ def const_tree(auv_config):
                         blackbox_level=1,
                         children=[
                             read_abort,
-                            read_leak,
-                            read_gps,
-                            read_alt,
                             read_detection,
-                            read_latlon,
-                            read_roll,
-                            read_pitch,
-                            read_yaw,
                             read_buoys,
                             read_lolo,
-                            update_tf,
-                            neptus_tree,
                             publish_heartbeat,
                             read_reloc_enable,
                             read_reloc_wp,
@@ -316,7 +238,9 @@ def const_tree(auv_config):
                          children = [
                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
                                               message_object = Empty()),
-                            A_EmergencySurface(auv_config.EMERGENCY_ACTION_NAMESPACE)
+                             A_GotoWaypoint(auv_config = auv_config,
+                                            node_name = 'A_EmergencySurface',
+                                            goalless = True)
                          ])
 
 
@@ -328,37 +252,6 @@ def const_tree(auv_config):
                             abort
                         ])
 
-
-    def const_leader_follower():
-        return Sequence(name="SQ_LeaderFollower",
-                        children=[
-                            C_LeaderFollowerEnabled(config.ENABLE_LEADER_FOLLOWER),
-                            C_LeaderExists(config.BASE_LINK,
-                                           config.LEADER_LINK),
-                            C_LeaderIsFarEnough(config.BASE_LINK,
-                                                config.LEADER_LINK,
-                                                config.MIN_DISTANCE_TO_LEADER),
-                            A_FollowLeader(config.FOLLOW_ACTION_NAMESPACE,
-                                           config.LEADER_LINK)
-                        ])
-
-
-
-    def const_autonomous_updates():
-        poi_tree = Fallback(name="FB_Poi",
-                            children=[
-                                C_NoNewPOIDetected(common_globals.POI_DIST),
-                                A_UpdateMissonForPOI(auv_config.UTM_LINK,
-                                                     auv_config.LOCAL_LINK,
-                                                     auv_config.POI_DETECTOR_LINK,
-                                                     auv_config.LATLONTOUTM_SERVICE)
-                            ])
-
-        return Fallback(name="FB_AutonomousUpdates",
-                        children=[
-                          C_AutonomyDisabled(),
-                          poi_tree
-                        ])
 
 
     def const_synch_tree():
@@ -379,8 +272,7 @@ def const_tree(auv_config):
 
     def const_execute_mission_tree():
         # GOTO
-        goto_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                     goal_tf_frame = auv_config.UTM_LINK)
+        goto_action = A_GotoWaypoint(auv_config = auv_config)
         mission_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
         goto_maneuver = Sequence(name="SQ-GotoWaypoint",
                                  children=[
@@ -391,8 +283,8 @@ def const_tree(auv_config):
 
         # SAMPLE
         #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
-        sample_action = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tf_frame = auv_config.UTM_LINK)
+        sample_action = A_GotoWaypoint(auv_config = auv_config,
+                                       node_name = "A_SampleWaypoint")
         mission_wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
         sample_maneuver = Sequence(name="SQ-SampleWaypoint",
                                  children=[
@@ -400,19 +292,6 @@ def const_tree(auv_config):
                                      sample_action
                                  ])
 
-
-        #############################################################################################
-        # INSPECT
-        #TODO add an inspection maneuver  into bridge and neptus etc.
-        # wp_is_inspect = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_INSPECT)
-        #inspection_action = A_GotoWaypoint(action_namespace = auv_config.INSPECTION_ACTION_NAMESPACE,
-        #                                   goal_tf_frame = auv_config.UTM_LINK)
-        # inspection_maneuver = Sequence(name="SQ-InspectWP",
-                                       # children=[
-                                           # wp_is_inspect,
-                                           # inspection_action
-                                       # ])
-        #############################################################################################
 
 
         # put the known plannable maneuvers in here as each others backups
@@ -445,8 +324,7 @@ def const_tree(auv_config):
         reloc_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
                                                bb_key = bb_enums.RELOC_WP)
 
-        goto_reloc_wp = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                       goal_tf_frame = auv_config.UTM_LINK,
+        goto_reloc_wp = A_GotoWaypoint(auv_config = auv_config,
                                        node_name="A_GotoRelocWP",
                                        wp_from_bb = bb_enums.RELOC_WP)
 
@@ -465,8 +343,7 @@ def const_tree(auv_config):
         algae_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
                                                bb_key = bb_enums.ALGAE_FOLLOW_WP)
 
-        follow_algae = A_GotoWaypoint(action_namespace = auv_config.ACTION_NAMESPACE,
-                                      goal_tf_frame = auv_config.UTM_LINK,
+        follow_algae = A_GotoWaypoint(auv_config = auv_config,
                                       node_name="A_FollowAlgae",
                                       wp_from_bb = bb_enums.ALGAE_FOLLOW_WP,
                                       live_mode_enabled = True)
@@ -492,13 +369,6 @@ def const_tree(auv_config):
     def const_finalize_mission():
         publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
-
-
-
-        unset_plan_is_go = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.PLAN_IS_GO,
-                                                               variable_value = False,
-                                                               name = 'A_SetPlanIsGo->False')
-
         plan_complete_or_stopped = Fallback(name="FB-PlanCompleteOrStopped",
                                             children=[
                                                       C_PlanCompleted(),
@@ -515,8 +385,7 @@ def const_tree(auv_config):
                                   A_UpdateMissionLog(),
                                   plan_complete_or_stopped,
                                   publish_complete,
-                                  A_SaveMissionLog(),
-                                  unset_plan_is_go
+                                  A_SaveMissionLog()
                         ])
 
     # The root of the tree is here
@@ -536,11 +405,9 @@ def const_tree(auv_config):
                             # finalized,
                             const_finalize_mission(),
                             planned_mission
-                            #  const_leader_follower()
                         ])
 
-    manual_logging = A_ManualMissionLog(latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE,
-                                        latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE)
+    manual_logging = A_ManualMissionLog(config = auv_config)
 
 
     root = Sequence(name='SQ-ROOT',
@@ -556,15 +423,15 @@ def const_tree(auv_config):
 
 
 def main():
-    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-
+    # create a config object that will handle all the rosparams and such
+    # and then auto-generate the launch file from it
     config = AUVConfig()
+    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
     launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
     try:
         config.generate_launch_file(launch_path)
     except Exception as e:
-        print("Did not generate the launch file")
-        print(e)
+        print("Did not generate the launch file, will continue: \n{}".format(e))
 
     # init the node
     rospy.init_node("bt", log_level=rospy.INFO)
@@ -578,54 +445,82 @@ def main():
     # this will update stuff in the BB
     reconfig = ReconfigServer(config)
 
-    try:
-        rospy.loginfo("Constructing tree")
-        tree = const_tree(config)
-        rospy.loginfo("Setting up tree")
-        setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
-        viz = pt.display.ascii_tree(tree.root)
-        rospy.loginfo(viz)
+    # first construct a vehicle that will hold and sub to most things
+    rospy.loginfo("Setting up vehicle")
+    vehicle = Vehicle(config)
+    tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
+    # if for whatever reason the TF is not working, everything else is moot
+    if tf_listener is None:
+        rospy.logerr("TF Listener could not be setup! Exiting!")
+        return
 
-        # this will put it in the ~/.ros folder if run from launch file
-        last_ran_tree_path = 'last_ran_tree.txt'
-        with open(last_ran_tree_path, 'w+') as f:
-            f.write(viz)
-            rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
+    # put the vehicle model inside the bb
+    bb = pt.blackboard.Blackboard()
+    bb.set(bb_enums.VEHICLE_STATE, vehicle)
+
+    # construct the neptus handler that handles talking to neptus
+    # since the BT doesnt really care about the stuff from neptus beyond
+    # signals, it doesnt need these as actions and such
+    neptus_handler = NeptusHandler(config, vehicle, bb)
+
+    # construct the BT with the config and a vehicle model
+    rospy.loginfo("Constructing tree")
+    tree = const_tree(config)
+    rospy.loginfo("Setting up tree")
+    setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+    # make sure the BT is happy
+    if not setup_ok:
+        rospy.logerr("Tree could not be setup! Exiting!")
+        return
 
 
-        if setup_ok:
-            rospy.loginfo(config)
-            rospy.loginfo("Ticktocking....")
-            rate = rospy.Rate(common_globals.BT_TICK_RATE)
+    # write the structure of the tree to file, useful for post-mortem inspections
+    # if needed
+    # this will put it in the ~/.ros folder if run from launch file
+    last_ran_tree_path = 'last_ran_tree.txt'
+    bt_viz = pt.display.ascii_tree(tree.root)
+    with open(last_ran_tree_path, 'w+') as f:
+        f.write(bt_viz)
+        rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
 
-            bb = pt.blackboard.Blackboard()
 
-            while not rospy.is_shutdown():
-                # some info _about the tree_ in the BB.
-                # better do this outside the tree
-                tip = tree.tip()
-                if tip is None:
-                    bb.set(bb_enums.TREE_TIP_NAME, '')
-                    bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
-                else:
-                    bb.set(bb_enums.TREE_TIP_NAME, tip.name)
-                    bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
+    # print out the config and the BT on screen
+    rospy.loginfo(config)
+    rospy.loginfo(bt_viz)
 
-                # an actual tick, finally.
-                tree.tick()
+    # setup the ticking freq and the BlackBoard
+    rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
-                # use py-trees-tree-watcher if you can
-                #  pt.display.print_ascii_tree(tree.root, show_status=True)
-                rate.sleep()
-
+    rospy.loginfo("Ticktocking....")
+    while not rospy.is_shutdown():
+        # some info _about the tree_ in the BB.
+        # better do this outside the tree
+        tip = tree.tip()
+        if tip is None:
+            bb.set(bb_enums.TREE_TIP_NAME, '')
+            bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
         else:
-            rospy.logerr("Tree could not be setup! Exiting!")
+            bb.set(bb_enums.TREE_TIP_NAME, tip.name)
+            bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
 
-    except rospy.ROSInitException:
-        rospy.loginfo("ROS Interrupt")
+        # update the TF of the vehicle first
+        # print(vehicle)
+        vehicle.tick(tf_listener)
+        # print(neptus_handler)
+        neptus_handler.tick()
+        # an actual tick, finally.
+        tree.tick()
+
+        # use py-trees-tree-watcher if you can
+        #  pt.display.print_ascii_tree(tree.root, show_status=True)
+        rate.sleep()
+
 
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except rospy.ROSInitException:
+        rospy.loginfo("ROS Interrupt")
 

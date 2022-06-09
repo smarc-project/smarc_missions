@@ -149,14 +149,12 @@ class FakeNeptus:
             # try a bunch of times to send the plan. 
             # the CI online is really fiddly for some reason, this runs smoothly local...
             for j in range(10):
+                if self.plan_received:
+                    rospy.loginfo("Stopping sending the plan")
+                    return
+                rospy.loginfo("Sending pm")
                 self.plandb_pub.publish(self.pm_ask)
-                time.sleep(1)
-            i += 1
-            if self.plan_received:
-                rospy.loginfo("Stopping sending the plan")
-                return
-            if i > 5:
-                return
+                time.sleep(0.5)
 
     def start_plan(self):
         while not self.vehicle_state == STATE_EXECUTING and not rospy.is_shutdown():
@@ -231,8 +229,11 @@ class TestMonitorPlan(unittest.TestCase):
 
         # after some 5x#waypoints seconds, the mission should be complete
         # hardcoded 2 waypoints right now
-        rospy.loginfo("Waiting for the mission...")
-        time.sleep(11)
+        for i in range(10):
+            rospy.loginfo("Waiting for the mission...")
+            time.sleep(1)
+            if rospy.is_shutdown():
+                break
 
 
         # XXX this part can be changed to test for different things depending on the mission

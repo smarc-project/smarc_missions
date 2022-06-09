@@ -155,16 +155,15 @@ class MissionLog:
         self.swath = bb.get(bb_enums.SWATH)
         self.loc_uncertainty_growth = bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH)
 
+        vehicle = bb.get(bb_enums.VEHICLE_STATE)
+
         # first add the auv pose
-        world_trans = bb.get(bb_enums.WORLD_TRANS)
-        x,y = world_trans[0], world_trans[1]
-        z = -bb.get(bb_enums.DEPTH)
-        roll = bb.get(bb_enums.ROLL)
-        pitch = bb.get(bb_enums.PITCH)
-        yaw = bb.get(bb_enums.YAW)
+        x,y = vehicle.position_utm
+        z = -vehicle.depth
+        roll, pitch, yaw = vehicle.orientation_rpy
         self.navigation_trace.append((x,y,z, roll,pitch,yaw))
 
-        point = bb.get(bb_enums.LOCATION_POINT_STAMPED)
+        point = vehicle.position_point_stamped
         ps = PoseStamped()
         ps.header = point.header
         ps.pose.position.x = point.point.x
@@ -174,14 +173,14 @@ class MissionLog:
         self.path_pub.publish(self.path_msg)
 
         # velocities from dvl
-        vel_msg = bb.get(bb_enums.DVL_VELOCITY)
+        vel_msg = vehicle.dvl_velocity_msg
         vels = (vel_msg.x, vel_msg.y, vel_msg.z)
         self.velocity_trace.append(vels)
 
 
         # then add the raw gps
         # but only if it is diffeent than the previous one?
-        gps = bb.get(bb_enums.RAW_GPS)
+        gps = vehicle.raw_gps_obj
         if gps is None or gps.status.status == -1 or abs(time.time() - gps.header.stamp.secs) > 10: # no fix
             self.raw_gps_latlon_trace.append(None)
             gps_utm_point = None
@@ -210,9 +209,10 @@ class MissionLog:
         self.time_trace.append(t)
 
         # simple enough
-        alt = bb.get(bb_enums.ALTITUDE)
+        alt = vehicle.altitude
         self.altitude_trace.append(alt)
 
+        # publish some visualization stuffs for rviz
         ps = PoseStamped()
         ps.header = point.header
         ps.pose.position.x = point.point.x
@@ -233,12 +233,13 @@ class MissionLog:
                 self.plan_msg.poses.append(ps)
             self.plan_pub.publish(self.plan_msg)
 
-        current_loc = bb.get(bb_enums.WORLD_TRANS)
+        current_loc = vehicle.position_utm
         mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None and current_loc is not None:
             wp = mplan.get_current_wp()
             if wp is not None:
-                x,y,z = current_loc
+                x,y = current_loc
+                z = -vehicle.depth
 
                 arrow = Marker()
                 arrow.header.frame_id = 'utm'
@@ -366,14 +367,14 @@ if __name__ == '__main__':
     with open(filename, 'r') as f:
         data = json.load(f)
 
-    nav_trace = np.array(data['navigation_trace'])
+    nav_trace = np.array(data['navigation_trace']).astype(float)
     loc_trace = nav_trace[:,:3]
     roll_trace = nav_trace[:,3]
     pitch_trace = nav_trace[:,4]
     yaw_trace = nav_trace[:,5]
+    altitude_trace = np.array(data['altitude_trace']).astype(float)
     gps_trace = np.array(data['raw_gps_trace'])
     mplan = np.array(data['mission_plan_wps'])
-    altitude_trace = np.array(data['altitude_trace'])
     swath = data.get('swath', 20)
     err_growth = data.get('loc_uncertainty_growth',0.1)
 
@@ -381,26 +382,32 @@ if __name__ == '__main__':
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    origin = np.array(list(loc_trace[0]))
-    #center on first nav point
-    loc_trace -= origin
-    ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='green')
-    ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2], "S")
-    ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2], "E")
+    if loc_trace is not None:
+        origin = np.array(list(loc_trace[0]))
+        #center on first nav point
+        loc_trace -= origin
+        ax.plot(loc_trace[:,0], loc_trace[:,1], loc_trace[:,2], c='green')
+        ax.text(loc_trace[0,0], loc_trace[0,1], loc_trace[0,2], "S")
+        ax.text(loc_trace[-1,0], loc_trace[-1,1], loc_trace[-1,2], "E")
+    else:
+        print("Loc trace was None")
 
-    rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
-    rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
-    rot_vecs_z = np.sin(pitch_trace)
-    rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
-    step = 9
-    ax.quiver(loc_trace[::step, 0],
-              loc_trace[::step, 1],
-              loc_trace[::step, 2],
-              rot_vecs[::step, 0],
-              rot_vecs[::step, 1],
-              rot_vecs[::step, 2],
-              length = 1,
-              color='green')
+    if yaw_trace is not None and pitch_trace is not None:
+        rot_vecs_x = np.cos(yaw_trace) * np.cos(pitch_trace)
+        rot_vecs_y = np.sin(yaw_trace) * np.cos(pitch_trace)
+        rot_vecs_z = np.sin(pitch_trace)
+        rot_vecs = np.vstack([rot_vecs_x, rot_vecs_y, rot_vecs_z]).T
+        step = 9
+        ax.quiver(loc_trace[::step, 0],
+                  loc_trace[::step, 1],
+                  loc_trace[::step, 2],
+                  rot_vecs[::step, 0],
+                  rot_vecs[::step, 1],
+                  rot_vecs[::step, 2],
+                  length = 1,
+                  color='green')
+    else:
+        print("Yaw or pitch traces were None")
 
 
     if not no_bottom:

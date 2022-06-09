@@ -242,23 +242,23 @@ class WPDepthPlanner(object):
         self.start_time = time.time()
 
         #success = True
-        self.nav_goal = goal.waypoint_pose.pose
-        self.nav_goal_frame = goal.waypoint_pose.header.frame_id
+        self.nav_goal = goal.waypoint.pose.pose
+        self.nav_goal_frame = goal.waypoint.pose.header.frame_id
         if self.nav_goal_frame is None or self.nav_goal_frame == '':
             rospy.logwarn("Goal has no frame id! Using utm by default")
             self.nav_goal_frame = 'utm' #'utm'
 
-        self.nav_goal.position.z = goal.travel_depth # assign waypoint depth from neptus, goal.z is 0.
-        if goal.speed_control_mode == GotoWaypointGoal.SPEED_CONTROL_SPEED: #2:
+        self.nav_goal.position.z = goal.waypoint.travel_depth # assign waypoint depth from neptus, goal.z is 0.
+        if goal.waypoint.speed_control_mode == GotoWaypointGoal.waypoint.SPEED_CONTROL_SPEED: #2:
             self.vel_ctrl_flag = True # check if NEPTUS sets a velocity
-        elif goal.speed_control_mode == GotoWaypointGoal.SPEED_CONTROL_RPM: # 1:
+        elif goal.waypoint.speed_control_mode == GotoWaypointGoal.waypoint.SPEED_CONTROL_RPM: # 1: 
             self.vel_ctrl_flag = False # use RPM ctrl
-            self.forward_rpm = goal.travel_rpm #take rpm from NEPTUS
+            self.forward_rpm = goal.waypoint.travel_rpm #take rpm from NEPTUS
 
         #get wp goal tolerance from Neptus
-        if goal.goal_tolerance:
-            self.wp_tolerance = goal.goal_tolerance #take the goal tolerance from Neptus if it exists!
-            rospy.loginfo_throttle(5,'Using Goal tolerance from neptus:'+ str(goal.goal_tolerance))
+        if goal.waypoint.goal_tolerance:
+            self.wp_tolerance = goal.waypoint.goal_tolerance #take the goal tolerance from Neptus if it exists!
+            rospy.loginfo_throttle(5,'Using Goal tolerance from neptus:'+ str(goal.waypoint.goal_tolerance))
 
         if self.use_constant_rpm: #overriding neptus values
             self.vel_ctrl_flag = False #use constant rpm
@@ -392,27 +392,34 @@ class WPDepthPlanner(object):
             else:
                 wp_is_close = False'''
                 
-            if self.turbo_turn_flag:
-            #if turbo turn is included, turbo turn at large yaw deviations
-                if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
-                    rospy.loginfo("Yaw error: %f", yaw_error)
-                    #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
-                    self.toggle_yaw_ctrl.toggle(False)
-                    self.toggle_speed_ctrl.toggle(False)
-                    self.turbo_turn(yaw_error)
-                    self.toggle_depth_ctrl.toggle(False)
-                    self.toggle_vbs_ctrl.toggle(True)
-                    #self.depth_pub.publish(depth_setpoint) #Already
+
+                if self.turbo_turn_flag:
+                #if turbo turn is included, turbo turn at large yaw deviations
+                    if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
+                        rospy.loginfo("Yaw error: %f", yaw_error)
+                        #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
+                        self.toggle_yaw_ctrl.toggle(False)
+                        self.toggle_speed_ctrl.toggle(False)
+                        self.turbo_turn(yaw_error)
+                        self.toggle_depth_ctrl.toggle(False)
+                        self.toggle_vbs_ctrl.toggle(True)
+                        #self.depth_pub.publish(depth_setpoint) #Already
+                    else:
+                    #if it is outside the turboturning range
+                        if self.vel_ctrl_flag:
+                            self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
+                        else:
+                            self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
                 else:
                 #if it is outside the turboturning range
                     if self.vel_ctrl_flag:
-                        self.vel_wp_following(goal.travel_speed, yaw_setpoint)
+                        self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
                     else:
                         self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
             else:
                 #if it is not turboturning
                 if self.vel_ctrl_flag:
-                    self.vel_wp_following(goal.travel_speed, yaw_setpoint)
+                    self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
                 else:
                     self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
 
