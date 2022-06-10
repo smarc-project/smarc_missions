@@ -80,7 +80,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
 
 
         if self.last_read_ps is not None:
-            pos = self.last_read_ps.waypoint.pose.pose.position
+            pos = self.last_read_ps.pose.pose.position
 
             if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
                 speed = self.last_read_ps.travel_rpm
@@ -115,7 +115,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                 z_unit = self.last_read_ps.z_control_mode,
                 speed = speed,
                 speed_unit = self.last_read_ps.speed_control_mode,
-                tf_frame = self.last_read_ps.waypoint.pose.header.frame_id,
+                tf_frame = self.last_read_ps.pose.header.frame_id,
                 extra_data = None)
 
             if wp.tf_frame != 'utm':
