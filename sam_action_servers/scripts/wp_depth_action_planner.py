@@ -249,9 +249,9 @@ class WPDepthPlanner(object):
             self.nav_goal_frame = 'utm' #'utm'
 
         self.nav_goal.position.z = goal.waypoint.travel_depth # assign waypoint depth from neptus, goal.z is 0.
-        if goal.waypoint.speed_control_mode == GotoWaypointGoal.waypoint.SPEED_CONTROL_SPEED: #2:
+        if goal.waypoint.speed_control_mode == 2: #GotoWaypointGoal.SPEED_CONTROL_SPEED: #2:
             self.vel_ctrl_flag = True # check if NEPTUS sets a velocity
-        elif goal.waypoint.speed_control_mode == GotoWaypointGoal.waypoint.SPEED_CONTROL_RPM: # 1: 
+        elif goal.waypoint.speed_control_mode == 1: #GotoWaypointGoal.SPEED_CONTROL_RPM: # 1: 
             self.vel_ctrl_flag = False # use RPM ctrl
             self.forward_rpm = goal.waypoint.travel_rpm #take rpm from NEPTUS
 
@@ -393,23 +393,17 @@ class WPDepthPlanner(object):
                 wp_is_close = False'''
                 
 
-                if self.turbo_turn_flag:
-                #if turbo turn is included, turbo turn at large yaw deviations
-                    if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
-                        rospy.loginfo("Yaw error: %f", yaw_error)
-                        #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
-                        self.toggle_yaw_ctrl.toggle(False)
-                        self.toggle_speed_ctrl.toggle(False)
-                        self.turbo_turn(yaw_error)
-                        self.toggle_depth_ctrl.toggle(False)
-                        self.toggle_vbs_ctrl.toggle(True)
-                        #self.depth_pub.publish(depth_setpoint) #Already
-                    else:
-                    #if it is outside the turboturning range
-                        if self.vel_ctrl_flag:
-                            self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
-                        else:
-                            self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
+            if self.turbo_turn_flag:
+            #if turbo turn is included, turbo turn at large yaw deviations
+                if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
+                    rospy.loginfo("Yaw error: %f", yaw_error)
+                    #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
+                    self.toggle_yaw_ctrl.toggle(False)
+                    self.toggle_speed_ctrl.toggle(False)
+                    self.turbo_turn(yaw_error)
+                    self.toggle_depth_ctrl.toggle(False)
+                    self.toggle_vbs_ctrl.toggle(True)
+                    #self.depth_pub.publish(depth_setpoint) #Already
                 else:
                 #if it is outside the turboturning range
                     if self.vel_ctrl_flag:
