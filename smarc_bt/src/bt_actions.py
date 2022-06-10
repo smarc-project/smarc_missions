@@ -743,7 +743,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             goal_pos = self.action_goal.waypoint.pose.pose.position
             xdiff = abs(goal_pos.x - wp.x)
             ydiff = abs(goal_pos.y - wp.y)
-            goal_z = self.action_goal.travel_depth
+            goal_z = self.action_goal.waypoint.travel_depth
             zdiff = abs(goal_z - wp.z)
             # if there is sufficient change in the wp from the previous one
             # update the goal
