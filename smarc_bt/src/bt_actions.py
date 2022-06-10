@@ -80,7 +80,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
 
 
         if self.last_read_ps is not None:
-            pos = self.last_read_ps.waypoint_pose.pose.position
+            pos = self.last_read_ps.waypoint.pose.pose.position
 
             if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
                 speed = self.last_read_ps.travel_rpm
@@ -115,7 +115,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                 z_unit = self.last_read_ps.z_control_mode,
                 speed = speed,
                 speed_unit = self.last_read_ps.speed_control_mode,
-                tf_frame = self.last_read_ps.waypoint_pose.header.frame_id,
+                tf_frame = self.last_read_ps.waypoint.pose.header.frame_id,
                 extra_data = None)
 
             if wp.tf_frame != 'utm':
@@ -740,7 +740,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
             # make sure it is not the exact same wp
             # before making and sending a goal
-            goal_pos = self.action_goal.waypoint_pose.pose.position
+            goal_pos = self.action_goal.waypoint.pose.pose.position
             xdiff = abs(goal_pos.x - wp.x)
             ydiff = abs(goal_pos.y - wp.y)
             goal_z = self.action_goal.travel_depth
