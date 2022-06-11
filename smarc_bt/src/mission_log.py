@@ -158,23 +158,37 @@ class MissionLog:
         vehicle = bb.get(bb_enums.VEHICLE_STATE)
 
         # first add the auv pose
-        x,y = vehicle.position_utm
-        z = -vehicle.depth
-        roll, pitch, yaw = vehicle.orientation_rpy
-        self.navigation_trace.append((x,y,z, roll,pitch,yaw))
+        try:
+            x,y = vehicle.position_utm
+            z = -vehicle.depth
+            roll, pitch, yaw = vehicle.orientation_rpy
+            pose = (x,y,z, roll,pitch,yaw)
+        except Exception as e:
+            rospy.logerr("Error when getting vehicle pose:\n{}".format(e))
+            rospy.logerr("The vehicle doesnt know where it is, is DR working ok?")
+            pose = (None,None,None,None,None,None)
+        self.navigation_trace.append(pose)
 
-        point = vehicle.position_point_stamped
-        ps = PoseStamped()
-        ps.header = point.header
-        ps.pose.position.x = point.point.x
-        ps.pose.position.y = point.point.y
-        ps.pose.position.z = point.point.z
-        self.path_msg.poses.append(ps)
-        self.path_pub.publish(self.path_msg)
+        try:
+            point = vehicle.position_point_stamped
+            ps = PoseStamped()
+            ps.header = point.header
+            ps.pose.position.x = point.point.x
+            ps.pose.position.y = point.point.y
+            ps.pose.position.z = point.point.z
+            self.path_msg.poses.append(ps)
+            self.path_pub.publish(self.path_msg)
+        except Exception as e:
+            rospy.logwarn("E when trying to publish vehicle path:\n{}".format(e))
+            pass
 
         # velocities from dvl
         vel_msg = vehicle.dvl_velocity_msg
-        vels = (vel_msg.x, vel_msg.y, vel_msg.z)
+        if vel_msg is None:
+            rospy.logwarn("The vehicle has no DVL message received! Is the DVL alive?")
+            vels = (None, None, None)
+        else:
+            vels = (vel_msg.x, vel_msg.y, vel_msg.z)
         self.velocity_trace.append(vels)
 
 
@@ -237,7 +251,12 @@ class MissionLog:
         mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None and current_loc is not None:
             wp = mplan.get_current_wp()
-            if wp is not None:
+
+            current_wp = vehicle.last_goto_wp
+            if current_wp is not None:
+                wp = current_wp
+
+            try:
                 x,y = current_loc
                 z = -vehicle.depth
 
@@ -264,6 +283,8 @@ class MissionLog:
                 p2.z = wp.z
                 arrow.points = [p1,p2]
                 self.target_pub.publish(arrow)
+            except:
+                pass
 
 
 

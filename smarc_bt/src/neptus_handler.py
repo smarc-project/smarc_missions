@@ -321,10 +321,10 @@ class NeptusHandler(object):
         if typee==0 and op==0 and plan_id!='' and flags==1:
             # start button
             # check if the start was given for our current plan
-            current_mission_plan.plan_is_go = True
             self._bb.set(bb_enums.ENABLE_AUTONOMY, False)
             if current_mission_plan is not None and plan_id == current_mission_plan.plan_id:
                 rospy.loginfo("Started plan:{}".format(plan_id))
+                current_mission_plan.plan_is_go = True
             else:
                 if current_mission_plan is None:
                     rospy.logwarn("Start given for plan:{} but we don't have a plan!".format(plan_id))
@@ -333,7 +333,8 @@ class NeptusHandler(object):
 
         if typee==0 and op==1 and plan_id=='' and flags==1:
             # stop button
-            current_mission_plan.plan_is_go = False
+            if current_mission_plan is not None:
+                current_mission_plan.plan_is_go = False
             self._bb.set(bb_enums.ENABLE_AUTONOMY, False)
 
         # this string is hardcoded in Neptus, so we hardcode it here too!
