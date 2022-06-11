@@ -170,14 +170,17 @@ class MissionLog:
         self.navigation_trace.append(pose)
 
         try:
-        point = vehicle.position_point_stamped
-        ps = PoseStamped()
-        ps.header = point.header
-        ps.pose.position.x = point.point.x
-        ps.pose.position.y = point.point.y
-        ps.pose.position.z = point.point.z
-        self.path_msg.poses.append(ps)
-        self.path_pub.publish(self.path_msg)
+            point = vehicle.position_point_stamped
+            ps = PoseStamped()
+            ps.header = point.header
+            ps.pose.position.x = point.point.x
+            ps.pose.position.y = point.point.y
+            ps.pose.position.z = point.point.z
+            self.path_msg.poses.append(ps)
+            self.path_pub.publish(self.path_msg)
+        except Exception as e:
+            rospy.logwarn("E when trying to publish vehicle path:\n{}".format(e))
+            pass
 
         # velocities from dvl
         vel_msg = vehicle.dvl_velocity_msg

@@ -215,12 +215,20 @@ class TestMonitorPlan(unittest.TestCase):
         rospy.loginfo("BT is living!")
 
 
+
         # once gps and actionsrever are there, we can start neptus
         fake_neptus = FakeNeptus()
         # and send a plan
+        last_hb_count = self.heartbeats_received
+        t0 = time.time()
         fake_neptus.send_and_ask_ack()
 
-        self.assert_(fake_neptus.plan_received, "Plan not received by the BT within 10 trials!")
+        diff = self.heartbeats_received - last_hb_count
+        time_diff = time.time() - t0
+        self.assert_(diff > 0, "The BT stopped hearbeats after send_and_ask_ack, hb_diff:{}, time_diff:{}\n Likely a crash of the BT...run local CI!".format(diff, time_diff))
+
+
+        self.assert_(fake_neptus.plan_received, "Plan not received by the BT!")
 
         if fake_neptus.plan_received:
             rospy.loginfo("Got ACK from BT")
