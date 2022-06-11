@@ -448,11 +448,17 @@ def main():
     # first construct a vehicle that will hold and sub to most things
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
-    tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
-    # if for whatever reason the TF is not working, everything else is moot
-    if tf_listener is None:
-        rospy.logerr("TF Listener could not be setup! Exiting!")
-        return
+    tf_listener = None
+    while tf_listener is None:
+        try:
+            tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
+        except Exception as e:
+            tf_listener = None
+            rospy.logerr("Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
+
+        if tf_listener is None:
+            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? \n retrying in 5s.")
+            sleep(5)
 
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
@@ -467,11 +473,13 @@ def main():
     rospy.loginfo("Constructing tree")
     tree = const_tree(config)
     rospy.loginfo("Setting up tree")
-    setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+    setup_ok = False
     # make sure the BT is happy
-    if not setup_ok:
-        rospy.logerr("Tree could not be setup! Exiting!")
-        return
+    while not setup_ok:
+        setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+        if not setup_ok:
+            rospy.logerr("Tree could not be setup! Retrying in 5s!")
+            sleep(5)
 
 
     # write the structure of the tree to file, useful for post-mortem inspections
