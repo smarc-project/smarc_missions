@@ -22,7 +22,7 @@ class RPMRepub(object):
             rospy.loginfo_throttle(5,'rpm ctrl disabled')
 
         else:
-            self.enable_flag = False
+            self.enable_flag = True
             rospy.loginfo_throttle(5,'rpm ctrl enabled')
 
     def __init__(self, name):
