@@ -150,12 +150,14 @@ def const_tree(auv_config):
         read_reloc_wp = A_ReadWaypoint(
             ps_topic = auv_config.RELOC_WP,
             bb_key = bb_enums.RELOC_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
             bb_key = bb_enums.ALGAE_FOLLOW_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
 
         read_lolo = A_ReadLolo(
@@ -326,7 +328,8 @@ def const_tree(auv_config):
 
         goto_reloc_wp = A_GotoWaypoint(auv_config = auv_config,
                                        node_name="A_GotoRelocWP",
-                                       wp_from_bb = bb_enums.RELOC_WP)
+                                       wp_from_bb = bb_enums.RELOC_WP,
+                                       live_mode_enabled=True)
 
         reloc_tree = Sequence(name="SQ-Relocalize",
                               children=[
