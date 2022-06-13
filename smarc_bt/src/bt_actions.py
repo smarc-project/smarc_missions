@@ -92,7 +92,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
             lon = 0
             if self.got_service:
                 try:
-                    serv = rospy.ServiceProxy(self.utm_to_lat_lon_service, UTMToLatLon)
+                    serv = rospy.ServiceProxy(self.utm_to_lat_lon_service_name, UTMToLatLon)
                     p = Point()
                     p.x = pos.x
                     p.y = pos.y
