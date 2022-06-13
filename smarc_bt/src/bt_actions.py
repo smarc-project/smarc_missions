@@ -15,7 +15,7 @@ import tf
 import actionlib
 
 from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
-from smarc_msgs.srv import UTMToLatLon
+from smarc_msgs.srv import UTMToLatLon, LatLonToUTM
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
 from nav_msgs.msg import Path
@@ -41,6 +41,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                  ps_topic,
                  bb_key,
                  utm_to_lat_lon_service_name,
+                 lat_lon_to_utm_service_name,
                  reset = False):
         """
         subs to a GotoWaypoint topic and read it into the given bb variable
@@ -53,7 +54,9 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         self.last_read_time = None
         self.bb_key = bb_key
         self.utm_to_lat_lon_service_name = utm_to_lat_lon_service_name
-        self.got_service = False
+        self.lat_lon_to_utm_service_name = lat_lon_to_utm_service_name
+        self.got_utm_service = False
+        self.got_latlon_service = False
         self.reset = reset
 
 
@@ -62,9 +65,16 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         try:
             rospy.loginfo("Waiting for utm to latlon service")
             rospy.wait_for_service(self.utm_to_lat_lon_service_name, timeout=timeout)
-            self.got_service = True
+            self.got_utm_service = True
         except:
             rospy.logwarn("Could not connect to {}, live WPs wont be updated in the map".format(self.utm_to_lat_lon_service_name))
+
+        try:
+            rospy.loginfo("Waiting for latlon to utm service")
+            rospy.wait_for_service(self.lat_lon_to_utm_service_name, timeout=timeout)
+            self.got_latlon_service = True
+        except:
+            rospy.logwarn("Could not connect to {}, we cant read WPs from a GUI".format(self.lat_lon_to_utm_service_name))
         return True
 
     def cb(self, msg):
@@ -78,24 +88,51 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         else:
             self.feedback_message = "No msg rcvd"
 
-
-        if self.last_read_ps is not None:
-            pos = self.last_read_ps.pose.pose.position
-
-            if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
-                speed = self.last_read_ps.travel_rpm
-            else:
-                speed = self.last_read_ps.travel_speed
+        if self.last_read_ps is None:
+            return pt.Status.SUCCESS
 
 
-            lat = 0
-            lon = 0
-            if self.got_service:
+        pos = self.last_read_ps.pose.pose.position
+        frame_id = self.last_read_ps.pose.header.frame_id
+
+        if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
+            speed = self.last_read_ps.travel_rpm
+        else:
+            speed = self.last_read_ps.travel_speed
+
+
+        # by default, use the ones in the message...
+        lat = self.last_read_ps.lat
+        lon = self.last_read_ps.lon
+        x = pos.x
+        y = pos.y
+        # given a latlon point, convert to utm for the controllers
+        if frame_id == "latlon":
+            if not self.got_latlon_service:
+                self.feedback_message = "Given a latlon point but got no service!"
+                return pt.Status.FAILURE
+            try:
+                serv = rospy.ServiceProxy(self.lat_lon_to_utm_service_name, LatLonToUTM)
+                gp = GeoPoint()
+                gp.latitude = lat
+                gp.longitude = lon
+                gp.altitude = pos.z
+                res = serv(gp)
+                x = res.utm_point.x
+                y = res.utm_point.y
+            except Exception as e:
+                print(e)
+                return pt.Status.FAILURE
+
+
+        # given a utm point, convert to latlon for any guis
+        if frame_id == 'utm':
+            if self.got_utm_service:
                 try:
-                    serv = rospy.ServiceProxy(self.utm_to_lat_lon_service, UTMToLatLon)
+                    serv = rospy.ServiceProxy(self.utm_to_lat_lon_service_name, UTMToLatLon)
                     p = Point()
-                    p.x = pos.x
-                    p.y = pos.y
+                    p.x = x
+                    p.y = y
                     p.z = pos.z
                     res = serv(p)
                     lat = res.lat_lon_point.latitude
@@ -103,25 +140,28 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                 except Exception as e:
                     print(e)
 
-            wp = Waypoint(
-                lat = lat,
-                lon = lon,
-                maneuver_id = 'unplanned_goto',
-                maneuver_imc_id = imc_enums.MANEUVER_GOTO,
-                maneuver_name = 'unplanned_goto',
-                x = pos.x,
-                y = pos.y,
-                z = pos.z,
-                z_unit = self.last_read_ps.z_control_mode,
-                speed = speed,
-                speed_unit = self.last_read_ps.speed_control_mode,
-                tf_frame = self.last_read_ps.pose.header.frame_id,
-                extra_data = None)
+        # make one WP that has both
+        wp = Waypoint(
+            lat = lat,
+            lon = lon,
+            maneuver_id = 'unplanned_goto',
+            maneuver_imc_id = imc_enums.MANEUVER_GOTO,
+            maneuver_name = 'unplanned_goto',
+            x = x,
+            y = y,
+            z = pos.z,
+            z_unit = self.last_read_ps.z_control_mode,
+            speed = speed,
+            speed_unit = self.last_read_ps.speed_control_mode,
+            tf_frame = 'utm',
+            extra_data = None)
 
-            if wp.tf_frame != 'utm':
-                rospy.logwarn("Unplanned WP is not in UTM frame? It is:{}".format(wp.tf_frame))
+        if wp.lat == 0 and wp.lon == 0 and wp.x == 0 and wp.y == 0:
+            self.feedback_message = "Empty wp!"
+            return pt.Status.SUCCESS
 
-            self.bb.set(self.bb_key, wp)
+
+        self.bb.set(self.bb_key, wp)
 
 
         if self.reset:
