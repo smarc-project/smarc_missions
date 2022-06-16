@@ -140,6 +140,16 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                 except Exception as e:
                     print(e)
 
+        zcm = self.last_read_ps.z_control_mode
+        if zcm == GotoWaypoint.Z_CONTROL_DEPTH:
+            z = self.last_read_ps.travel_depth
+        elif zcm == GotoWaypoint.Z_CONTROL_ALTITUDE:
+            z = self.last_read_ps.travel_altitude
+        else:
+            rospy.logwarn("Z control mode of the WP is not understood, z=0 depth is set!")
+            zcm = GotoWaypoint.Z_CONTROL_DEPTH
+            z = 0
+
         # make one WP that has both
         wp = Waypoint(
             lat = lat,
@@ -149,8 +159,8 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
             maneuver_name = 'unplanned_goto',
             x = x,
             y = y,
-            z = pos.z,
-            z_unit = self.last_read_ps.z_control_mode,
+            z = z,
+            z_unit = zcm,
             speed = speed,
             speed_unit = self.last_read_ps.speed_control_mode,
             tf_frame = 'utm',
