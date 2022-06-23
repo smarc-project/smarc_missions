@@ -3,7 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-import os
+import os, time
 
 import rospy
 
