@@ -461,7 +461,7 @@ def main():
 
         if tf_listener is None:
             rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? \n retrying in 5s.")
-            sleep(5)
+            time.sleep(5)
 
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
