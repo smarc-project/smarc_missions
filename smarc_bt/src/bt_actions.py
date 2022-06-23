@@ -50,7 +50,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
 
         self.bb = pt.blackboard.Blackboard()
         self.ps_topic = ps_topic
-        self.last_read_ps = None
+        self.last_read_wp = None
         self.last_read_time = None
         self.bb_key = bb_key
         self.utm_to_lat_lon_service_name = utm_to_lat_lon_service_name
@@ -78,7 +78,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         return True
 
     def cb(self, msg):
-        self.last_read_ps = msg
+        self.last_read_wp = msg
         self.last_read_time = time.time()
 
     def update(self):
@@ -88,22 +88,22 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         else:
             self.feedback_message = "No msg rcvd"
 
-        if self.last_read_ps is None:
+        if self.last_read_wp is None:
             return pt.Status.SUCCESS
 
 
-        pos = self.last_read_ps.pose.pose.position
-        frame_id = self.last_read_ps.pose.header.frame_id
+        pos = self.last_read_wp.pose.pose.position
+        frame_id = self.last_read_wp.pose.header.frame_id
 
-        if self.last_read_ps.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
-            speed = self.last_read_ps.travel_rpm
+        if self.last_read_wp.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
+            speed = self.last_read_wp.travel_rpm
         else:
-            speed = self.last_read_ps.travel_speed
+            speed = self.last_read_wp.travel_speed
 
 
         # by default, use the ones in the message...
-        lat = self.last_read_ps.lat
-        lon = self.last_read_ps.lon
+        lat = self.last_read_wp.lat
+        lon = self.last_read_wp.lon
         x = pos.x
         y = pos.y
         # given a latlon point, convert to utm for the controllers
@@ -140,11 +140,11 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                 except Exception as e:
                     print(e)
 
-        zcm = self.last_read_ps.z_control_mode
+        zcm = self.last_read_wp.z_control_mode
         if zcm == GotoWaypoint.Z_CONTROL_DEPTH:
-            z = self.last_read_ps.travel_depth
+            z = self.last_read_wp.travel_depth
         elif zcm == GotoWaypoint.Z_CONTROL_ALTITUDE:
-            z = self.last_read_ps.travel_altitude
+            z = self.last_read_wp.travel_altitude
         else:
             rospy.logwarn("Z control mode of the WP is not understood, z=0 depth is set!")
             zcm = GotoWaypoint.Z_CONTROL_DEPTH
@@ -162,7 +162,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
             z = z,
             z_unit = zcm,
             speed = speed,
-            speed_unit = self.last_read_ps.speed_control_mode,
+            speed_unit = self.last_read_wp.speed_control_mode,
             tf_frame = 'utm',
             extra_data = None)
 
@@ -175,7 +175,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
 
 
         if self.reset:
-            self.last_read_ps = None
+            self.last_read_wp = None
             self.bb.set(self.bb_key, None)
 
         return pt.Status.SUCCESS
@@ -795,10 +795,16 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             ydiff = abs(goal_pos.y - wp.y)
             goal_z = self.action_goal.waypoint.travel_depth
             zdiff = abs(goal_z - wp.z)
+
+            if wp.speed_unit == GotoWaypoint.SPEED_CONTROL_RPM:
+                speed_diff = abs(self.action_goal.waypoint.travel_rpm - wp.speed)
+            else:
+                speed_diff = abs(self.action_goal.waypoint.travel_speed - wp.speed)
+
             # if there is sufficient change in the wp from the previous one
             # update the goal
             # XXX maybe make the 0.5s a dynamic reconfig thing?
-            if any([xdiff > 0.5, ydiff > 0.5, zdiff > 0.5]):
+            if any([xdiff > 0.5, ydiff > 0.5, zdiff > 0.5, speed_diff > 0]):
                 self.action_goal = self.make_goal_from_wp(wp)
                 self.send_goal()
                 self.last_live_update_time = time.time()
