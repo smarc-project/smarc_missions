@@ -122,7 +122,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         wp.wp.pose.header.frame_id = 'utm'
 
 
-        if not wp.is_actionable():
+        if not wp.is_actionable:
             self.feedback_message = "Empty wp!"
             return pt.Status.SUCCESS
 
@@ -722,7 +722,10 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             # make sure it is not the exact same wp
             # before making and sending a goal
             if wp.is_too_similar_to_other(self.action_goal.waypoint):
-                self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
+                if self.last_live_update_time < 5:
+                    self.feedback_message = "Live updated just now"
+                else:
+                    self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
             else:
                 self.action_goal = self.make_goal_from_wp(wp)
                 self.send_goal()
@@ -743,7 +746,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                     h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
                     h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
                     v_dist = wp.depth - self.vehicle.depth
-                    self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
+                    self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.wp.name)
 
         return pt.Status.RUNNING
 

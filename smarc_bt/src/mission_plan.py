@@ -68,6 +68,7 @@ class Waypoint:
         self.wp = goto_waypoint
         self.extra_data = extra_data
 
+
     def set_utm_from_latlon(self, lat_lon_to_utm_serv):
         gp = GeoPoint()
         gp.latitude = self.wp.lat
@@ -120,13 +121,13 @@ class Waypoint:
             if self.wp.speed_control_mode == GotoWaypoint.SPEED_CONTROL_SPEED:
                 speed_too_close = abs(self.wp.travel_speed - other_wp.travel_speed) < speed_tolerance
 
-        xy_dist = math.sqrt( (self.x - other.x)**2 + (self.y - other.y)**2 )
+        xy_dist = math.sqrt( (self.x - other_wp.pose.pose.position.x)**2 + (self.y - other_wp.pose.pose.position.y)**2 )
         xy_too_close = xy_dist < xy_tolerance
 
         # if all of them are too close, wps are similar
         # otherwise they are different enough
         # if the control modes are different, that was handled above already
-        return all(xy_too_close, z_too_close, speed_too_close)
+        return all((xy_too_close, z_too_close, speed_too_close))
 
 
 
@@ -134,11 +135,11 @@ class Waypoint:
 
     @property
     def x(self):
-        return self.wp.wp.pose.pose.position.x
+        return self.wp.pose.pose.position.x
 
     @property
     def y(self):
-        return self.wp.wp.pose.pose.position.y
+        return self.wp.pose.pose.position.y
 
     @property
     def depth(self):
@@ -250,7 +251,7 @@ class MissionPlan:
             self.waypoints = waypoints
 
         for wp in self.waypoints:
-            self.waypoint_man_ids.append(wp.maneuver_id)
+            self.waypoint_man_ids.append(wp.wp.name)
 
         # keep track of which waypoint we are going to
         # start at -1 to indicate that _we are not going to any yet_
