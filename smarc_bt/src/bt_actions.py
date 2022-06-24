@@ -91,21 +91,12 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         if self.last_read_wp is None:
             return pt.Status.SUCCESS
 
+        wp = Waypoint(goto_waypoint = self.last_read_wp,
+                      imc_man_id = imc_enums.MANEUVER_GOTO)
 
-        pos = self.last_read_wp.pose.pose.position
+
         frame_id = self.last_read_wp.pose.header.frame_id
 
-        if self.last_read_wp.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
-            speed = self.last_read_wp.travel_rpm
-        else:
-            speed = self.last_read_wp.travel_speed
-
-
-        # by default, use the ones in the message...
-        lat = self.last_read_wp.lat
-        lon = self.last_read_wp.lon
-        x = pos.x
-        y = pos.y
         # given a latlon point, convert to utm for the controllers
         if frame_id == "latlon":
             if not self.got_latlon_service:
@@ -113,13 +104,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
                 return pt.Status.FAILURE
             try:
                 serv = rospy.ServiceProxy(self.lat_lon_to_utm_service_name, LatLonToUTM)
-                gp = GeoPoint()
-                gp.latitude = lat
-                gp.longitude = lon
-                gp.altitude = pos.z
-                res = serv(gp)
-                x = res.utm_point.x
-                y = res.utm_point.y
+                wp.set_utm_from_latlon(serv)
             except Exception as e:
                 print(e)
                 return pt.Status.FAILURE
@@ -130,43 +115,14 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
             if self.got_utm_service:
                 try:
                     serv = rospy.ServiceProxy(self.utm_to_lat_lon_service_name, UTMToLatLon)
-                    p = Point()
-                    p.x = x
-                    p.y = y
-                    p.z = pos.z
-                    res = serv(p)
-                    lat = res.lat_lon_point.latitude
-                    lon = res.lat_lon_point.longitude
+                    wp.set_latlon_from_utm(serv)
                 except Exception as e:
                     print(e)
 
-        zcm = self.last_read_wp.z_control_mode
-        if zcm == GotoWaypoint.Z_CONTROL_DEPTH:
-            z = self.last_read_wp.travel_depth
-        elif zcm == GotoWaypoint.Z_CONTROL_ALTITUDE:
-            z = self.last_read_wp.travel_altitude
-        else:
-            rospy.logwarn("Z control mode of the WP is not understood, z=0 depth is set!")
-            zcm = GotoWaypoint.Z_CONTROL_DEPTH
-            z = 0
+        wp.wp.pose.header.frame_id = 'utm'
 
-        # make one WP that has both
-        wp = Waypoint(
-            lat = lat,
-            lon = lon,
-            maneuver_id = 'unplanned_goto',
-            maneuver_imc_id = imc_enums.MANEUVER_GOTO,
-            maneuver_name = 'unplanned_goto',
-            x = x,
-            y = y,
-            z = z,
-            z_unit = zcm,
-            speed = speed,
-            speed_unit = self.last_read_wp.speed_control_mode,
-            tf_frame = 'utm',
-            extra_data = None)
 
-        if wp.lat == 0 and wp.lon == 0 and wp.x == 0 and wp.y == 0:
+        if not wp.is_actionable():
             self.feedback_message = "Empty wp!"
             return pt.Status.SUCCESS
 
@@ -637,32 +593,10 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
     def make_goal_from_wp(self, wp):
         # get the goal tolerance as a dynamic variable from the bb
         goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
-
         # construct the message
         goal = GotoWaypointGoal()
-        goal.waypoint.pose.pose.position.x = wp.x
-        goal.waypoint.pose.pose.position.y = wp.y
+        goal.waypoint = wp.wp
         goal.waypoint.goal_tolerance = goal_tolerance
-
-        # 0=None, 1=Depth, 2=Altitude in the action
-        # thankfully these are the same in IMC and in the Action
-        # but Action doesnt have 'height'
-        if wp.z_unit == imc_enums.Z_HEIGHT:
-            goal.waypoint.z_control_mode = imc_enums.Z_NONE
-        else:
-            goal.waypoint.z_control_mode = wp.z_unit
-        goal.waypoint.travel_depth = wp.z
-
-        goal.waypoint.speed_control_mode = wp.speed_unit
-        if wp.speed_unit == GotoWaypoint.SPEED_CONTROL_SPEED:
-            goal.waypoint.travel_speed = wp.speed
-        else:
-            goal.waypoint.travel_rpm = int(wp.speed)
-
-        goal.waypoint.pose.header.frame_id = wp.tf_frame
-
-        goal.waypoint.lat = wp.lat
-        goal.waypoint.lon = wp.lon
 
         return goal
 
@@ -709,13 +643,10 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                 rospy.loginfo_throttle(3, self.feedback_message)
             return
 
-        if wp.tf_frame != self.goal_tf_frame:
-            self.feedback_message = 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(frame, self.goal_tf_frame)
+        if wp.frame_id != self.goal_tf_frame:
+            self.feedback_message = 'The frame of the waypoint({0}) does not match the expected frame({1}) of the action client!'.format(wp.frame_id, self.goal_tf_frame)
             rospy.logerr_throttle(5, self.feedback_message)
             return
-
-        if wp.maneuver_imc_id != imc_enums.MANEUVER_GOTO:
-            rospy.loginfo("THIS IS A GOTO MANEUVER, WE ARE USING IT FOR SOMETHING ELSE")
 
 
         self.action_goal = self.make_goal_from_wp(wp)
@@ -790,27 +721,13 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
             # make sure it is not the exact same wp
             # before making and sending a goal
-            goal_pos = self.action_goal.waypoint.pose.pose.position
-            xdiff = abs(goal_pos.x - wp.x)
-            ydiff = abs(goal_pos.y - wp.y)
-            goal_z = self.action_goal.waypoint.travel_depth
-            zdiff = abs(goal_z - wp.z)
-
-            if wp.speed_unit == GotoWaypoint.SPEED_CONTROL_RPM:
-                speed_diff = abs(self.action_goal.waypoint.travel_rpm - wp.speed)
+            if wp.is_too_similar_to_other(self.action_goal.waypoint):
+                self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
             else:
-                speed_diff = abs(self.action_goal.waypoint.travel_speed - wp.speed)
-
-            # if there is sufficient change in the wp from the previous one
-            # update the goal
-            # XXX maybe make the 0.5s a dynamic reconfig thing?
-            if any([xdiff > 0.5, ydiff > 0.5, zdiff > 0.5, speed_diff > 0]):
                 self.action_goal = self.make_goal_from_wp(wp)
                 self.send_goal()
                 self.last_live_update_time = time.time()
                 self.feedback_message = "Sent goal just now"
-            else:
-                self.feedback_message = "Live updated {:.2f}s ago".format(time.time() - self.last_live_update_time)
 
         else:
             if self.goalless:
@@ -825,7 +742,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                     x,y = current_loc
                     h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
                     h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
-                    v_dist = wp.z - self.vehicle.depth
+                    v_dist = wp.depth - self.vehicle.depth
                     self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.maneuver_name)
 
         return pt.Status.RUNNING
