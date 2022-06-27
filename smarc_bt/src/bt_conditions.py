@@ -57,8 +57,8 @@ class C_CheckWaypointType(pt.behaviour.Behaviour):
         if wp is None:
             return pt.Status.FAILURE
 
-        self.feedback_message = "Got:{}".format(C_CheckWaypointType.imc_id_to_str(wp.maneuver_imc_id))
-        if wp.maneuver_imc_id != self.expected_wp_type:
+        self.feedback_message = "Got:{}".format(C_CheckWaypointType.imc_id_to_str(wp.imc_man_id))
+        if wp.imc_man_id != self.expected_wp_type:
             return pt.Status.FAILURE
 
         return pt.Status.SUCCESS

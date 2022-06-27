@@ -71,12 +71,7 @@ class MissionLog:
 
             # we can populate the mission plan right away
             for wp in mission_plan.waypoints:
-                if wp.z_unit == imc_enums.Z_DEPTH:
-                    z = -wp.z
-                else:
-                    z = wp.z
-
-                point = (wp.x, wp.y, z)
+                point = (wp.x, wp.y, -wp.wp.travel_depth)
                 self.mission_plan_wps.append(point)
 
         else:
