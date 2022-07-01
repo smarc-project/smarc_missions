@@ -13,7 +13,7 @@ import common_globals
 import imc_enums
 import bb_enums
 
-from geometry_msgs.msg import PointStamped, Pose, PoseArray
+from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
 from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint
@@ -161,8 +161,8 @@ class Waypoint:
         gwp.pose.header.frame_id = 'utm'
         gwp.pose.pose.position.x = utm_x
         gwp.pose.pose.position.y = utm_y
-        gwp.lat = maneuver.lat
-        gwp.lon = maneuver.lon
+        gwp.lat = np.degrees(maneuver.lat) # because neptus uses radians, we use degrees
+        gwp.lon = np.degrees(maneuver.lon)
         gwp.name = maneuver.maneuver_name
         gwp.goal_tolerance = 2 # to make this reactive, whoever sends the WP should set it
 
@@ -202,6 +202,7 @@ class MissionPlan:
     def __init__(self,
                  plandb_msg,
                  auv_config,
+                 plan_id = None,
                  coverage_swath = None,
                  vehicle_localization_error_growth = None,
                  waypoints=None
@@ -209,11 +210,17 @@ class MissionPlan:
         """
         A container object to keep things related to the mission plan.
         """
+        # used to report when the mission was received
+        self.creation_time = time.time()
+
         self.plandb_msg = plandb_msg
         if plandb_msg is not None:
             self.plan_id = plandb_msg.plan_id
         else:
-            self.plan_id = 'NOPLAN'
+            if plan_id is None:
+                plan_id = "Unnamed - self.creation_time"
+
+            self.plan_id = plan_id
 
         self.plan_frame = auv_config.UTM_LINK
         self.coverage_swath = coverage_swath
@@ -256,9 +263,6 @@ class MissionPlan:
         # keep track of which waypoint we are going to
         # start at -1 to indicate that _we are not going to any yet_
         self.current_wp_index = -1
-
-        # used to report when the mission was received
-        self.creation_time = time.time()
 
         # state of this plan
         self.plan_is_go = False
@@ -371,7 +375,7 @@ class MissionPlan:
 
                 for i,point in enumerate(coverage_points):
                     wp = Waypoint()
-                    wp.read_maneuver(maneuver, point[0], point[1], {"poly":maneuver.polygon})
+                    wp.read_imc_maneuver(maneuver, point[0], point[1], {"poly":maneuver.polygon})
                     wp.wp.name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points))
                     wp.imc_man_id = imc_enums.MANEUVER_GOTO
                     waypoints.append(wp)
