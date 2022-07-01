@@ -80,6 +80,7 @@ import common_globals
 # to avoid having a million subscibers inside the tree
 from vehicle import Vehicle
 from neptus_handler import NeptusHandler
+from nodered_handler import NoderedHandler
 
 def const_tree(auv_config):
     """
@@ -133,10 +134,10 @@ def const_tree(auv_config):
         )
 
         read_reloc_enable = ReadTopic(
-            name = "A_ReadRelocEnable",
-            topic_name = auv_config.RELOC_ENABLE_TOPIC,
+            name = "A_ReadLiveWPEnable",
+            topic_name = auv_config.LIVE_WP_ENABLE_TOPIC,
             topic_type = Bool,
-            blackboard_variables={bb_enums.RELOC_ENABLE : 'data'}
+            blackboard_variables={bb_enums.LIVE_WP_ENABLE : 'data'}
         )
 
         read_algae_follow_enable = ReadTopic(
@@ -148,8 +149,8 @@ def const_tree(auv_config):
 
 
         read_reloc_wp = A_ReadWaypoint(
-            ps_topic = auv_config.RELOC_WP,
-            bb_key = bb_enums.RELOC_WP,
+            ps_topic = auv_config.LIVE_WP,
+            bb_key = bb_enums.LIVE_WP,
             utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
             lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
@@ -318,25 +319,24 @@ def const_tree(auv_config):
                                          A_SetNextPlanAction()
                                ])
 
-        # Nacho's relocalization stuffs
-        reloc_enabled = CheckBlackboardVariableValue(bb_enums.RELOC_ENABLE,
-                                                     True,
-                                                     "C_RelocEnabled")
+        live_wp_enabled = CheckBlackboardVariableValue(bb_enums.LIVE_WP_ENABLE,
+                                                       True,
+                                                       "C_LiveWPEnabled")
 
-        reloc_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
-                                               bb_key = bb_enums.RELOC_WP)
+        live_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                              bb_key = bb_enums.LIVE_WP)
 
-        goto_reloc_wp = A_GotoWaypoint(auv_config = auv_config,
-                                       node_name="A_GotoRelocWP",
-                                       wp_from_bb = bb_enums.RELOC_WP,
-                                       live_mode_enabled=True)
+        goto_live_wp = A_GotoWaypoint(auv_config = auv_config,
+                                      node_name="A_GotoLiveWP",
+                                      wp_from_bb = bb_enums.LIVE_WP,
+                                      live_mode_enabled=True)
 
-        reloc_tree = Sequence(name="SQ-Relocalize",
-                              children=[
-                                  reloc_enabled,
-                                  reloc_wp_is_goto,
-                                  goto_reloc_wp
-                              ])
+        live_wp_tree  = Sequence(name="SQ-FollowLiveWP",
+                                 children=[
+                                     live_wp_enabled,
+                                     live_wp_is_goto,
+                                     goto_live_wp
+                                 ])
 
         # Algae farm line following
         algae_follow_enabled = CheckBlackboardVariableValue(bb_enums.ALGAE_FOLLOW_ENABLE,
@@ -362,9 +362,9 @@ def const_tree(auv_config):
         # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
-                                  C_PlanCompleted(),
-                                  reloc_tree,
+                                  live_wp_tree,
                                   algae_farm_tree,
+                                  C_PlanCompleted(),
                                   follow_plan
                         ])
 
@@ -471,6 +471,7 @@ def main():
     # since the BT doesnt really care about the stuff from neptus beyond
     # signals, it doesnt need these as actions and such
     neptus_handler = NeptusHandler(config, vehicle, bb)
+    nodered_handler = NoderedHandler(config, vehicle, bb)
 
     # construct the BT with the config and a vehicle model
     rospy.loginfo("Constructing tree")
@@ -519,6 +520,7 @@ def main():
         vehicle.tick(tf_listener)
         # print(neptus_handler)
         neptus_handler.tick()
+        nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()
 

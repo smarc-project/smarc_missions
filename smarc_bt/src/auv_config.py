@@ -34,12 +34,13 @@ class AUVConfig(object):
         self.HEARTBEAT_TOPIC = 'core/heartbeat'
         self.MISSION_COMPLETE_TOPIC = 'core/mission_complete'
 
-        # Nacho's reloc topics
-        self.RELOC_ENABLE_TOPIC = 'localization/enable'
-        self.RELOC_WP = 'localization/wp'
+        # live-wp that can be updated on the go
+        self.LIVE_WP_ENABLE_TOPIC = 'smarc_bt/live_wp/enable'
+        self.LIVE_WP = 'smarc_bt/live_wp/wp'
+
         # Zheng and Li's algae farm thing
-        self.ALGAE_FOLLOW_ENABLE_TOPIC = 'algae_farm/enable'
-        self.ALGAE_FOLLOW_WP = 'algae_farm/wp'
+        self.ALGAE_FOLLOW_ENABLE_TOPIC = 'smarc_bt/algae_farm/enable'
+        self.ALGAE_FOLLOW_WP = 'smarc_bt/algae_farm/wp'
 
         # actions and services
         self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
@@ -76,7 +77,8 @@ class AUVConfig(object):
         self.GPS_NAV_DATA_TOPIC = 'imc/gps_nav_data'
 
         # mqtt related stuff
-        self.LAST_WP_TOPIC = 'mission_exec/last_wp'
+        self.LAST_WP_TOPIC = 'smarc_bt/last_wp'
+        self.MISSION_CONTROL_TOPIC = 'smarc_bt/mission_control'
 
         # hard values
         self.MAX_DEPTH = 20
