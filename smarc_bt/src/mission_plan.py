@@ -13,7 +13,7 @@ import common_globals
 import imc_enums
 import bb_enums
 
-from geometry_msgs.msg import PointStamped, Pose, PoseArray
+from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
 from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint
@@ -69,7 +69,7 @@ class Waypoint:
         self.extra_data = extra_data
 
 
-    def set_utm_from_latlon(self, lat_lon_to_utm_serv):
+    def set_utm_from_latlon(self, lat_lon_to_utm_serv, set_frame=False):
         gp = GeoPoint()
         gp.latitude = self.wp.lat
         gp.longitude = self.wp.lon
@@ -77,8 +77,10 @@ class Waypoint:
         res = lat_lon_to_utm_serv(gp)
         self.wp.pose.pose.position.x = res.utm_point.x
         self.wp.pose.pose.position.y = res.utm_point.y
+        if set_frame:
+            self.wp.pose.header.frame_id = 'utm'
 
-    def set_latlon_from_utm(self, utm_to_lat_lon_serv):
+    def set_latlon_from_utm(self, utm_to_lat_lon_serv, set_frame=False):
         p = Point()
         p.x = self.x
         p.y = self.y
@@ -86,6 +88,8 @@ class Waypoint:
         res = utm_to_lat_lon_serv(p)
         self.wp.lat = res.lat_lon_point.latitude
         self.wp.lon = res.lat_lon_point.longitude
+        if set_frame:
+            self.wp.pose.header.frame_id = 'latlon'
 
     def is_too_similar_to_other(self, other_wp):
         """
@@ -161,8 +165,8 @@ class Waypoint:
         gwp.pose.header.frame_id = 'utm'
         gwp.pose.pose.position.x = utm_x
         gwp.pose.pose.position.y = utm_y
-        gwp.lat = maneuver.lat
-        gwp.lon = maneuver.lon
+        gwp.lat = np.degrees(maneuver.lat) # because neptus uses radians, we use degrees
+        gwp.lon = np.degrees(maneuver.lon)
         gwp.name = maneuver.maneuver_name
         gwp.goal_tolerance = 2 # to make this reactive, whoever sends the WP should set it
 
@@ -200,8 +204,10 @@ class Waypoint:
 
 class MissionPlan:
     def __init__(self,
-                 plandb_msg,
                  auv_config,
+                 mission_control_msg = None,
+                 plandb_msg = None,
+                 plan_id = None,
                  coverage_swath = None,
                  vehicle_localization_error_growth = None,
                  waypoints=None
@@ -209,11 +215,17 @@ class MissionPlan:
         """
         A container object to keep things related to the mission plan.
         """
+        # used to report when the mission was received
+        self.creation_time = time.time()
+
         self.plandb_msg = plandb_msg
         if plandb_msg is not None:
             self.plan_id = plandb_msg.plan_id
         else:
-            self.plan_id = 'NOPLAN'
+            if plan_id is None:
+                plan_id = "Unnamed - self.creation_time"
+
+            self.plan_id = plan_id
 
         self.plan_frame = auv_config.UTM_LINK
         self.coverage_swath = coverage_swath
@@ -245,10 +257,14 @@ class MissionPlan:
         self.waypoint_man_ids = []
 
         # if waypoints are given directly, then skip reading the plandb message
-        if waypoints is None:
+        if waypoints is None and plandb_msg is not None:
             self.waypoints = self.read_plandb(plandb_msg)
-        else:
+        elif waypoints is None and mission_control_msg is not None:
+            self.waypoints = self.read_mission_control(mission_control_msg)
+        elif waypoints is not None:
             self.waypoints = waypoints
+        else:
+            self.waypoints = []
 
         for wp in self.waypoints:
             self.waypoint_man_ids.append(wp.wp.name)
@@ -257,17 +273,11 @@ class MissionPlan:
         # start at -1 to indicate that _we are not going to any yet_
         self.current_wp_index = -1
 
-        # used to report when the mission was received
-        self.creation_time = time.time()
-
         # state of this plan
         self.plan_is_go = False
 
-    def latlon_to_utm(self,
-                      lat,
-                      lon,
-                      z,
-                      in_degrees=False):
+
+    def _get_latlon_to_utm_service(self):
         try:
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
         except:
@@ -277,22 +287,54 @@ class MissionPlan:
         try:
             latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
                                                      LatLonToUTM)
-            gp = GeoPoint()
-            if in_degrees:
-                gp.latitude = lat
-                gp.longitude = lon
-            else:
-                gp.latitude = np.degrees(lat)
-                gp.longitude = np.degrees(lon)
-            gp.altitude = z
-            res = latlontoutm_service(gp)
-            return (res.utm_point.x, res.utm_point.y)
         except rospy.service.ServiceException:
             rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
+            return None
+        return latlontoutm_service
+
+
+    def latlon_to_utm(self,
+                      lat,
+                      lon,
+                      z,
+                      in_degrees=False):
+
+        serv = self._get_latlon_to_utm_service()
+        if serv is None:
             return (None, None)
 
+        gp = GeoPoint()
+        if in_degrees:
+            gp.latitude = lat
+            gp.longitude = lon
+        else:
+            gp.latitude = np.degrees(lat)
+            gp.longitude = np.degrees(lon)
+        gp.altitude = z
+        res = serv(gp)
+        return (res.utm_point.x, res.utm_point.y)
 
 
+    def read_mission_control(self, msg):
+        """
+        read the waypoints off a smarc_msgs/MissionControl message
+        and set our plan_id from its name
+        """
+        self.plan_id = msg.name
+        waypoints = []
+        serv = self._get_latlon_to_utm_service()
+        for wp_msg in msg.waypoints:
+            wp = Waypoint(goto_waypoint = wp_msg,
+                          imc_man_id = imc_enums.MANEUVER_GOTO)
+            # also make sure they are in utm
+            wp.set_utm_from_latlon(serv, set_frame=True)
+            waypoints.append(wp)
+
+        return waypoints
+
+
+
+    # XXX could use a cleanup... 
     def read_plandb(self, plandb):
         """
         planddb message is a bunch of nested objects,
@@ -371,7 +413,7 @@ class MissionPlan:
 
                 for i,point in enumerate(coverage_points):
                     wp = Waypoint()
-                    wp.read_maneuver(maneuver, point[0], point[1], {"poly":maneuver.polygon})
+                    wp.read_imc_maneuver(maneuver, point[0], point[1], {"poly":maneuver.polygon})
                     wp.wp.name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points))
                     wp.imc_man_id = imc_enums.MANEUVER_GOTO
                     waypoints.append(wp)

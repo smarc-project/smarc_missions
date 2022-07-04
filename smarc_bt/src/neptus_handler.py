@@ -177,7 +177,8 @@ class NeptusHandler(object):
         current_mission_plan = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
         plan_info = PlanDBInformation()
         plan_info.plan_id = current_mission_plan.plan_id
-        plan_info.md5 = current_mission_plan.plandb_msg.plan_spec_md5
+        if current_mission_plan.plandb_msg is not None:
+            plan_info.md5 = current_mission_plan.plandb_msg.plan_spec_md5
         plan_info.change_time = current_mission_plan.creation_time/1000.0
         return plan_info
 

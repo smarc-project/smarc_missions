@@ -46,9 +46,9 @@ BUOYS = 'buoys'
 ALGAE_FOLLOW_ENABLE = 'algea_enable'
 ALGAE_FOLLOW_WP = 'algae_follow_wp'
 
-# Nacho's relocalization stuff
-RELOC_ENABLE = 'reloc_enable'
-RELOC_WP = 'reloc_wp'
+# live-wp that can be updated continually
+LIVE_WP_ENABLE = 'live_wp_enable'
+LIVE_WP = 'live_wp'
 
 # Goto action
 WAYPOINT_TOLERANCE = 'wp_tolerance'

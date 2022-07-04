@@ -94,12 +94,14 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
     """
     def __init__(self):
         self.bb = pt.blackboard.Blackboard()
+        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
         self.aborted = False
         super(C_NoAbortReceived, self).__init__(name="C_NoAbortReceived")
 
     def update(self):
-        if self.bb.get(bb_enums.ABORT) or self.aborted:
+        if self.bb.get(bb_enums.ABORT) or self.aborted or self.vehicle.aborted:
             self.aborted = True
+            self.vehicle.abort()
             self.feedback_message = 'ABORTED'
             return pt.Status.FAILURE
         else:
