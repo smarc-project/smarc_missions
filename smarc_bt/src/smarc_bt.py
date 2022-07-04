@@ -422,7 +422,7 @@ def const_tree(auv_config):
                               run_tree
                     ])
 
-    return ptr.trees.BehaviourTree(root)
+    return ptr.trees.BehaviourTree(root,record_rosbag=False)
 
 
 def main():
