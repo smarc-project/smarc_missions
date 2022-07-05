@@ -13,7 +13,7 @@ import common_globals
 import imc_enums
 import bb_enums
 
-from geometry_msgs.msg import PointStamped, Pose, PoseArray
+from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
 from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint
@@ -22,48 +22,192 @@ from coverage_planner import create_coverage_path
 
 class Waypoint:
     def __init__(self,
-                 lat,
-                 lon,
-                 maneuver_id,
-                 maneuver_imc_id,
-                 maneuver_name,
-                 x,
-                 y,
-                 z,
-                 z_unit,
-                 speed,
-                 speed_unit,
-                 tf_frame,
-                 extra_data):
+                 goto_waypoint = None,
+                 imc_man_id = None,
+                 extra_data = None):
+        """
+        goto_waypoint message reference:
+            uint8 Z_CONTROL_NONE=0
+            uint8 Z_CONTROL_DEPTH=1
+            uint8 Z_CONTROL_ALTITUDE=2
+            uint8 SPEED_CONTROL_NONE=0
+            uint8 SPEED_CONTROL_RPM=1
+            uint8 SPEED_CONTROL_SPEED=2
+            geometry_msgs/PoseStamped pose
+              std_msgs/Header header
+                uint32 seq
+                time stamp
+                string frame_id
+              geometry_msgs/Pose pose
+                geometry_msgs/Point position
+                  float64 x
+                  float64 y
+                  float64 z
+                geometry_msgs/Quaternion orientation
+                  float64 x
+                  float64 y
+                  float64 z
+                  float64 w
+            float64 goal_tolerance
+            uint8 z_control_mode
+            float64 travel_altitude
+            float64 travel_depth
+            uint8 speed_control_mode
+            float64 travel_rpm
+            float64 travel_speed
+            float64 lat
+            float64 lon
+            string name
+        """
 
 
-        if lat < 3 or lon < 3:
-            lat = np.degrees(lat)
-            lon = np.degrees(lon)
-        self.lat = lat
-        self.lon = lon
-        self.maneuver_id = maneuver_id
-        self.maneuver_imc_id = maneuver_imc_id
-        self.maneuver_name = maneuver_name
-        self.x = x
-        self.y = y
-        self.z = z
-        self.z_unit = z_unit
-        self.speed = speed
-        self.speed_unit = speed_unit
-        self.tf_frame = tf_frame
+        # this is a numerical "type" of maneuver identifier used
+        # only for imc/neptus
+        self.imc_man_id = imc_man_id
+        # the GotoWaypoint object from smarc_msgs.msg
+        self.wp = goto_waypoint
         self.extra_data = extra_data
 
+
+    def set_utm_from_latlon(self, lat_lon_to_utm_serv, set_frame=False):
+        gp = GeoPoint()
+        gp.latitude = self.wp.lat
+        gp.longitude = self.wp.lon
+        gp.altitude = 0
+        res = lat_lon_to_utm_serv(gp)
+        self.wp.pose.pose.position.x = res.utm_point.x
+        self.wp.pose.pose.position.y = res.utm_point.y
+        if set_frame:
+            self.wp.pose.header.frame_id = 'utm'
+
+    def set_latlon_from_utm(self, utm_to_lat_lon_serv, set_frame=False):
+        p = Point()
+        p.x = self.x
+        p.y = self.y
+        p.z = -self.wp.travel_depth
+        res = utm_to_lat_lon_serv(p)
+        self.wp.lat = res.lat_lon_point.latitude
+        self.wp.lon = res.lat_lon_point.longitude
+        if set_frame:
+            self.wp.pose.header.frame_id = 'latlon'
+
+    def is_too_similar_to_other(self, other_wp):
+        """
+        other_wp is a smarc_msgs GotoWaypoint
+        """
+        xy_tolerance = min(self.wp.goal_tolerance, other_wp.goal_tolerance)
+        z_tolerance = 0.6 # hardcoded... i dont know what harsha is doing here?
+        rpm_tolerance = 50 #rpm
+        speed_tolerance = 0.1 #m/s
+
+        xy_too_close = False
+        z_too_close = False
+        speed_too_close = False
+
+        # if the control mode is different, they _are_ different wps
+        if self.wp.z_control_mode != other_wp.z_control_mode:
+            return False
+        # otherwise, we gotta see if the _amounts_ are different enough
+        else:
+            if self.wp.z_control_mode == GotoWaypoint.Z_CONTROL_DEPTH:
+                z_too_close = abs(self.wp.travel_depth - other_wp.travel_depth) < z_tolerance
+
+            if self.wp.z_control_mode == GotoWaypoint.Z_CONTROL_ALTITUDE:
+                z_too_close = abs(self.wp.travel_altitude - other_wp.travel_altitude) < z_tolerance
+
+        # same with speed
+        if self.wp.speed_control_mode != other_wp.speed_control_mode:
+            return False
+        else:
+            if self.wp.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
+                speed_too_close = abs(self.wp.travel_rpm - other_wp.travel_rpm) < rpm_tolerance
+
+            if self.wp.speed_control_mode == GotoWaypoint.SPEED_CONTROL_SPEED:
+                speed_too_close = abs(self.wp.travel_speed - other_wp.travel_speed) < speed_tolerance
+
+        xy_dist = math.sqrt( (self.x - other_wp.pose.pose.position.x)**2 + (self.y - other_wp.pose.pose.position.y)**2 )
+        xy_too_close = xy_dist < xy_tolerance
+
+        # if all of them are too close, wps are similar
+        # otherwise they are different enough
+        # if the control modes are different, that was handled above already
+        return all((xy_too_close, z_too_close, speed_too_close))
+
+
+
+
+
+    @property
+    def x(self):
+        return self.wp.pose.pose.position.x
+
+    @property
+    def y(self):
+        return self.wp.pose.pose.position.y
+
+    @property
+    def depth(self):
+        return self.wp.travel_depth
+
+    @property
+    def frame_id(self):
+        return self.wp.pose.header.frame_id
+
+    @property
+    def is_actionable(self):
+        if (self.x == 0 and self.y == 0) and self.frame_id == 'utm':
+            return False
+
+        return True
+
+    def read_imc_maneuver(self, maneuver, utm_x, utm_y, extra_data=None):
+        gwp  = GotoWaypoint()
+        gwp.pose.header.frame_id = 'utm'
+        gwp.pose.pose.position.x = utm_x
+        gwp.pose.pose.position.y = utm_y
+        gwp.lat = np.degrees(maneuver.lat) # because neptus uses radians, we use degrees
+        gwp.lon = np.degrees(maneuver.lon)
+        gwp.name = maneuver.maneuver_name
+        gwp.goal_tolerance = 2 # to make this reactive, whoever sends the WP should set it
+
+        # convert the IMC enums into SMaRC enums
+        if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
+            gwp.speed_control_mode = GotoWaypoint.SPEED_CONTROL_RPM
+            gwp.travel_rpm = maneuver.speed
+        elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
+            gwp.speed_control_mode = GotoWaypoint.SPEED_CONTROL_SPEED
+            gwp.travel_speed = maneuver.speed
+        else:
+            gwp.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
+            rospy.logwarn("Speed control of the waypoint is NONE!")
+
+        gwp.z_control_mode = maneuver.z_units # same in smarc and imc
+        if maneuver.z_units == imc_enums.Z_DEPTH:
+            gwp.travel_depth = maneuver.z
+        elif maneuver.z_units == imc_enums.Z_ALTITUDE:
+            gwp.travel_altitude = maneuver.z
+        else:
+            rospy.logwarn("Z control mode not depth or alt, defaulting to 0 depth!")
+            gwp.travel_depth = 0
+            gwp.z_control_mode = GotoWaypoint.Z_CONTROL_DEPTH
+
+        self.imc_man_id = maneuver.maneuver_imc_id
+        self.wp = gwp
+        self.extra_data = extra_data
+
+
     def __str__(self):
-        s = '{}:{},{},{}'.format(self.maneuver_name,self.x, self.y, self.z)
+        s = 'Man: {}'.format(self.wp)
         return s
 
 
 
 class MissionPlan:
     def __init__(self,
-                 plandb_msg,
                  auv_config,
+                 mission_control_msg = None,
+                 plandb_msg = None,
+                 plan_id = None,
                  coverage_swath = None,
                  vehicle_localization_error_growth = None,
                  waypoints=None
@@ -71,11 +215,17 @@ class MissionPlan:
         """
         A container object to keep things related to the mission plan.
         """
+        # used to report when the mission was received
+        self.creation_time = time.time()
+
         self.plandb_msg = plandb_msg
         if plandb_msg is not None:
             self.plan_id = plandb_msg.plan_id
         else:
-            self.plan_id = 'NOPLAN'
+            if plan_id is None:
+                plan_id = "Unnamed - self.creation_time"
+
+            self.plan_id = plan_id
 
         self.plan_frame = auv_config.UTM_LINK
         self.coverage_swath = coverage_swath
@@ -107,29 +257,27 @@ class MissionPlan:
         self.waypoint_man_ids = []
 
         # if waypoints are given directly, then skip reading the plandb message
-        if waypoints is None:
+        if waypoints is None and plandb_msg is not None:
             self.waypoints = self.read_plandb(plandb_msg)
-        else:
+        elif waypoints is None and mission_control_msg is not None:
+            self.waypoints = self.read_mission_control(mission_control_msg)
+        elif waypoints is not None:
             self.waypoints = waypoints
+        else:
+            self.waypoints = []
 
         for wp in self.waypoints:
-            self.waypoint_man_ids.append(wp.maneuver_id)
+            self.waypoint_man_ids.append(wp.wp.name)
 
         # keep track of which waypoint we are going to
         # start at -1 to indicate that _we are not going to any yet_
         self.current_wp_index = -1
 
-        # used to report when the mission was received
-        self.creation_time = time.time()
-
         # state of this plan
         self.plan_is_go = False
 
-    def latlon_to_utm(self,
-                      lat,
-                      lon,
-                      z,
-                      in_degrees=False):
+
+    def _get_latlon_to_utm_service(self):
         try:
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
         except:
@@ -139,22 +287,54 @@ class MissionPlan:
         try:
             latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
                                                      LatLonToUTM)
-            gp = GeoPoint()
-            if in_degrees:
-                gp.latitude = lat
-                gp.longitude = lon
-            else:
-                gp.latitude = np.degrees(lat)
-                gp.longitude = np.degrees(lon)
-            gp.altitude = z
-            res = latlontoutm_service(gp)
-            return (res.utm_point.x, res.utm_point.y)
         except rospy.service.ServiceException:
             rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
+            return None
+        return latlontoutm_service
+
+
+    def latlon_to_utm(self,
+                      lat,
+                      lon,
+                      z,
+                      in_degrees=False):
+
+        serv = self._get_latlon_to_utm_service()
+        if serv is None:
             return (None, None)
 
+        gp = GeoPoint()
+        if in_degrees:
+            gp.latitude = lat
+            gp.longitude = lon
+        else:
+            gp.latitude = np.degrees(lat)
+            gp.longitude = np.degrees(lon)
+        gp.altitude = z
+        res = serv(gp)
+        return (res.utm_point.x, res.utm_point.y)
 
 
+    def read_mission_control(self, msg):
+        """
+        read the waypoints off a smarc_msgs/MissionControl message
+        and set our plan_id from its name
+        """
+        self.plan_id = msg.name
+        waypoints = []
+        serv = self._get_latlon_to_utm_service()
+        for wp_msg in msg.waypoints:
+            wp = Waypoint(goto_waypoint = wp_msg,
+                          imc_man_id = imc_enums.MANEUVER_GOTO)
+            # also make sure they are in utm
+            wp.set_utm_from_latlon(serv, set_frame=True)
+            waypoints.append(wp)
+
+        return waypoints
+
+
+
+    # XXX could use a cleanup... 
     def read_plandb(self, plandb):
         """
         planddb message is a bunch of nested objects,
@@ -174,9 +354,9 @@ class MissionPlan:
 
         for plan_man in plan_spec.maneuvers:
             man_id = plan_man.maneuver_id
-            man_name = plan_man.maneuver.maneuver_name
-            man_imc_id = plan_man.maneuver.maneuver_imc_id
             maneuver = plan_man.maneuver
+            man_name = maneuver.maneuver_name
+            man_imc_id = maneuver.maneuver_imc_id
             # probably every maneuver has lat lon z in them, but just in case...
             # goto and sample are identical, with sample having extra "syringe" booleans...
             # cover_area is also the same, with extra Polygon field, that we can 
@@ -198,33 +378,11 @@ class MissionPlan:
                                   'syringe1':maneuver.syringe1,
                                   'syringe2':maneuver.syringe2}
 
-                # convert the IMC enums into SMaRC enums
-                if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
-                    speed_unit = GotoWaypoint.SPEED_CONTROL_RPM
-                elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
-                    speed_unit = GotoWaypoint.SPEED_CONTROL_SPEED
-                else:
-                    speed_unit = GotoWaypointGoal.SPEED_CONTROL_NONE
-                    rospy.logwarn("Speed control of the waypoint is NONE!")
 
-                # these are in IMC enums, map to whatever enums the action that will consume
-                # will need when you are publishing it
-                waypoint = Waypoint(
-                    lat = maneuver.lat,
-                    lon = maneuver.lon,
-                    maneuver_id = man_id,
-                    maneuver_imc_id = man_imc_id,
-                    maneuver_name= man_name,
-                    tf_frame = 'utm',
-                    x = utm_x,
-                    y = utm_y,
-                    z = maneuver.z,
-                    speed = maneuver.speed,
-                    z_unit = maneuver.z_units, #these are same on imc and smarc
-                    speed_unit = speed_unit,
-                    extra_data = extra_data
-                )
-                waypoints.append(waypoint)
+                # construct the waypoint object
+                wp = Waypoint()
+                wp.read_imc_maneuver(maneuver, utm_x, utm_y, extra_data)
+                waypoints.append(wp)
 
 
             # COVER AREA
@@ -254,21 +412,10 @@ class MissionPlan:
 
 
                 for i,point in enumerate(coverage_points):
-                    wp = Waypoint(
-                        lat = maneuver.lat,
-                        lon = maneuver.lon,
-                        maneuver_id = man_id,
-                        maneuver_imc_id = imc_enums.MANEUVER_GOTO,
-                        maneuver_name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points)),
-                        tf_frame = 'utm',
-                        x = point[0],
-                        y = point[1],
-                        z = maneuver.z,
-                        speed = maneuver.speed,
-                        z_unit = maneuver.z_units,
-                        speed_unit = maneuver.speed_units,
-                        extra_data = {"poly":maneuver.polygon}
-                    )
+                    wp = Waypoint()
+                    wp.read_imc_maneuver(maneuver, point[0], point[1], {"poly":maneuver.polygon})
+                    wp.wp.name = str(man_id) + "_{}/{}".format(i+1, len(coverage_points))
+                    wp.imc_man_id = imc_enums.MANEUVER_GOTO
                     waypoints.append(wp)
 
 
@@ -301,9 +448,9 @@ class MissionPlan:
             p.position.x = wp.x
             p.position.y = wp.y
             if flip_z:
-                p.position.z = -wp.z
+                p.position.z = -wp.travel_depth
             else:
-                p.position.z = wp.z
+                p.position.z = wp.travel_depth
             pa.poses.append(p)
 
         return pa

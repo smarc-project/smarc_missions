@@ -3,7 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-import os
+import os, time
 
 import rospy
 
@@ -80,6 +80,7 @@ import common_globals
 # to avoid having a million subscibers inside the tree
 from vehicle import Vehicle
 from neptus_handler import NeptusHandler
+from nodered_handler import NoderedHandler
 
 def const_tree(auv_config):
     """
@@ -133,10 +134,10 @@ def const_tree(auv_config):
         )
 
         read_reloc_enable = ReadTopic(
-            name = "A_ReadRelocEnable",
-            topic_name = auv_config.RELOC_ENABLE_TOPIC,
+            name = "A_ReadLiveWPEnable",
+            topic_name = auv_config.LIVE_WP_ENABLE_TOPIC,
             topic_type = Bool,
-            blackboard_variables={bb_enums.RELOC_ENABLE : 'data'}
+            blackboard_variables={bb_enums.LIVE_WP_ENABLE : 'data'}
         )
 
         read_algae_follow_enable = ReadTopic(
@@ -148,14 +149,16 @@ def const_tree(auv_config):
 
 
         read_reloc_wp = A_ReadWaypoint(
-            ps_topic = auv_config.RELOC_WP,
-            bb_key = bb_enums.RELOC_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
+            ps_topic = auv_config.LIVE_WP,
+            bb_key = bb_enums.LIVE_WP,
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
             bb_key = bb_enums.ALGAE_FOLLOW_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE)
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
 
         read_lolo = A_ReadLolo(
@@ -239,6 +242,7 @@ def const_tree(auv_config):
                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
                                               message_object = Empty()),
                              A_GotoWaypoint(auv_config = auv_config,
+                                            action_namespace = auv_config.EMERGENCY_ACTION_NAMESPACE,
                                             node_name = 'A_EmergencySurface',
                                             goalless = True)
                          ])
@@ -316,24 +320,24 @@ def const_tree(auv_config):
                                          A_SetNextPlanAction()
                                ])
 
-        # Nacho's relocalization stuffs
-        reloc_enabled = CheckBlackboardVariableValue(bb_enums.RELOC_ENABLE,
-                                                     True,
-                                                     "C_RelocEnabled")
+        live_wp_enabled = CheckBlackboardVariableValue(bb_enums.LIVE_WP_ENABLE,
+                                                       True,
+                                                       "C_LiveWPEnabled")
 
-        reloc_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
-                                               bb_key = bb_enums.RELOC_WP)
+        live_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                              bb_key = bb_enums.LIVE_WP)
 
-        goto_reloc_wp = A_GotoWaypoint(auv_config = auv_config,
-                                       node_name="A_GotoRelocWP",
-                                       wp_from_bb = bb_enums.RELOC_WP)
+        goto_live_wp = A_GotoWaypoint(auv_config = auv_config,
+                                      node_name="A_GotoLiveWP",
+                                      wp_from_bb = bb_enums.LIVE_WP,
+                                      live_mode_enabled=True)
 
-        reloc_tree = Sequence(name="SQ-Relocalize",
-                              children=[
-                                  reloc_enabled,
-                                  reloc_wp_is_goto,
-                                  goto_reloc_wp
-                              ])
+        live_wp_tree  = Sequence(name="SQ-FollowLiveWP",
+                                 children=[
+                                     live_wp_enabled,
+                                     live_wp_is_goto,
+                                     goto_live_wp
+                                 ])
 
         # Algae farm line following
         algae_follow_enabled = CheckBlackboardVariableValue(bb_enums.ALGAE_FOLLOW_ENABLE,
@@ -359,9 +363,9 @@ def const_tree(auv_config):
         # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
-                                  C_PlanCompleted(),
-                                  reloc_tree,
+                                  live_wp_tree,
                                   algae_farm_tree,
+                                  C_PlanCompleted(),
                                   follow_plan
                         ])
 
@@ -419,7 +423,7 @@ def const_tree(auv_config):
                               run_tree
                     ])
 
-    return ptr.trees.BehaviourTree(root)
+    return ptr.trees.BehaviourTree(root,record_rosbag=False)
 
 
 def main():
@@ -448,11 +452,17 @@ def main():
     # first construct a vehicle that will hold and sub to most things
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
-    tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
-    # if for whatever reason the TF is not working, everything else is moot
-    if tf_listener is None:
-        rospy.logerr("TF Listener could not be setup! Exiting!")
-        return
+    tf_listener = None
+    while tf_listener is None:
+        try:
+            tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
+        except Exception as e:
+            tf_listener = None
+            rospy.logerr("Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
+
+        if tf_listener is None:
+            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? \n retrying in 5s.")
+            time.sleep(5)
 
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
@@ -462,16 +472,19 @@ def main():
     # since the BT doesnt really care about the stuff from neptus beyond
     # signals, it doesnt need these as actions and such
     neptus_handler = NeptusHandler(config, vehicle, bb)
+    nodered_handler = NoderedHandler(config, vehicle, bb)
 
     # construct the BT with the config and a vehicle model
     rospy.loginfo("Constructing tree")
     tree = const_tree(config)
     rospy.loginfo("Setting up tree")
-    setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+    setup_ok = False
     # make sure the BT is happy
-    if not setup_ok:
-        rospy.logerr("Tree could not be setup! Exiting!")
-        return
+    while not setup_ok:
+        setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
+        if not setup_ok:
+            rospy.logerr("Tree could not be setup! Retrying in 5s!")
+            sleep(5)
 
 
     # write the structure of the tree to file, useful for post-mortem inspections
@@ -508,6 +521,7 @@ def main():
         vehicle.tick(tf_listener)
         # print(neptus_handler)
         neptus_handler.tick()
+        nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()
 

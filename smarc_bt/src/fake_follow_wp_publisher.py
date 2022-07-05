@@ -41,9 +41,9 @@ last_wp_update = time.time()
 while not rospy.is_shutdown():
     enable_pub.publish(enable)
     wp = GotoWaypoint()
-    wp.waypoint_pose.header.frame_id = 'utm'
-    wp.waypoint_pose.pose.position.x = current[0]
-    wp.waypoint_pose.pose.position.y = current[1]
+    wp.waypoint.pose.header.frame_id = 'utm'
+    wp.waypoint.pose.pose.position.x = current[0]
+    wp.waypoint.pose.pose.position.y = current[1]
     wp.travel_depth = 2
     wp.goal_tolerance = 2
     wp.z_control_mode = GotoWaypoint.Z_CONTROL_DEPTH
