@@ -242,6 +242,7 @@ def const_tree(auv_config):
                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
                                               message_object = Empty()),
                              A_GotoWaypoint(auv_config = auv_config,
+                                            action_namespace = auv_config.EMERGENCY_ACTION_NAMESPACE,
                                             node_name = 'A_EmergencySurface',
                                             goalless = True)
                          ])
