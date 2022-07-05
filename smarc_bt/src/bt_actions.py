@@ -509,6 +509,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
 class A_GotoWaypoint(ptr.actions.ActionClient):
     def __init__(self,
                  auv_config,
+                 action_namespace = None,
                  node_name = "A_GotoWaypoint",
                  wp_from_bb = None,
                  live_mode_enabled = False,
@@ -516,6 +517,8 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         """
         Runs an action server that will move the robot to the given waypoint
 
+        action_namespace -> if given, will send the goal to that server instead of
+        the default goto_waypoint
         wp_from_bb -> if given, the waypoint will be taken from the given bb variable
         live_mode_enabled -> if True, the waypoint will be re-submitted every tick to the server, wp_from_bb must be given
         goalless -> if True, only an empty goal will be sent to the sever, useful as a "signal to start"
@@ -534,13 +537,16 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         self.action_goal_handle = None
 
+        if action_namespace is None:
+            action_namespace = auv_config.GOTO_ACTION_NAMESPACE
+
         # become action client
         ptr.actions.ActionClient.__init__(
             self,
             name = self.node_name,
             action_spec = GotoWaypointAction,
             action_goal = None,
-            action_namespace = auv_config.ACTION_NAMESPACE,
+            action_namespace = action_namespace,
             override_feedback_message_on_running = "Moving to waypoint"
         )
 

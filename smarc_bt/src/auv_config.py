@@ -43,7 +43,7 @@ class AUVConfig(object):
         self.ALGAE_FOLLOW_WP = 'smarc_bt/algae_farm/wp'
 
         # actions and services
-        self.ACTION_NAMESPACE = 'ctrl/goto_waypoint'
+        self.GOTO_ACTION_NAMESPACE = 'ctrl/goto_waypoint'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
         self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
         self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
