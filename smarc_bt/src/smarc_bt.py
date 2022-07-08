@@ -140,6 +140,13 @@ def const_tree(auv_config):
             blackboard_variables={bb_enums.LIVE_WP_ENABLE : 'data'}
         )
 
+        read_gui_enable = ReadTopic(
+            name = "A_ReadGUIEnable",
+            topic_name = auv_config.GUI_WP_ENABLE_TOPIC,
+            topic_type = Bool,
+            blackboard_variables={bb_enums.GUI_WP_ENABLE : 'data'}
+        )
+
         read_algae_follow_enable = ReadTopic(
             name = "A_ReadAlgaeEnable",
             topic_name = auv_config.ALGAE_FOLLOW_ENABLE_TOPIC,
@@ -157,6 +164,12 @@ def const_tree(auv_config):
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
             bb_key = bb_enums.ALGAE_FOLLOW_WP,
+            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
+
+        read_gui_wp = A_ReadWaypoint(
+            ps_topic = auv_config.GUI_WP,
+            bb_key = bb_enums.GUI_WP,
             utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
             lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
@@ -186,6 +199,8 @@ def const_tree(auv_config):
                             publish_heartbeat,
                             read_reloc_enable,
                             read_reloc_wp,
+                            read_gui_enable,
+                            read_gui_wp,
                             read_algae_follow_enable,
                             read_algae_follow_wp
                         ])
@@ -320,6 +335,7 @@ def const_tree(auv_config):
                                          A_SetNextPlanAction()
                                ])
 
+        # LIVE WP
         live_wp_enabled = CheckBlackboardVariableValue(bb_enums.LIVE_WP_ENABLE,
                                                        True,
                                                        "C_LiveWPEnabled")
@@ -338,6 +354,27 @@ def const_tree(auv_config):
                                      live_wp_is_goto,
                                      goto_live_wp
                                  ])
+
+        # GUI WP
+        gui_wp_enabled = CheckBlackboardVariableValue(bb_enums.GUI_WP_ENABLE,
+                                                      True,
+                                                      "C_GUIWPEnabled")
+
+        gui_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
+                                             bb_key = bb_enums.GUI_WP)
+
+        goto_gui_wp = A_GotoWaypoint(auv_config = auv_config,
+                                     node_name="A_GotoGUIWP",
+                                     wp_from_bb = bb_enums.GUI_WP,
+                                     live_mode_enabled=True)
+
+        gui_wp_tree  = Sequence(name="SQ-FollowGUIWP",
+                                children=[
+                                    gui_wp_enabled,
+                                    gui_wp_is_goto,
+                                    goto_gui_wp
+                                ])
+
 
         # Algae farm line following
         algae_follow_enabled = CheckBlackboardVariableValue(bb_enums.ALGAE_FOLLOW_ENABLE,
@@ -363,6 +400,7 @@ def const_tree(auv_config):
         # until the plan is done
         return Fallback(name="FB-ExecuteMissionPlan",
                         children=[
+                                  gui_wp_tree,
                                   live_wp_tree,
                                   algae_farm_tree,
                                   C_PlanCompleted(),

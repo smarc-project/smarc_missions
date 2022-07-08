@@ -50,6 +50,10 @@ ALGAE_FOLLOW_WP = 'algae_follow_wp'
 LIVE_WP_ENABLE = 'live_wp_enable'
 LIVE_WP = 'live_wp'
 
+# gui-wp that can be updated continually
+GUI_WP_ENABLE = 'gui_wp_enable'
+GUI_WP = 'gui_wp'
+
 # Goto action
 WAYPOINT_TOLERANCE = 'wp_tolerance'
 

@@ -34,6 +34,10 @@ class AUVConfig(object):
         self.HEARTBEAT_TOPIC = 'core/heartbeat'
         self.MISSION_COMPLETE_TOPIC = 'core/mission_complete'
 
+        # gui-given wp
+        self.GUI_WP_ENABLE_TOPIC = 'smarc_bt/gui_wp/enable'
+        self.GUI_WP = 'smarc_bt/gui_wp/wp'
+
         # live-wp that can be updated on the go
         self.LIVE_WP_ENABLE_TOPIC = 'smarc_bt/live_wp/enable'
         self.LIVE_WP = 'smarc_bt/live_wp/wp'
