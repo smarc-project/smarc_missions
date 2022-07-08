@@ -106,13 +106,17 @@ class NeptusHandler(object):
         # the bridge only looks at lat lon height=altitude
         # we read this from the raw gps instead
         ros_gps_msg = self._vehicle.raw_gps_obj
-        if ros_gps_msg is not None:
-            self._gps_fix_msg.latitude = ros_gps_msg.latitude
-            self._gps_fix_msg.longitude = ros_gps_msg.longitude
-            self._gps_fix_msg.altitude = -self._vehicle.depth
-            self._gps_fix_msg.header.seq = int(time.time())
-            self._gps_fix_pub.publish(self._gps_fix_msg)
-            self._gps_nav_data_pub.publish(self._gps_fix_msg)
+        try:
+            if ros_gps_msg is not None:
+                self._gps_fix_msg.latitude = ros_gps_msg.latitude
+                self._gps_fix_msg.longitude = ros_gps_msg.longitude
+                self._gps_fix_msg.altitude = -self._vehicle.depth
+                self._gps_fix_msg.header.seq = int(time.time())
+                self._gps_fix_pub.publish(self._gps_fix_msg)
+                self._gps_nav_data_pub.publish(self._gps_fix_msg)
+        except:
+            self.feedback_message.append("Could not update neptus gps fix")
+            pass
 
     def _updatePlanControlState(self):
         tip_name = self._bb.get(bb_enums.TREE_TIP_NAME)
