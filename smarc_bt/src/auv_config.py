@@ -15,7 +15,7 @@ class AUVConfig(object):
     Base config object, with default values for SAM.
     """
     def __init__(self):
-        self.robot_name = 'sam'
+        self.robot_name = 'lolo'
 
         # topics
         self.DVL_TOPIC = 'core/dvl'
@@ -56,7 +56,7 @@ class AUVConfig(object):
 
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
-        self.UTM_TO_LATLON_SERVICE= '/'+self.robot_name+'/dr/utm_to_lat_lon'
+        self.UTM_TO_LATLON_SERVICE= '/'+self.robot_name+'/utm_to_lat_lon'
         # in cases where the above service couldnt be found for some reason
         self.LATLONTOUTM_SERVICE_ALTERNATIVE = '/'+self.robot_name+'/lat_lon_to_utm'
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
-
+    
 import rospy
 import tf
 import time
@@ -13,12 +13,15 @@ import common_globals
 import imc_enums
 import bb_enums
 
+from tf.transformations import quaternion_from_euler
+
 from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
-from smarc_msgs.srv import LatLonToUTM
-from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint
+from smarc_msgs.srv import LatLonToUTM, UTMToLatLon
+from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint, MissionControl
 
 from coverage_planner import create_coverage_path
+from dubins import calc_dubins_path, dubins_traj, waypoints_with_yaw
 
 class Waypoint:
     def __init__(self,
@@ -251,6 +254,7 @@ class MissionPlan:
                 rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
                 self.no_service = True
 
+        self.utmtolatlon_service_name = auv_config.UTM_TO_LATLON_SERVICE
 
         # a list of names for each maneuver
         # good for feedback
@@ -260,7 +264,8 @@ class MissionPlan:
         if waypoints is None and plandb_msg is not None:
             self.waypoints = self.read_plandb(plandb_msg)
         elif waypoints is None and mission_control_msg is not None:
-            self.waypoints = self.read_mission_control(mission_control_msg)
+            dubins_mission = self.dubins_mission_planner(mission_control_msg)
+            self.waypoints = self.read_mission_control(dubins_mission)
         elif waypoints is not None:
             self.waypoints = waypoints
         else:
@@ -292,6 +297,21 @@ class MissionPlan:
             return None
         return latlontoutm_service
 
+    def _get_utm_to_latlon_service(self):
+        try:
+            rospy.wait_for_service(self.utmtolatlon_service_name, timeout=1)
+        except:
+            rospy.logwarn(str(self.utmtolatlon_service_name)+" service not found!")
+            return (None, None)
+
+        try:
+            utmtolatlon_service = rospy.ServiceProxy(self.utmtolatlon_service_name,
+                                                     UTMToLatLon)
+        except rospy.service.ServiceException:
+            rospy.logerr_throttle_identical(5, "UTM to LatLon service failed! namespace:{}".format(self.utmtolatlon_service_name))
+            return None
+        return utmtolatlon_service
+
 
     def latlon_to_utm(self,
                       lat,
@@ -313,6 +333,22 @@ class MissionPlan:
         gp.altitude = z
         res = serv(gp)
         return (res.utm_point.x, res.utm_point.y)
+
+    def utm_to_latlon(self,
+                      utm_x,
+                      utm_y):
+
+        serv = self._get_utm_to_latlon_service()
+        if serv is None:
+            return (None, None)
+
+        point = Point()
+        point.x = utm_x
+        point.y = utm_y
+        
+        res = serv(point)
+
+        return (res.lat_lon_point.latitude, res.lat_lon_point.longitude)
 
 
     def read_mission_control(self, msg):
@@ -471,6 +507,94 @@ class MissionPlan:
             )
             wps.append(wp)
         return wps
+
+
+    def dubins_mission_planner(self, mission, turn_radius=10, num_points_coeff=2):
+        '''
+        Reads the waypoints from a MissionControl message and generates a sampled dubins 
+        path between them. It returns a new MissionControl message equal to the input one
+        except for the waypoints attribute.
+        '''
+        # Number of dubins waypoints throughout the computed path = N_total_points_in_dubins_path / num_points_coeff
+
+        # Wait for LoLo's first position before generating the path
+        # XXX Check gps fix before converting lat/lon to utm
+        latlon_topic = rospy.get_param('latlon_topic', "/dr/lat_lon")
+        robot_name = rospy.get_param('robot_name', "lolo")
+        latlon_topic = "/" + robot_name + latlon_topic
+        gp = rospy.wait_for_message(latlon_topic, GeoPoint)
+        utm_x_lolo, utm_y_lolo = self.latlon_to_utm(gp.latitude, gp.longitude, gp.altitude)
+        lolo_utm = np.array([utm_x_lolo, utm_y_lolo])
+
+        # Get x, y of waypoints from original mission lat/lon
+        waypoints = []
+        for wp in mission.waypoints:
+            utm_x, utm_y = self.latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z)
+            waypoints.append([utm_x, utm_y])
+        waypoints_np = np.array(waypoints)
+
+        # Generate path starting from LoLo's location
+        waypoints_np = np.vstack((lolo_utm, waypoints_np))
+
+        # Keep the other waypoints' parameters equal
+        mwp = mission.waypoints[0]
+        goal_tolerance = mwp.goal_tolerance
+        z_control_mode = mwp.z_control_mode
+        travel_altitude = mwp.travel_altitude
+        travel_depth = mwp.travel_depth
+        speed_control_mode = mwp.speed_control_mode
+        travel_rpm = mwp.travel_rpm
+        travel_speed = mwp.travel_speed
+
+        # Compute angle between waypoints and get the new wps array
+        waypoints_yaw, _ = waypoints_with_yaw(waypoints_np)
+
+        path = []
+        for j in range(len(waypoints_yaw)-1):
+            param = calc_dubins_path(waypoints_yaw[j], waypoints_yaw[j+1], turn_radius)
+            path.append(dubins_traj(param,1))
+
+        # Sample the whole path
+        final_points = []
+        for el in path:
+            for e in el:
+                final_points.append([e[0], e[1], e[2]]) # x, y, yaw[deg]
+        final_points_np = np.array(final_points)
+        N = float(len(final_points_np))
+        n = float(int(N/num_points_coeff)) # amount of waypoints to set along the path
+        mask = np.random.choice([False, True], len(final_points_np), p=[1.0-(n/N), n/N])
+        dubins_waypoints = final_points_np[mask]
+
+        dubins_mission = MissionControl()
+        dubins_mission = mission
+
+        del dubins_mission.waypoints[:]
+        for wp in dubins_waypoints:
+            dwp = GotoWaypoint()
+            # dwp.pose.pose.position.x = wp[0]
+            # dwp.pose.pose.position.y = wp[1]
+            dwp.lat, dwp.lon = self.utm_to_latlon(wp[0], wp[1])
+
+            quaternion = quaternion_from_euler(0.0, 0.0, wp[2])
+            dwp.pose.pose.orientation.x = quaternion[0]
+            dwp.pose.pose.orientation.y = quaternion[1]
+            dwp.pose.pose.orientation.z = quaternion[2]
+            dwp.pose.pose.orientation.w = quaternion[3]
+
+            dwp.goal_tolerance = goal_tolerance
+            dwp.z_control_mode = z_control_mode
+            dwp.travel_altitude = travel_altitude 
+            dwp.travel_depth = travel_depth
+            dwp.speed_control_mode = speed_control_mode
+            dwp.travel_rpm = travel_rpm
+            dwp.travel_speed = travel_speed
+
+            dubins_mission.waypoints.append(dwp)
+
+        rospy.loginfo("Dubins mission ready")
+        return dubins_mission
+
+
 
 
     def __str__(self):
