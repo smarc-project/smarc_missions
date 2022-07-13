@@ -232,6 +232,7 @@ class WPDepthPlanner(object):
         rpm2.rpm = 0
         self.rpm1_pub.publish(rpm1)
         self.rpm2_pub.publish(rpm2)
+        self.rpm_enable_pub.publish(False)
         
         
     
