@@ -56,9 +56,10 @@ class AUVConfig(object):
 
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
-        self.UTM_TO_LATLON_SERVICE= '/'+self.robot_name+'/utm_to_lat_lon'
+        self.UTM_TO_LATLON_SERVICE= '/'+self.robot_name+'/dr/utm_to_lat_lon'
         # in cases where the above service couldnt be found for some reason
         self.LATLONTOUTM_SERVICE_ALTERNATIVE = '/'+self.robot_name+'/lat_lon_to_utm'
+        self.UTM_TO_LATLON_SERVICE_ALTERNATIVE = '/'+self.robot_name+'/utm_to_lat_lon'
 
         # tf frame names
         self.BASE_LINK = self.robot_name+'/base_link'

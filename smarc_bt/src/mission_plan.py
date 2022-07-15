@@ -230,6 +230,7 @@ class MissionPlan:
 
             self.plan_id = plan_id
 
+        self.auv_conf = auv_config
         self.plan_frame = auv_config.UTM_LINK
         self.coverage_swath = coverage_swath
         self.vehicle_localization_error_growth = vehicle_localization_error_growth
@@ -254,7 +255,22 @@ class MissionPlan:
                 rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
                 self.no_service = True
 
-        self.utmtolatlon_service_name = auv_config.UTM_TO_LATLON_SERVICE
+        self.compute_dubins = True
+        # self.utmtolatlon_service_name = auv_config.UTM_TO_LATLON_SERVICE
+        # try:
+        #     rospy.loginfo("Waiting (0.5s) utm_to_lat_lon service:{}".format(self.utmtolatlon_service_name))
+        #     rospy.wait_for_service(self.utmtolatlon_service_name, timeout=0.5)
+        # except:
+        #     rospy.logwarn(str(self.utmtolatlon_service_name)+" service could be connected to!")
+        #     self.utmtolatlon_service_name = auv_config.UTM_TO_LATLON_SERVICE_ALTERNATIVE
+        #     rospy.logwarn("Setting the service to the alternative:{}".format(self.utmtolatlon_service_name))
+        #     try:
+        #         rospy.loginfo("Waiting (10s) lat_lon_to_utm service alternative:{}".format(self.utmtolatlon_service_name))
+        #         rospy.wait_for_service(self.utmtolatlon_service_name, timeout=10)
+        #     except:
+        #         rospy.logwarn("Can't reach the utm_to_lat_lon service, the dubins path won't be computed.")
+        #         self.compute_dubins = False
+
 
         # a list of names for each maneuver
         # good for feedback
@@ -264,8 +280,11 @@ class MissionPlan:
         if waypoints is None and plandb_msg is not None:
             self.waypoints = self.read_plandb(plandb_msg)
         elif waypoints is None and mission_control_msg is not None:
-            dubins_mission = self.dubins_mission_planner(mission_control_msg)
-            self.waypoints = self.read_mission_control(dubins_mission)
+            if self.compute_dubins:
+                dubins_mission = self.dubins_mission_planner(mission_control_msg)
+                self.waypoints = self.read_mission_control(dubins_mission, is_in_utm=True)
+            else:
+                self.waypoints = self.read_mission_control(mission_control_msg)
         elif waypoints is not None:
             self.waypoints = waypoints
         else:
@@ -299,7 +318,7 @@ class MissionPlan:
 
     def _get_utm_to_latlon_service(self):
         try:
-            rospy.wait_for_service(self.utmtolatlon_service_name, timeout=1)
+            rospy.wait_for_service(self.utmtolatlon_service_name, timeout=5)
         except:
             rospy.logwarn(str(self.utmtolatlon_service_name)+" service not found!")
             return (None, None)
@@ -317,11 +336,13 @@ class MissionPlan:
                       lat,
                       lon,
                       z,
-                      in_degrees=False):
+                      in_degrees=False,
+                      serv=None):
 
-        serv = self._get_latlon_to_utm_service()
         if serv is None:
-            return (None, None)
+            serv = self._get_latlon_to_utm_service()
+            if serv is None:
+                return (None, None)
 
         gp = GeoPoint()
         if in_degrees:
@@ -336,11 +357,13 @@ class MissionPlan:
 
     def utm_to_latlon(self,
                       utm_x,
-                      utm_y):
+                      utm_y,
+                      serv=None):
 
-        serv = self._get_utm_to_latlon_service()
         if serv is None:
-            return (None, None)
+            serv = self._get_utm_to_latlon_service()
+            if serv is None:
+                return (None, None)
 
         point = Point()
         point.x = utm_x
@@ -351,7 +374,7 @@ class MissionPlan:
         return (res.lat_lon_point.latitude, res.lat_lon_point.longitude)
 
 
-    def read_mission_control(self, msg):
+    def read_mission_control(self, msg, is_in_utm=False):
         """
         read the waypoints off a smarc_msgs/MissionControl message
         and set our plan_id from its name
@@ -363,7 +386,8 @@ class MissionPlan:
             wp = Waypoint(goto_waypoint = wp_msg,
                           imc_man_id = imc_enums.MANEUVER_GOTO)
             # also make sure they are in utm
-            wp.set_utm_from_latlon(serv, set_frame=True)
+            if not is_in_utm:
+                wp.set_utm_from_latlon(serv, set_frame=True)
             waypoints.append(wp)
 
         return waypoints
@@ -509,27 +533,33 @@ class MissionPlan:
         return wps
 
 
-    def dubins_mission_planner(self, mission, turn_radius=10, num_points_coeff=2):
+    def dubins_mission_planner(self, mission, turn_radius=10, num_points=2):
         '''
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
         except for the waypoints attribute.
+        num_points represents the amount of waypoints to keep on each curve of the trajectory
         '''
-        # Number of dubins waypoints throughout the computed path = N_total_points_in_dubins_path / num_points_coeff
+        
+
+        rospy.loginfo("Computing dubins path")
+
+        ll_to_utm_serv = self._get_latlon_to_utm_service()
 
         # Wait for LoLo's first position before generating the path
         # XXX Check gps fix before converting lat/lon to utm
-        latlon_topic = rospy.get_param('latlon_topic', "/dr/lat_lon")
-        robot_name = rospy.get_param('robot_name', "lolo")
-        latlon_topic = "/" + robot_name + latlon_topic
+        # latlon_topic = rospy.get_param('latlon_topic', "/dr/lat_lon")
+        latlon_topic = self.auv_conf.LATLON_TOPIC
+        robot_name = self.auv_conf.robot_name
+        latlon_topic = "/" + robot_name + "/" + latlon_topic
         gp = rospy.wait_for_message(latlon_topic, GeoPoint)
-        utm_x_lolo, utm_y_lolo = self.latlon_to_utm(gp.latitude, gp.longitude, gp.altitude)
+        utm_x_lolo, utm_y_lolo = self.latlon_to_utm(gp.latitude, gp.longitude, gp.altitude, serv=ll_to_utm_serv)
         lolo_utm = np.array([utm_x_lolo, utm_y_lolo])
 
         # Get x, y of waypoints from original mission lat/lon
         waypoints = []
         for wp in mission.waypoints:
-            utm_x, utm_y = self.latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z)
+            utm_x, utm_y = self.latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv)
             waypoints.append([utm_x, utm_y])
         waypoints_np = np.array(waypoints)
 
@@ -555,25 +585,51 @@ class MissionPlan:
             path.append(dubins_traj(param,1))
 
         # Sample the whole path
-        final_points = []
-        for el in path:
-            for e in el:
-                final_points.append([e[0], e[1], e[2]]) # x, y, yaw[deg]
-        final_points_np = np.array(final_points)
-        N = float(len(final_points_np))
-        n = float(int(N/num_points_coeff)) # amount of waypoints to set along the path
-        mask = np.random.choice([False, True], len(final_points_np), p=[1.0-(n/N), n/N])
-        dubins_waypoints = final_points_np[mask]
+        dubins_waypoints = []
+
+        ####
+        # This approach creates too many waypoints
+        # for el in path:
+        #     for e in el:
+        #         dubins_waypoints.append([e[0], e[1], e[2]]) # x, y, yaw[deg]
+        ###
+
+        # Only define the new waypoints on the original waypoint, in the middle of each segment 
+        # and on the curve
+        for i, el in enumerate(path):
+            dubins_waypoints.append([waypoints_yaw[i].x, waypoints_yaw[i].y, waypoints_yaw[i].psi]) # include original waypoints
+            dubins_waypoints.append([el[int(len(el)/2), 0], el[int(len(el)/2), 1], el[int(len(el)/2), 2]]) # include point in the middle
+            # Compute the differnece between orientation 
+            # The maxima represent the points on the curve
+            delta_angles = abs(np.diff(el[:, 2]))
+            delta_angles = [0] + delta_angles
+            max_idxs = np.argpartition(delta_angles, -num_points)[-num_points:] # Keep two points in each curve
+            max_idxs = np.sort(max_idxs)
+            for ind in max_idxs:
+                dubins_waypoints.append(el[ind])
+
+        ###
+        # Not needed anymore if we use the curvature waypoints
+        # final_points_np = np.array(final_points)
+        # N = float(len(final_points_np))
+        # n = float(int(N/num_points_coeff)) # amount of waypoints to set along the path
+        # mask = np.random.choice([False, True], len(final_points_np), p=[1.0-(n/N), n/N])
+        # dubins_waypoints = final_points_np[mask]
+        ###
 
         dubins_mission = MissionControl()
         dubins_mission = mission
 
+        # utm_to_latlon service called here to avoid calling it in the loop
+        # utm_to_ll_serv = self._get_utm_to_latlon_service()
+
         del dubins_mission.waypoints[:]
+        dwp = GotoWaypoint()
         for wp in dubins_waypoints:
-            dwp = GotoWaypoint()
-            # dwp.pose.pose.position.x = wp[0]
-            # dwp.pose.pose.position.y = wp[1]
-            dwp.lat, dwp.lon = self.utm_to_latlon(wp[0], wp[1])
+            dwp.pose.pose.position.x = wp[0]
+            dwp.pose.pose.position.y = wp[1]
+            dwp.pose.pose.position.z = travel_altitude
+            # dwp.lat, dwp.lon = self.utm_to_latlon(wp[0], wp[1], utm_to_ll_serv)
 
             quaternion = quaternion_from_euler(0.0, 0.0, wp[2])
             dwp.pose.pose.orientation.x = quaternion[0]
