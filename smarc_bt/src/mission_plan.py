@@ -584,16 +584,21 @@ class MissionPlan:
             param = calc_dubins_path(waypoints_yaw[j], waypoints_yaw[j+1], turn_radius)
             path.append(dubins_traj(param,1))
 
-        # Sample the whole path
-        dubins_waypoints = []
-
         ####
-        # This approach creates too many waypoints
+        ## This approach creates too many waypoints
+        # dubins_waypoints = []
         # for el in path:
         #     for e in el:
         #         dubins_waypoints.append([e[0], e[1], e[2]]) # x, y, yaw[deg]
-        ###
+        ## Sample thw whole path
+        # final_points_np = np.array(final_points)
+        # N = float(len(final_points_np))
+        # n = float(int(N/num_points_coeff)) # amount of waypoints to set along the path
+        # mask = np.random.choice([False, True], len(final_points_np), p=[1.0-(n/N), n/N])
+        # dubins_waypoints = final_points_np[mask]
+        ####
 
+        dubins_waypoints = []
         # Only define the new waypoints on the original waypoint, in the middle of each segment 
         # and on the curve
         for i, el in enumerate(path):
@@ -608,14 +613,16 @@ class MissionPlan:
             for ind in max_idxs:
                 dubins_waypoints.append(el[ind])
 
-        ###
-        # Not needed anymore if we use the curvature waypoints
-        # final_points_np = np.array(final_points)
-        # N = float(len(final_points_np))
-        # n = float(int(N/num_points_coeff)) # amount of waypoints to set along the path
-        # mask = np.random.choice([False, True], len(final_points_np), p=[1.0-(n/N), n/N])
-        # dubins_waypoints = final_points_np[mask]
-        ###
+        # Sort the waypoints
+        full_path = []
+        order_idxs = []
+        for el in path:
+            for e in el:
+                full_path.append([e[0], e[1], e[2]])
+        for el in dubins_waypoints:
+            order_idxs.append(full_path.index([el[0], el[1], el[2]])) # Get the dubins wp index in the full path
+        order_idxs = np.sort(order_idxs)
+        dubins_waypoints = [full_path[i] for i in order_idxs]
 
         dubins_mission = MissionControl()
         dubins_mission = mission
