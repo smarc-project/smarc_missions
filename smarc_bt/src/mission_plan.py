@@ -284,7 +284,6 @@ class MissionPlan:
                 dubins_mission = self.dubins_mission_planner(mission_control_msg)
                 self.waypoints = self.read_mission_control(dubins_mission, is_in_utm=True)
             else:
-                # _ = self.dubins_mission_planner(mission_control_msg)
                 self.waypoints = self.read_mission_control(mission_control_msg)
         elif waypoints is not None:
             self.waypoints = waypoints
@@ -536,7 +535,7 @@ class MissionPlan:
         return wps
 
 
-    def dubins_mission_planner(self, mission, turn_radius=20, num_points=2):
+    def dubins_mission_planner(self, mission, turn_radius=10, num_points=2):
         '''
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
@@ -632,6 +631,7 @@ class MissionPlan:
         dubins_waypoints = [full_path[i] for i in ordered_idxs]
 
         # Include original waypoints
+        # The first one is lolo's position, we don't need it
         wp_i = num_points
         for wp in waypoints_complete[1:-1]:
             dubins_waypoints.insert(wp_i, [wp.x, wp.y, wp.psi])
@@ -659,7 +659,8 @@ class MissionPlan:
             dwp.pose.pose.orientation.z = quaternion[2]
             dwp.pose.pose.orientation.w = quaternion[3]
 
-            dwp.goal_tolerance = goal_tolerance
+            # dwp.goal_tolerance = goal_tolerance
+            dwp.goal_tolerance = 3.0
             dwp.z_control_mode = z_control_mode
             dwp.travel_altitude = travel_altitude 
             dwp.travel_depth = travel_depth
