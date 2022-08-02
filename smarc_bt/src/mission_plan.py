@@ -672,8 +672,6 @@ class MissionPlan:
 
             dubins_mission.waypoints.append(dwp)
 
-        print(dubins_waypoints)
-
         rospy.loginfo("Dubins mission ready")
         return dubins_mission
 
