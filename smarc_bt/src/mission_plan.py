@@ -638,9 +638,9 @@ class MissionPlan:
         utm_to_ll_serv = self._get_utm_to_latlon_service()
 
         del dubins_mission.waypoints[:]
-        dwp = GotoWaypoint()
         k = 0
         for wp in dubins_waypoints:
+            dwp = GotoWaypoint()
             dwp.pose.pose.position.x = wp[0]
             dwp.pose.pose.position.y = wp[1]
             dwp.pose.pose.position.z = travel_altitude
@@ -664,9 +664,6 @@ class MissionPlan:
             k += 1
 
             dubins_mission.waypoints.append(dwp)
-
-        # print(len(dubins_mission.waypoints))
-        # print(dubins_waypoints)
 
         rospy.loginfo("Dubins mission ready")
         return dubins_mission
