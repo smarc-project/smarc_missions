@@ -536,7 +536,7 @@ class MissionPlan:
         return wps
 
 
-    def dubins_mission_planner(self, mission, turn_radius=10, num_points=2):
+    def dubins_mission_planner(self, mission, turn_radius=20, num_points=2):
         '''
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
@@ -631,6 +631,13 @@ class MissionPlan:
         ordered_idxs = np.sort(ordered_idxs)
         dubins_waypoints = [full_path[i] for i in ordered_idxs]
 
+        # Include original waypoints
+        wp_i = num_points
+        for wp in waypoints_complete[1:-1]:
+            dubins_waypoints.insert(wp_i, [wp.x, wp.y, wp.psi])
+            wp_i += (num_points + 1)
+        dubins_waypoints.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
+
         dubins_mission = MissionControl()
         dubins_mission = mission
 
@@ -664,6 +671,8 @@ class MissionPlan:
             k += 1
 
             dubins_mission.waypoints.append(dwp)
+
+        print(dubins_waypoints)
 
         rospy.loginfo("Dubins mission ready")
         return dubins_mission
