@@ -535,8 +535,8 @@ class MissionPlan:
         return wps
 
 
-    def dubins_mission_planner(self, mission, turn_radius=10, num_points=2):
-        '''
+    def dubins_mission_planner(self, mission, turn_radius=10, num_points=2, goal_tolerance=5.0):
+        ''' 
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
         except for the waypoints attribute.
@@ -570,7 +570,7 @@ class MissionPlan:
 
         # Keep the other waypoints' parameters equal
         mwp = mission.waypoints[0]
-        goal_tolerance = mwp.goal_tolerance
+        # goal_tolerance = mwp.goal_tolerance
         z_control_mode = mwp.z_control_mode
         travel_altitude = mwp.travel_altitude
         travel_depth = mwp.travel_depth
@@ -601,11 +601,9 @@ class MissionPlan:
         ####
 
         dubins_waypoints = []
-        # Only define the new waypoints on the original waypoint, in the middle of each segment 
-        # and on the curve
+        # Only define the new waypoints on the original waypoint and on the curve
         # Each element of path is an array of points between on waypoint and the next one
         for i, el in enumerate(path):
-            # dubins_waypoints.append([waypoints_complete[i].x, waypoints_complete[i].y, waypoints_complete[i].psi]) # include original waypoints
             # dubins_waypoints.append([el[int(len(el)/2), 0], el[int(len(el)/2), 1], el[int(len(el)/2), 2]]) # include point in the middle
             # Compute the differnece between orientation 
             # The maxima represent the points on the curve
@@ -637,6 +635,7 @@ class MissionPlan:
             dubins_waypoints.insert(wp_i, [wp.x, wp.y, wp.psi])
             wp_i += (num_points + 1)
         dubins_waypoints.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
+        dubins_waypoints = dubins_waypoints[1:]
 
         dubins_mission = MissionControl()
         dubins_mission = mission
@@ -653,20 +652,27 @@ class MissionPlan:
             dwp.pose.pose.position.z = travel_altitude
             dwp.lat, dwp.lon = self.utm_to_latlon(wp[0], wp[1], utm_to_ll_serv)
 
-            quaternion = quaternion_from_euler(0.0, 0.0, wp[2])
+            quaternion = quaternion_from_euler(0.0, 0.0, math.radians(wp[2])) # RPY [rad]
+            if len(quaternion) != 0:
+                quaternion = quaternion / np.sqrt(np.sum(quaternion**2))
             dwp.pose.pose.orientation.x = quaternion[0]
             dwp.pose.pose.orientation.y = quaternion[1]
             dwp.pose.pose.orientation.z = quaternion[2]
             dwp.pose.pose.orientation.w = quaternion[3]
 
-            # dwp.goal_tolerance = goal_tolerance
-            dwp.goal_tolerance = 3.0
+            dwp.goal_tolerance = goal_tolerance
             dwp.z_control_mode = z_control_mode
             dwp.travel_altitude = travel_altitude 
             dwp.travel_depth = travel_depth
             dwp.speed_control_mode = speed_control_mode
-            dwp.travel_rpm = travel_rpm
-            dwp.travel_speed = travel_speed
+            # Speed up for the first dubins waypoint in each segment and then slow down for the following ones
+            # if k % (num_points+1) == 0: # +1 since lolo's init pose is not in the wps list
+            #     # dwp.travel_rpm = travel_rpm
+            #     dwp.travel_speed = travel_speed               
+            # else:    
+            #     # dwp.travel_rpm = travel_rpm / 2.0
+            #     dwp.travel_speed = travel_speed / 2.0               
+            
 
             dwp.name = "dwp" + str(k)
             k += 1
