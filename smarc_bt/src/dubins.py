@@ -1,11 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
-# Marco Cella (mcella@kth.se)
 
 """
-Comppute Dubins path bewtween waypoints
+Compute Dubins path between waypoints
 """
+
 import math
 import numpy as np
 from enum import Enum
@@ -218,11 +218,10 @@ def dubins_path(param, t):
 
     end_pt[0] = end_pt[0] * param.turn_radius + param.p_init.x
     end_pt[1] = end_pt[1] * param.turn_radius + param.p_init.y
-    end_pt[2] = wrapTo180(math.degrees(end_pt[2] % (2*math.pi))) # Angle in the standard unit circle [deg]
+    end_pt[2] = wrapTo180(math.degrees(end_pt[2] % (2*math.pi))) # [deg]
 
     return end_pt
 
-# Helper function for curve generation
 def dubins_segment(seg_param, seg_init, seg_type):
     L_SEG = 1
     S_SEG = 2
@@ -247,7 +246,6 @@ def dubins_segment(seg_param, seg_init, seg_type):
 # Waypoints in input only have [x,y] coordinates
 def waypoints_with_yaw(waypoints):
     pts = waypoints
-    # Angles in the standard unit circle
     angles = []
     Wptz = []
     for i in (range(len(pts))):

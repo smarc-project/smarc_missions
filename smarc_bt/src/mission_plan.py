@@ -535,7 +535,7 @@ class MissionPlan:
         return wps
 
 
-    def dubins_mission_planner(self, mission, turn_radius=10, num_points=2, goal_tolerance=5.0):
+    def dubins_mission_planner(self, mission, turn_radius=5, num_points=2, goal_tolerance=10.0):
         ''' 
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
