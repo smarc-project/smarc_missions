@@ -250,9 +250,9 @@ def waypoints_with_yaw(waypoints):
     Wptz = []
     for i in (range(len(pts))):
         if i != len(pts)-1:
-            angle = math.degrees(math.atan2(pts[i+1][1] - pts[i][1], pts[i+1][0] - pts[i][0])) 
+            angle = math.degrees(math.atan2(pts[i+1,1] - pts[i,1], pts[i+1,0] - pts[i,0])) 
         else:
-            angle = math.degrees(math.atan2(pts[len(pts)-1][1] - pts[len(pts)-2][1], pts[len(pts)-1][0] - pts[len(pts)-2][0])) 
+            angle = math.degrees(math.atan2(pts[len(pts)-1,1] - pts[len(pts)-2,1], pts[len(pts)-1,0] - pts[len(pts)-2,0])) 
         angles.append(angle)
-        Wptz.append(Waypoint(pts[i][0], pts[i][1], angle))
+        Wptz.append(Waypoint(pts[i,0], pts[i,1], angle))
     return Wptz, angles

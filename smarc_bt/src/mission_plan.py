@@ -19,6 +19,7 @@ from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM, UTMToLatLon
 from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint, MissionControl
+from sensor_msgs.msg import NavSatFix
 
 from coverage_planner import create_coverage_path
 from dubins import calc_dubins_path, dubins_traj, waypoints_with_yaw
@@ -535,22 +536,74 @@ class MissionPlan:
         return wps
 
 
-    def dubins_mission_planner(self, mission, turn_radius=5, num_points=2, goal_tolerance=10.0):
+    def circle_line_segment_intersection(self, circle_center, circle_radius, pt1, pt2, full_line=False, tangent_tol=1e-9):
+        """ Find the points at which a circle intersects a line-segment.  This can happen at 0, 1, or 2 points.
+
+        :param circle_center: The (x, y) location of the circle center
+        :param circle_radius: The radius of the circle
+        :param pt1: The (x, y) location of the first point of the segment
+        :param pt2: The (x, y) location of the second point of the segment
+        :param full_line: True to find intersections along full line - not just in the segment.  False will just return intersections within the segment.
+        :param tangent_tol: Numerical tolerance at which we decide the intersections are close enough to consider it a tangent
+        :return Sequence[Tuple[float, float]]: A list of length 0, 1, or 2, where each element is a point at which the circle intercepts a line segment.
+
+        Note: We follow: http://mathworld.wolfram.com/Circle-LineIntersection.html
+        """
+
+        (p1x, p1y), (p2x, p2y), (cx, cy) = pt1, pt2, circle_center
+        (x1, y1), (x2, y2) = (p1x - cx, p1y - cy), (p2x - cx, p2y - cy)
+        dx, dy = (x2 - x1), (y2 - y1)
+        dr = (dx ** 2 + dy ** 2)**.5
+        big_d = x1 * y2 - x2 * y1
+        discriminant = circle_radius ** 2 * dr ** 2 - big_d ** 2
+
+        if dr < 1e-10:
+            dr = 1e-10
+        if dx < 1e-10:
+            dx = 1e-10
+        if dy < 1e-10:
+            dy = 1e-10
+
+
+        if discriminant < 0:  # No intersection between circle and line
+            return []
+        else:  # There may be 0, 1, or 2 intersections with the segment
+            intersections = [
+                (cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2,
+                 cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2)
+                for sign in ((1, -1) if dy < 0 else (-1, 1))]  # This makes sure the order along the segment is correct
+            if not full_line:  # If only considering the segment, filter out intersections that do not fall within the segment
+                fraction_along_segment = [(xi - p1x) / dx if abs(dx) > abs(dy) else (yi - p1y) / dy for xi, yi in intersections]
+                intersections = [pt for pt, frac in zip(intersections, fraction_along_segment) if 0 <= frac <= 1]
+            if len(intersections) == 2 and abs(discriminant) <= tangent_tol:  # If line is tangent to circle, return just one point (as both intersections have same location)
+                return [intersections[0]]
+            else:
+                return intersections
+
+    def gps_fix_cb(self, gps_msg):
+        self.is_fix_ok = True
+
+    def dubins_mission_planner(self, mission, turn_radius=3.0, num_points=2, goal_tolerance=5.0, inside_turn=True, int_radius=20.0):
         ''' 
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
         except for the waypoints attribute.
         num_points represents the amount of waypoints to keep on each curve of the trajectory
         '''
-        
+
+        # Only continue if we have the gps fix
+        self.is_fix_ok = False
+        rospy.Subscriber("/lolo/core/gps", NavSatFix, self.gps_fix_cb)
+        while not self.is_fix_ok:
+            rospy.loginfo("Waiting for GPS fix")
+            rospy.sleep(1.0)
+        rospy.loginfo("GPS fix received")
 
         rospy.loginfo("Computing dubins path")
 
         ll_to_utm_serv = self._get_latlon_to_utm_service()
 
         # Wait for LoLo's first position before generating the path
-        # XXX Check gps fix before converting lat/lon to utm
-        # latlon_topic = rospy.get_param('latlon_topic', "/dr/lat_lon")
         latlon_topic = self.auv_conf.LATLON_TOPIC
         robot_name = self.auv_conf.robot_name
         latlon_topic = "/" + robot_name + "/" + latlon_topic
@@ -559,14 +612,31 @@ class MissionPlan:
         lolo_utm = np.array([utm_x_lolo, utm_y_lolo])
 
         # Get x, y of waypoints from original mission lat/lon
-        waypoints = []
+        points = []
         for wp in mission.waypoints:
             utm_x, utm_y = self.latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
-            waypoints.append([utm_x, utm_y])
-        waypoints_np = np.array(waypoints)
+            points.append([utm_x, utm_y])
+            points_np = np.array(points)
+            points_with_lolo = np.vstack((lolo_utm, points_np))
 
-        # Generate path starting from LoLo's location
-        waypoints_np = np.vstack((lolo_utm, waypoints_np))
+        if not inside_turn:
+            rospy.loginfo("Turning outside")
+            original_waypoints = points_with_lolo
+        else:
+            rospy.loginfo("Turning inside")
+            waypoints = []
+            for i in range(len(points_with_lolo)-1):
+                waypoints_i = self.circle_line_segment_intersection(circle_center=(points_with_lolo[i, 0], points_with_lolo[i, 1]), circle_radius=int_radius,
+                                                                    pt1=(points_with_lolo[i, 0], points_with_lolo[i, 1]), pt2=(points_with_lolo[i+1, 0], points_with_lolo[i+1, 1]))
+                waypoints.append(waypoints_i)
+                waypoints_j = self.circle_line_segment_intersection(circle_center=(points_with_lolo[i+1, 0], points_with_lolo[i+1, 1]), circle_radius=int_radius,
+                                                                    pt1=(points_with_lolo[i, 0], points_with_lolo[i, 1]), pt2=(points_with_lolo[i+1, 0], points_with_lolo[i+1, 1]))
+                waypoints.append(waypoints_j)
+                
+            waypoints.append([(points_with_lolo[-1, 0], points_with_lolo[-1, 1])])
+            waypoints = [el for sublist in waypoints for el in sublist] # Flatten list of lists
+            waypoints_np = np.array(waypoints)
+            original_waypoints = waypoints_np.squeeze()  # Remove useless extra dimension
 
         # Keep the other waypoints' parameters equal
         mwp = mission.waypoints[0]
@@ -579,32 +649,17 @@ class MissionPlan:
         travel_speed = mwp.travel_speed
 
         # Compute angle between waypoints and get the new wps array
-        waypoints_complete, _ = waypoints_with_yaw(waypoints_np)
+        waypoints_complete, _ = waypoints_with_yaw(original_waypoints)
 
         path = []
         for j in range(len(waypoints_complete)-1):
             param = calc_dubins_path(waypoints_complete[j], waypoints_complete[j+1], turn_radius)
             path.append(dubins_traj(param,1))
 
-        ####
-        ## This approach creates too many waypoints
-        # dubins_waypoints = []
-        # for el in path:
-        #     for e in el:
-        #         dubins_waypoints.append([e[0], e[1], e[2]]) # x, y, yaw[deg]
-        ## Sample thw whole path
-        # final_points_np = np.array(final_points)
-        # N = float(len(final_points_np))
-        # n = float(int(N/num_points_coeff)) # amount of waypoints to set along the path
-        # mask = np.random.choice([False, True], len(final_points_np), p=[1.0-(n/N), n/N])
-        # dubins_waypoints = final_points_np[mask]
-        ####
-
         dubins_waypoints = []
         # Only define the new waypoints on the original waypoint and on the curve
         # Each element of path is an array of points between on waypoint and the next one
         for i, el in enumerate(path):
-            # dubins_waypoints.append([el[int(len(el)/2), 0], el[int(len(el)/2), 1], el[int(len(el)/2), 2]]) # include point in the middle
             # Compute the differnece between orientation 
             # The maxima represent the points on the curve
             delta_angles = abs(np.diff(el[:, 2]))
@@ -626,26 +681,26 @@ class MissionPlan:
             except ValueError:
                 rospy.logwarn("Point " + str(j) + " not found in the path!")
         ordered_idxs = np.sort(ordered_idxs)
-        dubins_waypoints = [full_path[i] for i in ordered_idxs]
+        dubins_waypoints_ordered = [full_path[i] for i in ordered_idxs]
 
         # Include original waypoints
         # The first one is lolo's position, we don't need it
         wp_i = num_points
         for wp in waypoints_complete[1:-1]:
-            dubins_waypoints.insert(wp_i, [wp.x, wp.y, wp.psi])
-            wp_i += (num_points + 1)
-        dubins_waypoints.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
-        dubins_waypoints = dubins_waypoints[1:]
+            dubins_waypoints_ordered.insert(wp_i, [wp.x, wp.y, wp.psi])
+            wp_i += num_points + 1
+        dubins_waypoints_ordered.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
+        dubins_waypoints_final = dubins_waypoints_ordered[1:]
 
         dubins_mission = MissionControl()
         dubins_mission = mission
+        del dubins_mission.waypoints[:]
 
         # utm_to_latlon service called here to avoid calling it in the loop
         utm_to_ll_serv = self._get_utm_to_latlon_service()
 
-        del dubins_mission.waypoints[:]
         k = 0
-        for wp in dubins_waypoints:
+        for wp in dubins_waypoints_final:
             dwp = GotoWaypoint()
             dwp.pose.pose.position.x = wp[0]
             dwp.pose.pose.position.y = wp[1]
@@ -653,6 +708,7 @@ class MissionPlan:
             dwp.lat, dwp.lon = self.utm_to_latlon(wp[0], wp[1], utm_to_ll_serv)
 
             quaternion = quaternion_from_euler(0.0, 0.0, math.radians(wp[2])) # RPY [rad]
+            # Normalize quaternion
             if len(quaternion) != 0:
                 quaternion = quaternion / np.sqrt(np.sum(quaternion**2))
             dwp.pose.pose.orientation.x = quaternion[0]
@@ -665,15 +721,16 @@ class MissionPlan:
             dwp.travel_altitude = travel_altitude 
             dwp.travel_depth = travel_depth
             dwp.speed_control_mode = speed_control_mode
+
+            dwp.travel_speed = travel_speed
             # Speed up for the first dubins waypoint in each segment and then slow down for the following ones
             # if k % (num_points+1) == 0: # +1 since lolo's init pose is not in the wps list
             #     # dwp.travel_rpm = travel_rpm
             #     dwp.travel_speed = travel_speed               
             # else:    
             #     # dwp.travel_rpm = travel_rpm / 2.0
-            #     dwp.travel_speed = travel_speed / 2.0               
+            #     dwp.travel_speed = travel_speed / 2.0
             
-
             dwp.name = "dwp" + str(k)
             k += 1
 
