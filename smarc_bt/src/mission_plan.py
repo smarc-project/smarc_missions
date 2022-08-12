@@ -536,7 +536,7 @@ class MissionPlan:
         return wps
 
 
-    def circle_line_segment_intersection(self, circle_center, circle_radius, pt1, pt2, full_line=False, tangent_tol=1e-9):
+    def circle_line_segment_intersection(self, circle_center, circle_radius, pt1, pt2, full_line=False, tangent_tol=1e-5):
         """ Find the points at which a circle intersects a line-segment.  This can happen at 0, 1, or 2 points.
 
         :param circle_center: The (x, y) location of the circle center
@@ -553,9 +553,9 @@ class MissionPlan:
         (p1x, p1y), (p2x, p2y), (cx, cy) = pt1, pt2, circle_center
         (x1, y1), (x2, y2) = (p1x - cx, p1y - cy), (p2x - cx, p2y - cy)
         dx, dy = (x2 - x1), (y2 - y1)
-        dr = (dx ** 2 + dy ** 2)**.5
+        dr = (dx ** 2.0 + dy ** 2.0)**.5
         big_d = x1 * y2 - x2 * y1
-        discriminant = circle_radius ** 2 * dr ** 2 - big_d ** 2
+        discriminant = circle_radius ** 2.0 * dr ** 2.0 - big_d ** 2.0
 
         if dr < 1e-10:
             dr = 1e-10
@@ -564,13 +564,12 @@ class MissionPlan:
         if dy < 1e-10:
             dy = 1e-10
 
-
         if discriminant < 0:  # No intersection between circle and line
             return []
         else:  # There may be 0, 1, or 2 intersections with the segment
             intersections = [
-                (cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2,
-                 cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2)
+                (cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2.0,
+                 cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2.0)
                 for sign in ((1, -1) if dy < 0 else (-1, 1))]  # This makes sure the order along the segment is correct
             if not full_line:  # If only considering the segment, filter out intersections that do not fall within the segment
                 fraction_along_segment = [(xi - p1x) / dx if abs(dx) > abs(dy) else (yi - p1y) / dy for xi, yi in intersections]
@@ -616,8 +615,8 @@ class MissionPlan:
         for wp in mission.waypoints:
             utm_x, utm_y = self.latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
             points.append([utm_x, utm_y])
-            points_np = np.array(points)
-            points_with_lolo = np.vstack((lolo_utm, points_np))
+        points_np = np.array(points)
+        points_with_lolo = np.vstack((lolo_utm, points_np))
 
         if not inside_turn:
             rospy.loginfo("Turning outside")
