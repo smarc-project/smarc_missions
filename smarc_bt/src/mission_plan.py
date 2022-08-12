@@ -557,13 +557,6 @@ class MissionPlan:
         big_d = x1 * y2 - x2 * y1
         discriminant = circle_radius ** 2.0 * dr ** 2.0 - big_d ** 2.0
 
-        if dr < 1e-10:
-            dr = 1e-10
-        if dx < 1e-10:
-            dx = 1e-10
-        if dy < 1e-10:
-            dy = 1e-10
-
         if discriminant < 0:  # No intersection between circle and line
             return []
         else:  # There may be 0, 1, or 2 intersections with the segment
@@ -582,7 +575,7 @@ class MissionPlan:
     def gps_fix_cb(self, gps_msg):
         self.is_fix_ok = True
 
-    def dubins_mission_planner(self, mission, turn_radius=3.0, num_points=2, goal_tolerance=5.0, inside_turn=True, int_radius=20.0):
+    def dubins_mission_planner(self, mission, turn_radius=3.0, num_points=2, goal_tolerance=2.0, inside_turn=True, int_radius=20.0):
         ''' 
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. It returns a new MissionControl message equal to the input one
