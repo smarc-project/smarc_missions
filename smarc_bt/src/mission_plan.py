@@ -575,12 +575,17 @@ class MissionPlan:
     def gps_fix_cb(self, gps_msg):
         self.is_fix_ok = True
 
-    def dubins_mission_planner(self, mission, turn_radius=3.0, num_points=2, goal_tolerance=2.0, inside_turn=True, int_radius=20.0):
+    def dubins_mission_planner(self, mission, turn_radius=3.0, num_points=2, inside_turn=True, int_radius=20.0):
         ''' 
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
-        path between them. It returns a new MissionControl message equal to the input one
-        except for the waypoints attribute.
-        num_points represents the amount of waypoints to keep on each curve of the trajectory
+        path between them. 
+
+        :param mission: the original MissionControl message
+        :param turn_radius: turning radius of the robot [m]
+        :param num_points: the amount of waypoints to keep on each segment between waypoints
+        :param inside_turn: cut the waypoints corners 
+        :param int_radius: only used if inside_turn is True. Radius of the circle used to compute the intersection waypoints [m]
+        :return MissionControl.msg: new MissionControl message equal to the input one except for the waypoints attribute
         '''
 
         # Only continue if we have the gps fix
@@ -632,7 +637,7 @@ class MissionPlan:
 
         # Keep the other waypoints' parameters equal
         mwp = mission.waypoints[0]
-        # goal_tolerance = mwp.goal_tolerance
+        goal_tolerance = mwp.goal_tolerance
         z_control_mode = mwp.z_control_mode
         travel_altitude = mwp.travel_altitude
         travel_depth = mwp.travel_depth
@@ -716,12 +721,12 @@ class MissionPlan:
 
             dwp.travel_speed = travel_speed
             # Speed up for the first dubins waypoint in each segment and then slow down for the following ones
-            # if k % (num_points+1) == 0: # +1 since lolo's init pose is not in the wps list
-            #     # dwp.travel_rpm = travel_rpm
+            # if k % (num_points+1) == 0: 
+            #     dwp.travel_rpm = travel_rpm
             #     dwp.travel_speed = travel_speed               
             # else:    
-            #     # dwp.travel_rpm = travel_rpm / 2.0
-            #     dwp.travel_speed = travel_speed / 2.0
+            #     dwp.travel_rpm = travel_rpm / 1.5
+            #     dwp.travel_speed = travel_speed / 1.5
             
             dwp.name = "dwp" + str(k)
             k += 1
