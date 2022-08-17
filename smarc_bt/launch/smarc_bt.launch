@@ -3,125 +3,137 @@
 <launch>
 	<arg name="robot_name" default="sam" />
 
-	<arg name="dvl_topic" default="core/dvl" />
-	<arg name="leak_topic" default="core/leak" />
-	<arg name="camera_detection_topic" default="detection/poi_down" />
-	<arg name="path_topic" default="ctrl/planned_path" />
-	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
-	<arg name="plan_path_topic" default="ctrl/mission_waypoints" />
-	<arg name="latlon_topic" default="dr/lat_lon" />
-	<arg name="gps_topic" default="core/gps" />
-	<arg name="roll_topic" default="/$(arg robot_name)/dr/roll" />
-	<arg name="pitch_topic" default="/$(arg robot_name)/dr/pitch" />
-	<arg name="yaw_topic" default="/$(arg robot_name)/dr/yaw" />
-	<arg name="emergency_topic" default="core/abort" />
-	<arg name="heartbeat_topic" default="core/heartbeat" />
 	<arg name="mission_complete_topic" default="core/mission_complete" />
-	<arg name="reloc_enable_topic" default="localization/enable" />
-	<arg name="reloc_wp" default="localization/wp" />
-	<arg name="algae_follow_enable_topic" default="algae_farm/enable" />
-	<arg name="algae_follow_wp" default="algae_farm/wp" />
-	<arg name="action_namespace" default="ctrl/goto_waypoint" />
-	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
-	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
-	<arg name="start_stop_dvl_namespace" default="core/toggle_dvl" />
-	<arg name="inspection_action_namespace" default="ctrl/panoramic_inspection_action" />
-	<arg name="planned_surface_action_namespace" default="ctrl/planned_surface_action" />
-	<arg name="latlontoutm_service" default="/$(arg robot_name)/dr/lat_lon_to_utm" />
-	<arg name="latlontoutm_service_alternative" default="/$(arg robot_name)/lat_lon_to_utm" />
-	<arg name="base_link" default="$(arg robot_name)/base_link" />
-	<arg name="utm_link" default="utm" />
-	<arg name="local_link" default="map" />
-	<arg name="poi_detector_link" default="$(arg robot_name)/camera_down_link" />
-	<arg name="leader_link" default="sam_1/base_link" />
-	<arg name="enable_leader_follower" default="True" />
-	<arg name="plandb_topic" default="imc/plan_db" />
+	<arg name="algae_follow_enable_topic" default="smarc_bt/algae_farm/enable" />
+	<arg name="lolo_elevon_strb_topic" default="/$(arg robot_name)/core/elevon_strb_fb" />
+	<arg name="gui_wp" default="smarc_bt/gui_wp/wp" />
+	<arg name="lolo_elevon_port_topic" default="/$(arg robot_name)/core/elevon_port_fb" />
+	<arg name="mission_log_folder" default="~/MissionLogs/" />
+	<arg name="lolo_elevator_topic" default="/$(arg robot_name)/core/elevator" />
+	<arg name="emergency_trials_before_giving_up" default="30" />
+	<arg name="algae_follow_wp" default="smarc_bt/algae_farm/wp" />
+	<arg name="swath" default="20" />
+	<arg name="emergency_topic" default="core/abort" />
 	<arg name="plan_control_topic" default="imc/plan_control" />
-	<arg name="estimated_state_topic" default="imc/estimated_state" />
-	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
+	<arg name="dvl_cooldown" default="0.5" />
+	<arg name="goto_action_namespace" default="ctrl/goto_waypoint" />
+	<arg name="dvl_running_depth" default="0.55" />
+	<arg name="heartbeat_topic" default="core/heartbeat" />
+	<arg name="leader_link" default="sam_1/base_link" />
+	<arg name="absolute_min_altitude" default="-1" />
+	<arg name="utm_link" default="utm" />
+	<arg name="start_stop_dvl_namespace" default="core/toggle_dvl" />
+	<arg name="path_topic" default="ctrl/planned_path" />
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
-	<arg name="abort_topic" default="imc/abort" />
+	<arg name="gui_wp_enable_topic" default="smarc_bt/gui_wp/enable" />
+	<arg name="base_link" default="$(arg robot_name)/base_link" />
+	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
+	<arg name="waypoint_tolerance" default="1.5" />
+	<arg name="utm_to_latlon_service_alternative" default="/$(arg robot_name)/utm_to_lat_lon" />
+	<arg name="plan_control_state_topic" default="imc/plan_control_state" />
 	<arg name="gpsfix_topic" default="imc/gps_fix" />
-	<arg name="gps_nav_data_topic" default="imc/gps_nav_data" />
+	<arg name="dvl_topic" default="core/dvl" />
+	<arg name="utm_to_latlon_service" default="/$(arg robot_name)/dr/utm_to_lat_lon" />
 	<arg name="max_depth" default="20" />
 	<arg name="min_altitude" default="1" />
-	<arg name="absolute_min_altitude" default="-1" />
-	<arg name="emergency_trials_before_giving_up" default="30" />
+	<arg name="latlontoutm_service_alternative" default="/$(arg robot_name)/lat_lon_to_utm" />
+	<arg name="planned_surface_action_namespace" default="ctrl/planned_surface_action" />
+	<arg name="abort_topic" default="imc/abort" />
+	<arg name="live_wp_enable_topic" default="smarc_bt/live_wp/enable" />
+	<arg name="pitch_topic" default="/$(arg robot_name)/dr/pitch" />
+	<arg name="lolo_aft_tank_topic" default="/$(arg robot_name)/core/vbs/aft_tank_fb" />
+	<arg name="camera_detection_topic" default="detection/poi_down" />
+	<arg name="plan_viz_topic" default="viz/mission_waypoints" />
+	<arg name="local_link" default="map" />
+	<arg name="poi_detector_link" default="$(arg robot_name)/camera_down_link" />
+	<arg name="last_wp_topic" default="smarc_bt/last_wp" />
+	<arg name="latlon_topic" default="dr/lat_lon" />
+	<arg name="plan_path_topic" default="ctrl/mission_waypoints" />
+	<arg name="leak_topic" default="core/leak" />
+	<arg name="yaw_topic" default="/$(arg robot_name)/dr/yaw" />
+	<arg name="plandb_topic" default="imc/plan_db" />
+	<arg name="mission_control_topic" default="smarc_bt/mission_control" />
+	<arg name="enable_leader_follower" default="True" />
+	<arg name="gps_nav_data_topic" default="imc/gps_nav_data" />
 	<arg name="min_distance_to_leader" default="5" />
-	<arg name="dvl_cooldown" default="0.5" />
-	<arg name="dvl_running_depth" default="0.55" />
-	<arg name="waypoint_tolerance" default="1.5" />
-	<arg name="swath" default="20" />
+	<arg name="roll_topic" default="/$(arg robot_name)/dr/roll" />
+	<arg name="lolo_front_tank_topic" default="/$(arg robot_name)/core/vbs/front_tank_fb" />
 	<arg name="localization_error_growth" default="0.02" />
+	<arg name="gps_topic" default="core/gps" />
 	<arg name="buoy_topic" default="sim/marked_positions" />
-	<arg name="mission_log_folder" default="~/MissionLogs/" />
+	<arg name="follow_action_namespace" default="ctrl/leader_follower_action" />
+	<arg name="live_wp" default="smarc_bt/live_wp/wp" />
+	<arg name="latlontoutm_service" default="/$(arg robot_name)/dr/lat_lon_to_utm" />
 	<arg name="enable_manual_mission_log" default="False" />
-	<arg name="lolo_elevator_topic" default="/lolo/core/elevator" />
-	<arg name="lolo_elevon_port_topic" default="/lolo/core/elevon_port_fb" />
-	<arg name="lolo_elevon_strb_topic" default="/lolo/core/elevon_strb_fb" />
-	<arg name="lolo_aft_tank_topic" default="/lolo/core/vbs/aft_tank_fb" />
-	<arg name="lolo_front_tank_topic" default="/lolo/core/vbs/front_tank_fb" />
+	<arg name="inspection_action_namespace" default="ctrl/panoramic_inspection_action" />
+	<arg name="estimated_state_topic" default="imc/estimated_state" />
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
-		<param name="robot_name" value="$(arg robot_name)" />
-		<param name="dvl_topic" value="$(arg dvl_topic)" />
-		<param name="leak_topic" value="$(arg leak_topic)" />
-		<param name="camera_detection_topic" value="$(arg camera_detection_topic)" />
-		<param name="path_topic" value="$(arg path_topic)" />
-		<param name="plan_viz_topic" value="$(arg plan_viz_topic)" />
-		<param name="plan_path_topic" value="$(arg plan_path_topic)" />
-		<param name="latlon_topic" value="$(arg latlon_topic)" />
-		<param name="gps_topic" value="$(arg gps_topic)" />
-		<param name="roll_topic" value="$(arg roll_topic)" />
-		<param name="pitch_topic" value="$(arg pitch_topic)" />
-		<param name="yaw_topic" value="$(arg yaw_topic)" />
-		<param name="emergency_topic" value="$(arg emergency_topic)" />
-		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
 		<param name="mission_complete_topic" value="$(arg mission_complete_topic)" />
-		<param name="reloc_enable_topic" value="$(arg reloc_enable_topic)" />
-		<param name="reloc_wp" value="$(arg reloc_wp)" />
 		<param name="algae_follow_enable_topic" value="$(arg algae_follow_enable_topic)" />
+		<param name="lolo_elevon_strb_topic" value="$(arg lolo_elevon_strb_topic)" />
+		<param name="gui_wp" value="$(arg gui_wp)" />
+		<param name="lolo_elevon_port_topic" value="$(arg lolo_elevon_port_topic)" />
+		<param name="mission_log_folder" value="$(arg mission_log_folder)" />
+		<param name="lolo_elevator_topic" value="$(arg lolo_elevator_topic)" />
+		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
 		<param name="algae_follow_wp" value="$(arg algae_follow_wp)" />
-		<param name="action_namespace" value="$(arg action_namespace)" />
-		<param name="emergency_action_namespace" value="$(arg emergency_action_namespace)" />
-		<param name="follow_action_namespace" value="$(arg follow_action_namespace)" />
-		<param name="start_stop_dvl_namespace" value="$(arg start_stop_dvl_namespace)" />
-		<param name="inspection_action_namespace" value="$(arg inspection_action_namespace)" />
-		<param name="planned_surface_action_namespace" value="$(arg planned_surface_action_namespace)" />
-		<param name="latlontoutm_service" value="$(arg latlontoutm_service)" />
-		<param name="latlontoutm_service_alternative" value="$(arg latlontoutm_service_alternative)" />
-		<param name="base_link" value="$(arg base_link)" />
-		<param name="utm_link" value="$(arg utm_link)" />
-		<param name="local_link" value="$(arg local_link)" />
-		<param name="poi_detector_link" value="$(arg poi_detector_link)" />
-		<param name="leader_link" value="$(arg leader_link)" />
-		<param name="enable_leader_follower" value="$(arg enable_leader_follower)" />
-		<param name="plandb_topic" value="$(arg plandb_topic)" />
+		<param name="swath" value="$(arg swath)" />
+		<param name="emergency_topic" value="$(arg emergency_topic)" />
 		<param name="plan_control_topic" value="$(arg plan_control_topic)" />
-		<param name="estimated_state_topic" value="$(arg estimated_state_topic)" />
-		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
+		<param name="dvl_cooldown" value="$(arg dvl_cooldown)" />
+		<param name="goto_action_namespace" value="$(arg goto_action_namespace)" />
+		<param name="robot_name" value="$(arg robot_name)" />
+		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
+		<param name="heartbeat_topic" value="$(arg heartbeat_topic)" />
+		<param name="leader_link" value="$(arg leader_link)" />
+		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />
+		<param name="utm_link" value="$(arg utm_link)" />
+		<param name="start_stop_dvl_namespace" value="$(arg start_stop_dvl_namespace)" />
+		<param name="path_topic" value="$(arg path_topic)" />
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
-		<param name="abort_topic" value="$(arg abort_topic)" />
+		<param name="gui_wp_enable_topic" value="$(arg gui_wp_enable_topic)" />
+		<param name="base_link" value="$(arg base_link)" />
+		<param name="emergency_action_namespace" value="$(arg emergency_action_namespace)" />
+		<param name="waypoint_tolerance" value="$(arg waypoint_tolerance)" />
+		<param name="utm_to_latlon_service_alternative" value="$(arg utm_to_latlon_service_alternative)" />
+		<param name="plan_control_state_topic" value="$(arg plan_control_state_topic)" />
 		<param name="gpsfix_topic" value="$(arg gpsfix_topic)" />
-		<param name="gps_nav_data_topic" value="$(arg gps_nav_data_topic)" />
+		<param name="dvl_topic" value="$(arg dvl_topic)" />
+		<param name="utm_to_latlon_service" value="$(arg utm_to_latlon_service)" />
 		<param name="max_depth" value="$(arg max_depth)" />
 		<param name="min_altitude" value="$(arg min_altitude)" />
-		<param name="absolute_min_altitude" value="$(arg absolute_min_altitude)" />
-		<param name="emergency_trials_before_giving_up" value="$(arg emergency_trials_before_giving_up)" />
-		<param name="min_distance_to_leader" value="$(arg min_distance_to_leader)" />
-		<param name="dvl_cooldown" value="$(arg dvl_cooldown)" />
-		<param name="dvl_running_depth" value="$(arg dvl_running_depth)" />
-		<param name="waypoint_tolerance" value="$(arg waypoint_tolerance)" />
-		<param name="swath" value="$(arg swath)" />
-		<param name="localization_error_growth" value="$(arg localization_error_growth)" />
-		<param name="buoy_topic" value="$(arg buoy_topic)" />
-		<param name="mission_log_folder" value="$(arg mission_log_folder)" />
-		<param name="enable_manual_mission_log" value="$(arg enable_manual_mission_log)" />
-		<param name="lolo_elevator_topic" value="$(arg lolo_elevator_topic)" />
-		<param name="lolo_elevon_port_topic" value="$(arg lolo_elevon_port_topic)" />
-		<param name="lolo_elevon_strb_topic" value="$(arg lolo_elevon_strb_topic)" />
+		<param name="latlontoutm_service_alternative" value="$(arg latlontoutm_service_alternative)" />
+		<param name="planned_surface_action_namespace" value="$(arg planned_surface_action_namespace)" />
+		<param name="abort_topic" value="$(arg abort_topic)" />
+		<param name="live_wp_enable_topic" value="$(arg live_wp_enable_topic)" />
+		<param name="pitch_topic" value="$(arg pitch_topic)" />
 		<param name="lolo_aft_tank_topic" value="$(arg lolo_aft_tank_topic)" />
+		<param name="camera_detection_topic" value="$(arg camera_detection_topic)" />
+		<param name="plan_viz_topic" value="$(arg plan_viz_topic)" />
+		<param name="local_link" value="$(arg local_link)" />
+		<param name="poi_detector_link" value="$(arg poi_detector_link)" />
+		<param name="last_wp_topic" value="$(arg last_wp_topic)" />
+		<param name="latlon_topic" value="$(arg latlon_topic)" />
+		<param name="plan_path_topic" value="$(arg plan_path_topic)" />
+		<param name="leak_topic" value="$(arg leak_topic)" />
+		<param name="yaw_topic" value="$(arg yaw_topic)" />
+		<param name="plandb_topic" value="$(arg plandb_topic)" />
+		<param name="mission_control_topic" value="$(arg mission_control_topic)" />
+		<param name="enable_leader_follower" value="$(arg enable_leader_follower)" />
+		<param name="gps_nav_data_topic" value="$(arg gps_nav_data_topic)" />
+		<param name="min_distance_to_leader" value="$(arg min_distance_to_leader)" />
+		<param name="roll_topic" value="$(arg roll_topic)" />
 		<param name="lolo_front_tank_topic" value="$(arg lolo_front_tank_topic)" />
+		<param name="localization_error_growth" value="$(arg localization_error_growth)" />
+		<param name="gps_topic" value="$(arg gps_topic)" />
+		<param name="buoy_topic" value="$(arg buoy_topic)" />
+		<param name="follow_action_namespace" value="$(arg follow_action_namespace)" />
+		<param name="live_wp" value="$(arg live_wp)" />
+		<param name="latlontoutm_service" value="$(arg latlontoutm_service)" />
+		<param name="enable_manual_mission_log" value="$(arg enable_manual_mission_log)" />
+		<param name="inspection_action_namespace" value="$(arg inspection_action_namespace)" />
+		<param name="estimated_state_topic" value="$(arg estimated_state_topic)" />
 	</node>
 </launch>
