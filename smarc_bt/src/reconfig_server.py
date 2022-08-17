@@ -56,6 +56,16 @@ class ReconfigServer(object):
                                config.ENABLE_MANUAL_MISSION_LOG)
 
 
+        # dubins planner stuff
+        self.ddrc.add_variable(bb_enums.TURNING_RADIUS,
+                               "default:{}".format(config.TURNING_RADIUS),
+                               float(config.TURNING_RADIUS), 0.1, 50)
+
+        self.ddrc.add_variable(bb_enums.INTERSECTION_RADIUS,
+                               "default:{}".format(config.INTERSECTION_RADIUS),
+                               float(config.INTERSECTION_RADIUS), 0.1, 100)
+
+
         rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
 
 

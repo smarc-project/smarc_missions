@@ -72,3 +72,7 @@ LOLO_AFT_TANK = 'lolo_aft_tank'
 LOLO_FRONT_TANK = 'lolo_front_tank'
 LOLO_AFT_TANK_TARGET = 'lolo_aft_tank_target'
 LOLO_FRONT_TANK_TARGET = 'lolo_front_tank_target'
+
+# dubins planner stuff
+TURNING_RADIUS = "turning_radius"
+INTERSECTION_RADIUS = "intersection_radius"

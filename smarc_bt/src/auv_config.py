@@ -123,6 +123,11 @@ class AUVConfig(object):
         self.LOLO_AFT_TANK_TOPIC = '/lolo/core/vbs/aft_tank_fb'
         self.LOLO_FRONT_TANK_TOPIC = '/lolo/core/vbs/front_tank_fb'
 
+        # dubins planner stuff 
+        self.TURNING_RADIUS = 2.0 # meters
+        self.INTERSECTION_RADIUS = 5.0  # meters
+
+
     def __str__(self):
         s = '\nAUV_CONFIG:\n'
 

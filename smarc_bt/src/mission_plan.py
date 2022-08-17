@@ -8,6 +8,7 @@ import tf
 import time
 import math
 import numpy as np
+import py_trees as pt
 
 import common_globals
 import imc_enums
@@ -221,6 +222,8 @@ class MissionPlan:
         """
         # used to report when the mission was received
         self.creation_time = time.time()
+
+        self.bb = pt.blackboard.Blackboard()
 
         self.plandb_msg = plandb_msg
         if plandb_msg is not None:
@@ -575,7 +578,7 @@ class MissionPlan:
     def gps_fix_cb(self, gps_msg):
         self.is_fix_ok = True
 
-    def dubins_mission_planner(self, mission, turn_radius=3.0, num_points=2, inside_turn=True, int_radius=20.0):
+    def dubins_mission_planner(self, mission, num_points=2, inside_turn=True):
         ''' 
         Reads the waypoints from a MissionControl message and generates a sampled dubins 
         path between them. 
@@ -597,6 +600,9 @@ class MissionPlan:
         rospy.loginfo("GPS fix received")
 
         rospy.loginfo("Computing dubins path")
+
+        turn_radius = self.bb.get(bb_enums.TURNING_RADIUS)
+        int_radius = self.bb.get(bb_enums.INTERSECTION_RADIUS)
 
         ll_to_utm_serv = self._get_latlon_to_utm_service()
 
