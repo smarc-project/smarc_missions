@@ -74,5 +74,6 @@ LOLO_AFT_TANK_TARGET = 'lolo_aft_tank_target'
 LOLO_FRONT_TANK_TARGET = 'lolo_front_tank_target'
 
 # dubins planner stuff
-TURNING_RADIUS = "turning_radius"
-INTERSECTION_RADIUS = "intersection_radius"
+DUBINS_TURNING_RADIUS = "dubins_turning_radius"
+DUBINS_INTERSECTION_RADIUS = "dubins_intersection_radius"
+DUBINS_COMPUTE_PATH = "dubins_compute_path"

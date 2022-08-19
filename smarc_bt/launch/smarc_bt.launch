@@ -27,7 +27,6 @@
 	<arg name="vehicle_state_topic" default="imc/vehicle_state" />
 	<arg name="gui_wp_enable_topic" default="smarc_bt/gui_wp/enable" />
 	<arg name="base_link" default="$(arg robot_name)/base_link" />
-	<arg name="intersection_radius" default="5.0" />
 	<arg name="emergency_action_namespace" default="ctrl/emergency_surface_action" />
 	<arg name="waypoint_tolerance" default="1.5" />
 	<arg name="utm_to_latlon_service_alternative" default="/$(arg robot_name)/utm_to_lat_lon" />
@@ -36,9 +35,11 @@
 	<arg name="dvl_topic" default="core/dvl" />
 	<arg name="utm_to_latlon_service" default="/$(arg robot_name)/dr/utm_to_lat_lon" />
 	<arg name="max_depth" default="20" />
+	<arg name="dubins_compute_path" default="True" />
 	<arg name="min_altitude" default="1" />
 	<arg name="latlontoutm_service_alternative" default="/$(arg robot_name)/lat_lon_to_utm" />
 	<arg name="planned_surface_action_namespace" default="ctrl/planned_surface_action" />
+	<arg name="dubins_turning_radius" default="2.0" />
 	<arg name="abort_topic" default="imc/abort" />
 	<arg name="live_wp_enable_topic" default="smarc_bt/live_wp/enable" />
 	<arg name="pitch_topic" default="/$(arg robot_name)/dr/pitch" />
@@ -54,12 +55,12 @@
 	<arg name="yaw_topic" default="/$(arg robot_name)/dr/yaw" />
 	<arg name="plandb_topic" default="imc/plan_db" />
 	<arg name="mission_control_topic" default="smarc_bt/mission_control" />
+	<arg name="dubins_intersection_radius" default="5.0" />
 	<arg name="enable_leader_follower" default="True" />
 	<arg name="gps_nav_data_topic" default="imc/gps_nav_data" />
 	<arg name="min_distance_to_leader" default="5" />
 	<arg name="roll_topic" default="/$(arg robot_name)/dr/roll" />
 	<arg name="lolo_front_tank_topic" default="/$(arg robot_name)/core/vbs/front_tank_fb" />
-	<arg name="turning_radius" default="2.0" />
 	<arg name="localization_error_growth" default="0.02" />
 	<arg name="gps_topic" default="core/gps" />
 	<arg name="buoy_topic" default="sim/marked_positions" />
@@ -97,7 +98,6 @@
 		<param name="vehicle_state_topic" value="$(arg vehicle_state_topic)" />
 		<param name="gui_wp_enable_topic" value="$(arg gui_wp_enable_topic)" />
 		<param name="base_link" value="$(arg base_link)" />
-		<param name="intersection_radius" value="$(arg intersection_radius)" />
 		<param name="emergency_action_namespace" value="$(arg emergency_action_namespace)" />
 		<param name="waypoint_tolerance" value="$(arg waypoint_tolerance)" />
 		<param name="utm_to_latlon_service_alternative" value="$(arg utm_to_latlon_service_alternative)" />
@@ -106,9 +106,11 @@
 		<param name="dvl_topic" value="$(arg dvl_topic)" />
 		<param name="utm_to_latlon_service" value="$(arg utm_to_latlon_service)" />
 		<param name="max_depth" value="$(arg max_depth)" />
+		<param name="dubins_compute_path" value="$(arg dubins_compute_path)" />
 		<param name="min_altitude" value="$(arg min_altitude)" />
 		<param name="latlontoutm_service_alternative" value="$(arg latlontoutm_service_alternative)" />
 		<param name="planned_surface_action_namespace" value="$(arg planned_surface_action_namespace)" />
+		<param name="dubins_turning_radius" value="$(arg dubins_turning_radius)" />
 		<param name="abort_topic" value="$(arg abort_topic)" />
 		<param name="live_wp_enable_topic" value="$(arg live_wp_enable_topic)" />
 		<param name="pitch_topic" value="$(arg pitch_topic)" />
@@ -124,12 +126,12 @@
 		<param name="yaw_topic" value="$(arg yaw_topic)" />
 		<param name="plandb_topic" value="$(arg plandb_topic)" />
 		<param name="mission_control_topic" value="$(arg mission_control_topic)" />
+		<param name="dubins_intersection_radius" value="$(arg dubins_intersection_radius)" />
 		<param name="enable_leader_follower" value="$(arg enable_leader_follower)" />
 		<param name="gps_nav_data_topic" value="$(arg gps_nav_data_topic)" />
 		<param name="min_distance_to_leader" value="$(arg min_distance_to_leader)" />
 		<param name="roll_topic" value="$(arg roll_topic)" />
 		<param name="lolo_front_tank_topic" value="$(arg lolo_front_tank_topic)" />
-		<param name="turning_radius" value="$(arg turning_radius)" />
 		<param name="localization_error_growth" value="$(arg localization_error_growth)" />
 		<param name="gps_topic" value="$(arg gps_topic)" />
 		<param name="buoy_topic" value="$(arg buoy_topic)" />

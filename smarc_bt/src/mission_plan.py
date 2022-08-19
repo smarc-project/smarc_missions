@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
-    
+
 import rospy
 import tf
 import time
@@ -259,7 +259,7 @@ class MissionPlan:
                 rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
                 self.no_service = True
 
-        self.compute_dubins = True
+        self.compute_dubins = self.bb.get(bb_enums.DUBINS_COMPUTE_PATH)
         self.utmtolatlon_service_name = auv_config.UTM_TO_LATLON_SERVICE
         try:
             rospy.loginfo("Waiting (0.5s) utm_to_lat_lon service:{}".format(self.utmtolatlon_service_name))
@@ -372,7 +372,7 @@ class MissionPlan:
         point = Point()
         point.x = utm_x
         point.y = utm_y
-        
+
         res = serv(point)
 
         return (res.lat_lon_point.latitude, res.lat_lon_point.longitude)
@@ -392,15 +392,15 @@ class MissionPlan:
             # also make sure they are in utm
             if is_in_utm:
                 wp.wp.pose.header.frame_id = 'utm'
-            else: 
-                wp.set_utm_from_latlon(serv, set_frame=True)                
+            else:
+                wp.set_utm_from_latlon(serv, set_frame=True)
             waypoints.append(wp)
 
         return waypoints
 
 
 
-    # XXX could use a cleanup... 
+    # XXX could use a cleanup...
     def read_plandb(self, plandb):
         """
         planddb message is a bunch of nested objects,
@@ -425,7 +425,7 @@ class MissionPlan:
             man_imc_id = maneuver.maneuver_imc_id
             # probably every maneuver has lat lon z in them, but just in case...
             # goto and sample are identical, with sample having extra "syringe" booleans...
-            # cover_area is also the same, with extra Polygon field, that we can 
+            # cover_area is also the same, with extra Polygon field, that we can
             # straight translate to more goto waypoints
 
             # GOTO, SAMPLE
@@ -575,44 +575,29 @@ class MissionPlan:
             else:
                 return intersections
 
-    def gps_fix_cb(self, gps_msg):
-        self.is_fix_ok = True
-
     def dubins_mission_planner(self, mission, num_points=2, inside_turn=True):
-        ''' 
-        Reads the waypoints from a MissionControl message and generates a sampled dubins 
-        path between them. 
+        '''
+        Reads the waypoints from a MissionControl message and generates a sampled dubins
+        path between them.
 
         :param mission: the original MissionControl message
-        :param turn_radius: turning radius of the robot [m]
         :param num_points: the amount of waypoints to keep on each segment between waypoints
-        :param inside_turn: cut the waypoints corners 
-        :param int_radius: only used if inside_turn is True. Radius of the circle used to compute the intersection waypoints [m]
+        :param inside_turn: cut the waypoints corners
         :return MissionControl.msg: new MissionControl message equal to the input one except for the waypoints attribute
         '''
 
-        # Only continue if we have the gps fix
-        self.is_fix_ok = False
-        rospy.Subscriber("/lolo/core/gps", NavSatFix, self.gps_fix_cb)
-        while not self.is_fix_ok:
-            rospy.loginfo("Waiting for GPS fix")
-            rospy.sleep(1.0)
-        rospy.loginfo("GPS fix received")
-
         rospy.loginfo("Computing dubins path")
 
-        turn_radius = self.bb.get(bb_enums.TURNING_RADIUS)
-        int_radius = self.bb.get(bb_enums.INTERSECTION_RADIUS)
+        turn_radius = self.bb.get(bb_enums.DUBINS_TURNING_RADIUS)
+        int_radius = self.bb.get(bb_enums.DUBINS_INTERSECTION_RADIUS)
+        vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
+        robot_name = self.bb.get(bb_enums.ROBOT_NAME)
 
         ll_to_utm_serv = self._get_latlon_to_utm_service()
 
-        # Wait for LoLo's first position before generating the path
-        latlon_topic = self.auv_conf.LATLON_TOPIC
-        robot_name = self.auv_conf.robot_name
-        latlon_topic = "/" + robot_name + "/" + latlon_topic
-        gp = rospy.wait_for_message(latlon_topic, GeoPoint)
-        utm_x_lolo, utm_y_lolo = self.latlon_to_utm(gp.latitude, gp.longitude, gp.altitude, serv=ll_to_utm_serv, in_degrees=True)
-        lolo_utm = np.array([utm_x_lolo, utm_y_lolo])
+        # Get the auv's current position to use as the intial point of the dubins path
+        utm_x_auv, utm_y_auv = vehicle.position_utm
+        auv_utm = np.array([utm_x_auv, utm_y_auv])
 
         # Get x, y of waypoints from original mission lat/lon
         points = []
@@ -620,23 +605,23 @@ class MissionPlan:
             utm_x, utm_y = self.latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
             points.append([utm_x, utm_y])
         points_np = np.array(points)
-        points_with_lolo = np.vstack((lolo_utm, points_np))
+        points_with_auv = np.vstack((auv_utm, points_np))
 
         if not inside_turn:
             rospy.loginfo("Turning outside")
-            original_waypoints = points_with_lolo
+            original_waypoints = points_with_auv
         else:
             rospy.loginfo("Turning inside")
             waypoints = []
-            for i in range(len(points_with_lolo)-1):
-                waypoints_i = self.circle_line_segment_intersection(circle_center=(points_with_lolo[i, 0], points_with_lolo[i, 1]), circle_radius=int_radius,
-                                                                    pt1=(points_with_lolo[i, 0], points_with_lolo[i, 1]), pt2=(points_with_lolo[i+1, 0], points_with_lolo[i+1, 1]))
+            for i in range(len(points_with_auv)-1):
+                waypoints_i = self.circle_line_segment_intersection(circle_center=(points_with_auv[i, 0], points_with_auv[i, 1]), circle_radius=int_radius,
+                                                                    pt1=(points_with_auv[i, 0], points_with_auv[i, 1]), pt2=(points_with_auv[i+1, 0], points_with_auv[i+1, 1]))
                 waypoints.append(waypoints_i)
-                waypoints_j = self.circle_line_segment_intersection(circle_center=(points_with_lolo[i+1, 0], points_with_lolo[i+1, 1]), circle_radius=int_radius,
-                                                                    pt1=(points_with_lolo[i, 0], points_with_lolo[i, 1]), pt2=(points_with_lolo[i+1, 0], points_with_lolo[i+1, 1]))
+                waypoints_j = self.circle_line_segment_intersection(circle_center=(points_with_auv[i+1, 0], points_with_auv[i+1, 1]), circle_radius=int_radius,
+                                                                    pt1=(points_with_auv[i, 0], points_with_auv[i, 1]), pt2=(points_with_auv[i+1, 0], points_with_auv[i+1, 1]))
                 waypoints.append(waypoints_j)
-                
-            waypoints.append([(points_with_lolo[-1, 0], points_with_lolo[-1, 1])])
+
+            waypoints.append([(points_with_auv[-1, 0], points_with_auv[-1, 1])])
             waypoints = [el for sublist in waypoints for el in sublist] # Flatten list of lists
             waypoints_np = np.array(waypoints)
             original_waypoints = waypoints_np.squeeze()  # Remove useless extra dimension
@@ -663,7 +648,7 @@ class MissionPlan:
         # Only define the new waypoints on the original waypoint and on the curve
         # Each element of path is an array of points between on waypoint and the next one
         for i, el in enumerate(path):
-            # Compute the differnece between orientation 
+            # Compute the differnece between orientation
             # The maxima represent the points on the curve
             delta_angles = abs(np.diff(el[:, 2]))
             delta_angles = [0] + delta_angles
@@ -687,7 +672,7 @@ class MissionPlan:
         dubins_waypoints_ordered = [full_path[i] for i in ordered_idxs]
 
         # Include original waypoints
-        # The first one is lolo's position, we don't need it
+        # The first one is the auv's position, we don't need it
         wp_i = num_points
         for wp in waypoints_complete[1:-1]:
             dubins_waypoints_ordered.insert(wp_i, [wp.x, wp.y, wp.psi])
@@ -695,14 +680,14 @@ class MissionPlan:
         dubins_waypoints_ordered.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
         dubins_waypoints_final = dubins_waypoints_ordered[1:]
 
-        dubins_mission = MissionControl()
         dubins_mission = mission
         del dubins_mission.waypoints[:]
 
         # utm_to_latlon service called here to avoid calling it in the loop
         utm_to_ll_serv = self._get_utm_to_latlon_service()
 
-        k = 0
+        current_wp = -1
+        dwp_count = 1
         for wp in dubins_waypoints_final:
             dwp = GotoWaypoint()
             dwp.pose.pose.position.x = wp[0]
@@ -721,21 +706,24 @@ class MissionPlan:
 
             dwp.goal_tolerance = goal_tolerance
             dwp.z_control_mode = z_control_mode
-            dwp.travel_altitude = travel_altitude 
+            dwp.travel_altitude = travel_altitude
             dwp.travel_depth = travel_depth
             dwp.speed_control_mode = speed_control_mode
 
             dwp.travel_speed = travel_speed
-            # Speed up for the first dubins waypoint in each segment and then slow down for the following ones
-            # if k % (num_points+1) == 0: 
-            #     dwp.travel_rpm = travel_rpm
-            #     dwp.travel_speed = travel_speed               
-            # else:    
-            #     dwp.travel_rpm = travel_rpm / 1.5
-            #     dwp.travel_speed = travel_speed / 1.5
-            
-            dwp.name = "dwp" + str(k)
-            k += 1
+            dwp.travel_rpm = travel_rpm
+
+            # Name of the dwp = previousoriginalwp_nextoriginalwp_counter
+            if current_wp == -1:
+                dwp.name = robot_name + "_wp0_" + str(dwp_count)
+            else:
+                dwp.name = "wp_" + str(current_wp) + "_wp_" + str(current_wp+1) + "_" + str(dwp_count)
+
+            if dwp_count == num_points:
+                dwp_count = 0
+                current_wp += 1
+            else:
+                dwp_count += 1
 
             dubins_mission.waypoints.append(dwp)
 
