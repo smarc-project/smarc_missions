@@ -318,7 +318,6 @@ def dubins_mission_planner(mission, bb, ll_to_utm_serv, utm_to_ll_serv, utm_to_l
     turn_radius = bb.get(bb_enums.DUBINS_TURNING_RADIUS)
     int_radius = bb.get(bb_enums.DUBINS_INTERSECTION_RADIUS)
     vehicle = bb.get(bb_enums.VEHICLE_STATE)
-    robot_name = bb.get(bb_enums.ROBOT_NAME)
 
     # Get the auv's current position to use as the intial point of the dubins path
     utm_x_auv, utm_y_auv = vehicle.position_utm
@@ -327,50 +326,41 @@ def dubins_mission_planner(mission, bb, ll_to_utm_serv, utm_to_ll_serv, utm_to_l
     # Get x, y of waypoints from original mission lat/lon
     points = []
     for wp in mission.waypoints:
-        utm_x, utm_y = latlon_to_utm(
-            wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
-        points.append([utm_x, utm_y])
+        utm_x, utm_y = latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
+        points.append([utm_x, utm_y, wp.goal_tolerance, wp.z_control_mode, wp.travel_altitude, wp.travel_depth, wp.speed_control_mode, wp.travel_rpm, wp.travel_speed])
     points_np = np.array(points)
-    points_with_auv = np.vstack((auv_utm, points_np))
+    # points_with_auv = np.vstack((auv_utm, points_np))
 
     if not inside_turn:
         rospy.loginfo("Turning outside")
-        original_waypoints = points_with_auv
+        original_waypoints = points_np
     else:
         rospy.loginfo("Turning inside")
         waypoints = []
-        for i in range(len(points_with_auv)-1):
-            waypoints_i = circle_line_segment_intersection(circle_center=(points_with_auv[i, 0], points_with_auv[i, 1]), circle_radius=int_radius,
-                                                            pt1=(points_with_auv[i, 0], points_with_auv[i, 1]), pt2=(points_with_auv[i+1, 0], points_with_auv[i+1, 1]))
-            waypoints.append(waypoints_i)
-            waypoints_j = circle_line_segment_intersection(circle_center=(points_with_auv[i+1, 0], points_with_auv[i+1, 1]), circle_radius=int_radius,
-                                                            pt1=(points_with_auv[i, 0], points_with_auv[i, 1]), pt2=(points_with_auv[i+1, 0], points_with_auv[i+1, 1]))
-            waypoints.append(waypoints_j)
+        for i in range(len(points_np)-1):
+            waypoints_i = circle_line_segment_intersection(circle_center=(points_np[i, 0], points_np[i, 1]), circle_radius=int_radius,
+                                                            pt1=(points_np[i, 0], points_np[i, 1]), pt2=(points_np[i+1, 0], points_np[i+1, 1]))
+            waypoints.append(np.array(waypoints_i).flatten())
+            # Include the other wp details
+            waypoints[-1] = np.append(waypoints[-1], points_np[i, 2:])
 
-        waypoints.append(
-            [(points_with_auv[-1, 0], points_with_auv[-1, 1])])
-        # Flatten list of lists
-        waypoints = [el for sublist in waypoints for el in sublist]
+            waypoints_j = circle_line_segment_intersection(circle_center=(points_np[i+1, 0], points_np[i+1, 1]), circle_radius=int_radius,
+                                                            pt1=(points_np[i, 0], points_np[i, 1]), pt2=(points_np[i+1, 0], points_np[i+1, 1]))
+            waypoints.append(np.array(waypoints_j).flatten())
+            # Include the other wp details
+            waypoints[-1] = np.append(waypoints[-1], points_np[i+1, 2:])
+
+        waypoints.append([(points_np[-1, 0], points_np[-1, 1])])
+        waypoints[-1] = np.append(waypoints[-1], points_np[-1, 2:])
         waypoints_np = np.array(waypoints)
         original_waypoints = waypoints_np.squeeze()  # Remove useless extra dimension
-
-    # Keep the other waypoints' parameters equal
-    mwp = mission.waypoints[0]
-    goal_tolerance = mwp.goal_tolerance
-    z_control_mode = mwp.z_control_mode
-    travel_altitude = mwp.travel_altitude
-    travel_depth = mwp.travel_depth
-    speed_control_mode = mwp.speed_control_mode
-    travel_rpm = mwp.travel_rpm
-    travel_speed = mwp.travel_speed
 
     # Compute angle between waypoints and get the new wps array
     waypoints_complete, _ = waypoints_with_yaw(original_waypoints)
 
     path = []
     for j in range(len(waypoints_complete)-1):
-        param = calc_dubins_path(
-            waypoints_complete[j], waypoints_complete[j+1], turn_radius)
+        param = calc_dubins_path(waypoints_complete[j], waypoints_complete[j+1], turn_radius)
         path.append(dubins_traj(param, 1))
 
     dubins_waypoints = []
@@ -404,29 +394,34 @@ def dubins_mission_planner(mission, bb, ll_to_utm_serv, utm_to_ll_serv, utm_to_l
     dubins_waypoints_ordered = [full_path[i] for i in ordered_idxs]
 
     # Include original waypoints
-    # The first one is the auv's position, we don't need it
-    wp_i = num_points
-    for wp in waypoints_complete[1:-1]:
+    wp_i = 0
+    for wp in waypoints_complete[:-1]:
         dubins_waypoints_ordered.insert(wp_i, [wp.x, wp.y, wp.psi])
         wp_i += num_points + 1
-    dubins_waypoints_ordered.append(
-        [waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
-    dubins_waypoints_final = dubins_waypoints_ordered[1:]
+    dubins_waypoints_ordered.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
 
     dubins_mission = mission
     del dubins_mission.waypoints[:]
 
-    current_wp = -1
-    dwp_count = 1
-    for wp in dubins_waypoints_final:
+    current_wp = 0
+    dwp_count = 0
+    for wp in dubins_waypoints_ordered:
+
+        goal_tolerance = original_waypoints[current_wp, 2]
+        z_control_mode = original_waypoints[current_wp, 3]
+        travel_altitude = original_waypoints[current_wp, 4]
+        travel_depth = original_waypoints[current_wp, 5]
+        speed_control_mode = original_waypoints[current_wp, 6]
+        travel_rpm = original_waypoints[current_wp, 7]
+        travel_speed = original_waypoints[current_wp, 8]
+
         dwp = GotoWaypoint()
         dwp.pose.pose.position.x = wp[0]
         dwp.pose.pose.position.y = wp[1]
         dwp.pose.pose.position.z = travel_altitude
         dwp.lat, dwp.lon = utm_to_latlon(wp[0], wp[1], utm_to_ll_serv)
 
-        quaternion = quaternion_from_euler(
-            0.0, 0.0, math.radians(wp[2]))  # RPY [rad]
+        quaternion = quaternion_from_euler(0.0, 0.0, math.radians(wp[2]))  # RPY [rad]
         # Normalize quaternion
         if len(quaternion) != 0:
             quaternion = quaternion / np.sqrt(np.sum(quaternion**2))
@@ -445,11 +440,7 @@ def dubins_mission_planner(mission, bb, ll_to_utm_serv, utm_to_ll_serv, utm_to_l
         dwp.travel_rpm = travel_rpm
 
         # Name of the dwp = previousoriginalwp_nextoriginalwp_counter
-        if current_wp == -1:
-            dwp.name = robot_name + "_wp0_" + str(dwp_count)
-        else:
-            dwp.name = "wp_" + str(current_wp) + "_wp_" + \
-                str(current_wp+1) + "_" + str(dwp_count)
+        dwp.name = "wp" + str(current_wp) + "_wp" + str(current_wp+1) + "_" + str(dwp_count)
 
         if dwp_count == num_points:
             dwp_count = 0
