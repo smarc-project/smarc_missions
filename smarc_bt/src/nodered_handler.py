@@ -77,7 +77,7 @@ class NoderedHandler(object):
         if current_mission.plan_id != msg.name:
             s = "Command given for: {}, but we got: {}, stopping current mission!".format(msg.name, current_mission.plan_id)
             rospy.loginfo(s)
-            current_mission_plan.plan_is_go = False
+            current_mission.plan_is_go = False
             return False
         return True
 
