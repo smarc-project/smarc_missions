@@ -241,6 +241,7 @@ class MissionPlan:
         # if that fails too, raise exception
         self.no_service = False
         self.latlontoutm_service_name = auv_config.LATLONTOUTM_SERVICE
+        self.latlontoutm_service_name_alternative = auv_config.LATLONTOUTM_SERVICE_ALTERNATIVE
         try:
             rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
             rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
@@ -253,7 +254,7 @@ class MissionPlan:
                 rospy.wait_for_service(self.latlontoutm_service_name, timeout=10)
             except:
                 rospy.logerr("No lat_lon_to_utm service could be reached! The BT can not accept missions in this state!")
-                rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
+                rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(self.latlontoutm_service_name, self.latlontoutm_service_name_alternative))
                 self.no_service = True
 
         self.compute_dubins = self.bb.get(bb_enums.DUBINS_COMPUTE_PATH)
