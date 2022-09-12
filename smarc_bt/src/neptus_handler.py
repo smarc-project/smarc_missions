@@ -115,7 +115,7 @@ class NeptusHandler(object):
                 self._gps_fix_pub.publish(self._gps_fix_msg)
                 self._gps_nav_data_pub.publish(self._gps_fix_msg)
         except:
-            self.feedback_message.append("Could not update neptus gps fix")
+            self.feedback_messages.append("Could not update neptus gps fix")
             pass
 
     def _updatePlanControlState(self):
