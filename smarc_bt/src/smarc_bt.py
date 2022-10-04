@@ -192,11 +192,11 @@ def const_tree(auv_config):
                         # dont show all the things inside here
                         blackbox_level=1,
                         children=[
+                            publish_heartbeat,
                             read_abort,
                             read_detection,
                             read_buoys,
                             read_lolo,
-                            publish_heartbeat,
                             read_reloc_enable,
                             read_reloc_wp,
                             read_gui_enable,
@@ -300,24 +300,11 @@ def const_tree(auv_config):
                                  ])
 
 
-        # SAMPLE
-        #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
-        sample_action = A_GotoWaypoint(auv_config = auv_config,
-                                       node_name = "A_SampleWaypoint")
-        mission_wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
-        sample_maneuver = Sequence(name="SQ-SampleWaypoint",
-                                 children=[
-                                     mission_wp_is_sample,
-                                     sample_action
-                                 ])
-
-
 
         # put the known plannable maneuvers in here as each others backups
         execute_maneuver = Fallback(name="FB-ExecuteManeuver",
                                     children=[
-                                        goto_maneuver,
-                                        sample_maneuver
+                                        goto_maneuver
                                     ])
 
         unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
@@ -493,13 +480,14 @@ def main():
     tf_listener = None
     while tf_listener is None:
         try:
+            rospyl.loginfo("Setting up tf_listener for vehicle object before BT")
             tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
         except Exception as e:
             tf_listener = None
             rospy.logerr("Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
 
         if tf_listener is None:
-            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? \n retrying in 5s.")
+            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
             time.sleep(5)
 
     # put the vehicle model inside the bb
