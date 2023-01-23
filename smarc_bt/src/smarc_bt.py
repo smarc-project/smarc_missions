@@ -480,7 +480,7 @@ def main():
     tf_listener = None
     while tf_listener is None:
         try:
-            rospyl.loginfo("Setting up tf_listener for vehicle object before BT")
+            rospy.loginfo("Setting up tf_listener for vehicle object before BT")
             tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
         except Exception as e:
             tf_listener = None
