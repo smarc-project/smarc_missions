@@ -188,15 +188,15 @@ def const_tree(auv_config):
                                               message_object = Empty())
 
 
-        return Sequence(name="SQ-DataIngestion",
+        return Sequence(name="SQ_DataIngestion",
                         # dont show all the things inside here
                         blackbox_level=1,
                         children=[
+                            publish_heartbeat,
                             read_abort,
                             read_detection,
                             read_buoys,
                             read_lolo,
-                            publish_heartbeat,
                             read_reloc_enable,
                             read_reloc_wp,
                             read_gui_enable,
@@ -234,7 +234,7 @@ def const_tree(auv_config):
         leakOK = C_LeakOK()
         # more safety checks will go here
 
-        safety_checks = Sequence(name="SQ-SafetyChecks",
+        safety_checks = Sequence(name="SQ_SafetyChecks",
                         blackbox_level=1,
                         children=[
                                   no_abort,
@@ -244,7 +244,7 @@ def const_tree(auv_config):
                         ])
 
 
-        skip_wp = Sequence(name='SQ-CountEmergenciesAndSkip',
+        skip_wp = Sequence(name='SQ_CountEmergenciesAndSkip',
                            children = [
                                Counter(n=auv_config.EMERGENCY_TRIALS_BEFORE_GIVING_UP,
                                        name="A_EmergencyCounter",
@@ -252,7 +252,7 @@ def const_tree(auv_config):
                                A_SetNextPlanAction()
                            ])
 
-        abort = Sequence(name="SQ-ABORT",
+        abort = Sequence(name="SQ_ABORT",
                          children = [
                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
                                               message_object = Empty()),
@@ -293,31 +293,18 @@ def const_tree(auv_config):
         # GOTO
         goto_action = A_GotoWaypoint(auv_config = auv_config)
         mission_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
-        goto_maneuver = Sequence(name="SQ-GotoWaypoint",
+        goto_maneuver = Sequence(name="SQ_GotoWaypoint",
                                  children=[
                                      mission_wp_is_goto,
                                      goto_action
                                  ])
 
 
-        # SAMPLE
-        #XXX USING THE GOTO ACTION HERE TOO UNTIL WE HAVE A SAMPLE ACTION
-        sample_action = A_GotoWaypoint(auv_config = auv_config,
-                                       node_name = "A_SampleWaypoint")
-        mission_wp_is_sample = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_SAMPLE)
-        sample_maneuver = Sequence(name="SQ-SampleWaypoint",
-                                 children=[
-                                     mission_wp_is_sample,
-                                     sample_action
-                                 ])
-
-
 
         # put the known plannable maneuvers in here as each others backups
-        execute_maneuver = Fallback(name="FB-ExecuteManeuver",
+        execute_maneuver = Fallback(name="FB_ExecuteManeuver",
                                     children=[
-                                        goto_maneuver,
-                                        sample_maneuver
+                                        goto_maneuver
                                     ])
 
         unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
@@ -326,7 +313,7 @@ def const_tree(auv_config):
 
 
         # and then execute them in order
-        follow_plan = Sequence(name="SQ-FollowMissionPlan",
+        follow_plan = Sequence(name="SQ_FollowMissionPlan",
                                children=[
                                          C_HaveCoarseMission(),
                                          C_StartPlanReceived(),
@@ -348,7 +335,7 @@ def const_tree(auv_config):
                                       wp_from_bb = bb_enums.LIVE_WP,
                                       live_mode_enabled=True)
 
-        live_wp_tree  = Sequence(name="SQ-FollowLiveWP",
+        live_wp_tree  = Sequence(name="SQ_FollowLiveWP",
                                  children=[
                                      live_wp_enabled,
                                      live_wp_is_goto,
@@ -368,7 +355,7 @@ def const_tree(auv_config):
                                      wp_from_bb = bb_enums.GUI_WP,
                                      live_mode_enabled=True)
 
-        gui_wp_tree  = Sequence(name="SQ-FollowGUIWP",
+        gui_wp_tree  = Sequence(name="SQ_FollowGUIWP",
                                 children=[
                                     gui_wp_enabled,
                                     gui_wp_is_goto,
@@ -389,7 +376,7 @@ def const_tree(auv_config):
                                       wp_from_bb = bb_enums.ALGAE_FOLLOW_WP,
                                       live_mode_enabled = True)
 
-        algae_farm_tree = Sequence(name="SQ-FollowAlgaeFarm",
+        algae_farm_tree = Sequence(name="SQ_FollowAlgaeFarm",
                                    children=[
                                        algae_follow_enabled,
                                        algae_wp_is_goto,
@@ -398,7 +385,7 @@ def const_tree(auv_config):
 
 
         # until the plan is done
-        return Fallback(name="FB-ExecuteMissionPlan",
+        return Fallback(name="FB_ExecuteMissionPlan",
                         children=[
                                   gui_wp_tree,
                                   live_wp_tree,
@@ -411,7 +398,7 @@ def const_tree(auv_config):
     def const_finalize_mission():
         publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
-        plan_complete_or_stopped = Fallback(name="FB-PlanCompleteOrStopped",
+        plan_complete_or_stopped = Fallback(name="FB_PlanCompleteOrStopped",
                                             children=[
                                                       C_PlanCompleted(),
                                                       Not(C_StartPlanReceived())
@@ -419,7 +406,7 @@ def const_tree(auv_config):
 
 
 
-        return Sequence(name="SQ-FinalizeMission",
+        return Sequence(name="SQ_FinalizeMission",
                         children=[
                                   C_HaveCoarseMission(),
                                   C_PlanIsNotChanged(),
@@ -442,7 +429,7 @@ def const_tree(auv_config):
                                              # True,
                                              # "C_MissionFinalized")
 
-    run_tree = Fallback(name="FB-Run",
+    run_tree = Fallback(name="FB_Run",
                         children=[
                             # finalized,
                             const_finalize_mission(),
@@ -452,7 +439,7 @@ def const_tree(auv_config):
     manual_logging = A_ManualMissionLog(config = auv_config)
 
 
-    root = Sequence(name='SQ-ROOT',
+    root = Sequence(name='SQ_ROOT',
                     children=[
                               const_data_ingestion_tree(),
                               manual_logging,
@@ -493,13 +480,14 @@ def main():
     tf_listener = None
     while tf_listener is None:
         try:
+            rospy.loginfo("Setting up tf_listener for vehicle object before BT")
             tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
         except Exception as e:
             tf_listener = None
             rospy.logerr("Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
 
         if tf_listener is None:
-            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? \n retrying in 5s.")
+            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
             time.sleep(5)
 
     # put the vehicle model inside the bb
