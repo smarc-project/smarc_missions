@@ -40,12 +40,6 @@ from bt_conditions import C_DepthOK, \
                           C_StartPlanReceived, \
                           C_HaveCoarseMission, \
                           C_PlanIsNotChanged, \
-                          C_NoNewPOIDetected, \
-                          C_AutonomyDisabled, \
-                          C_LeaderFollowerEnabled, \
-                          C_LeaderExists, \
-                          C_LeaderIsFarEnough, \
-                          C_AtDVLDepth, \
                           C_CheckWaypointType
 
 from bt_common import Sequence, \
@@ -58,15 +52,11 @@ from bt_common import Sequence, \
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
-                       A_PublishMissionPlan, \
-                       A_FollowLeader, \
-                       A_SetDVLRunning, \
                        A_ReadBuoys, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
                        A_PublishFinalize, \
-                       A_ReadLolo, \
                        A_ReadWaypoint
 
 
@@ -118,14 +108,6 @@ def const_tree(auv_config):
          # allow_silence = True -> If false, will fail if no message is received ever
 
 
-        read_detection = ReadTopic(
-            name = "A_ReadCameraDetection",
-            topic_name = auv_config.CAMERA_DETECTION_TOPIC,
-            topic_type = PointStamped,
-            blackboard_variables = {bb_enums.POI_POINT_STAMPED:None} # read the entire message into the bb
-        )
-
-
         read_buoys = A_ReadBuoys(
             topic_name=auv_config.BUOY_TOPIC,
             buoy_link=auv_config.LOCAL_LINK,
@@ -174,16 +156,6 @@ def const_tree(auv_config):
             lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
 
-        read_lolo = A_ReadLolo(
-            robot_name = auv_config.robot_name,
-            elevator_topic = auv_config.LOLO_ELEVATOR_TOPIC,
-            elevon_port_topic = auv_config.LOLO_ELEVON_PORT_TOPIC,
-            elevon_strb_topic = auv_config.LOLO_ELEVON_STRB_TOPIC,
-            aft_tank_topic = auv_config.LOLO_AFT_TANK_TOPIC,
-            front_tank_topic = auv_config.LOLO_FRONT_TANK_TOPIC)
-
-
-
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
                                               message_object = Empty())
 
@@ -194,9 +166,7 @@ def const_tree(auv_config):
                         children=[
                             publish_heartbeat,
                             read_abort,
-                            read_detection,
                             read_buoys,
-                            read_lolo,
                             read_reloc_enable,
                             read_reloc_wp,
                             read_gui_enable,
@@ -206,24 +176,6 @@ def const_tree(auv_config):
                         ])
 
 
-    def const_dvl_tree():
-        switch_on = Sequence(name="SQ_SwitchOnDVL",
-                             children=[
-                                 C_AtDVLDepth(auv_config.DVL_RUNNING_DEPTH),
-                                 A_SetDVLRunning(auv_config.START_STOP_DVL_NAMESPACE,
-                                                 True,
-                                                 auv_config.DVL_COOLDOWN)
-                             ])
-
-        switch_off = Fallback(name="FB_SwitchOffDVL",
-                              children=[
-                                  switch_on,
-                                  A_SetDVLRunning(auv_config.START_STOP_DVL_NAMESPACE,
-                                                  False,
-                                                  auv_config.DVL_COOLDOWN)
-                              ])
-
-        return switch_off
 
 
 
@@ -444,7 +396,6 @@ def const_tree(auv_config):
                               const_data_ingestion_tree(),
                               manual_logging,
                               const_safety_tree(),
-                             # const_dvl_tree(),
                               run_tree
                     ])
 
