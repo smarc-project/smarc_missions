@@ -249,7 +249,7 @@ class C_PlanIsNotChanged(pt.behaviour.Behaviour):
             rospy.loginfo_throttle_identical(10, self.feedback_message)
             return pt.Status.FAILURE
 
-        if self.last_known_id == currentplan.plan_id and self.last_known_time < current_plan.creation_time:
+        if self.last_known_id == current_plan.plan_id and self.last_known_time < current_plan.creation_time:
             # this is the same plan, but it was sent again, this means a restart
             # so the plan IS changed
             self.feedback_message = "Same plan_id, but the current plan is newer, plan is changed"
