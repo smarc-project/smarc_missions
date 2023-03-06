@@ -20,10 +20,7 @@ class AUVConfig(object):
         # topics
         self.DVL_TOPIC = 'core/dvl'
         self.LEAK_TOPIC = 'core/leak'
-        self.CAMERA_DETECTION_TOPIC = 'detection/poi_down'
         self.PATH_TOPIC = 'ctrl/planned_path'
-        self.PLAN_VIZ_TOPIC = 'viz/mission_waypoints'
-        self.PLAN_PATH_TOPIC = 'ctrl/mission_waypoints'
         self.LATLON_TOPIC = 'dr/lat_lon'
         self.GPS_TOPIC = 'core/gps'
         self.ROLL_TOPIC = '/'+self.robot_name+'/dr/roll'
@@ -49,10 +46,6 @@ class AUVConfig(object):
         # actions and services
         self.GOTO_ACTION_NAMESPACE = 'ctrl/goto_waypoint'
         self.EMERGENCY_ACTION_NAMESPACE = 'ctrl/emergency_surface_action'
-        self.FOLLOW_ACTION_NAMESPACE = 'ctrl/leader_follower_action'
-        self.START_STOP_DVL_NAMESPACE = 'core/toggle_dvl'
-        self.INSPECTION_ACTION_NAMESPACE = 'ctrl/panoramic_inspection_action'
-        self.PLANNED_SURFACE_ACTION_NAMESPACE = 'ctrl/planned_surface_action'
 
 
         self.LATLONTOUTM_SERVICE = '/'+self.robot_name+'/dr/lat_lon_to_utm'
@@ -64,11 +57,6 @@ class AUVConfig(object):
         self.BASE_LINK = self.robot_name+'/base_link'
         self.UTM_LINK = 'utm'
         self.LOCAL_LINK = 'map'
-        # this should be given as /sam/camera_down_link  or sam_1/camera_down_link etc.
-        self.POI_DETECTOR_LINK = self.robot_name+'/camera_down_link'
-        # some other link that is not THIS robot
-        self.LEADER_LINK = 'sam_1/base_link'
-        self.ENABLE_LEADER_FOLLOWER = True
 
         # imc related stuff, most likely never changes
         self.PLANDB_TOPIC = 'imc/plan_db'
@@ -87,19 +75,13 @@ class AUVConfig(object):
         # hard values
         self.MAX_DEPTH = 20
         self.MIN_ALTITUDE = 1
-        self.ABSOLUTE_MIN_ALTITUDE = -1
         # how many ticks to run emergency action before we give up
         # on the current wp and skip it
         # in ticks
         self.EMERGENCY_TRIALS_BEFORE_GIVING_UP = 30
-        self.MIN_DISTANCE_TO_LEADER = 5
-        # in seconds, dont spam the dvl service
-        self.DVL_COOLDOWN = 0.5
-        # how deep do we want to be to run the dvl
-        # we wanna shut off the dvl on the surface
-        self.DVL_RUNNING_DEPTH = 0.55
 
-        # in meters
+        # default waypoint tolerance
+        # can be changed with dynamic reconf
         self.WAYPOINT_TOLERANCE = 1.5
 
         # coverage planning variables
@@ -115,12 +97,9 @@ class AUVConfig(object):
         self.MISSION_LOG_FOLDER = '~/MissionLogs/'
         self.ENABLE_MANUAL_MISSION_LOG = False
 
-        # lolo-specific
-        self.LOLO_ELEVATOR_TOPIC = '/lolo/core/elevator'
-        self.LOLO_ELEVON_PORT_TOPIC = '/lolo/core/elevon_port_fb'
-        self.LOLO_ELEVON_STRB_TOPIC = '/lolo/core/elevon_strb_fb'
-        self.LOLO_AFT_TANK_TOPIC = '/lolo/core/vbs/aft_tank_fb'
-        self.LOLO_FRONT_TANK_TOPIC = '/lolo/core/vbs/front_tank_fb'
+        # Mission plan storage
+        self.MISSION_PLAN_STORAGE_FOLDER = "~/MissionPlans/"
+
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'

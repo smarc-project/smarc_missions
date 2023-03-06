@@ -109,43 +109,8 @@ class MissionLog:
         self.loc_uncertainty_growth = None
 
 
-    def vehicle_log(self, key, bb_key, bb):
-        l = self.vehicle_data.get(key)
-        if l is None:
-            self.vehicle_data[key] = []
-        self.vehicle_data[key].append(bb.get(bb_key))
-
-
-    def log_lolo(self, bb):
-        if 'lolo' not in self.robot_name:
-            return False
-
-        self.vehicle_data['robot_name'] = self.robot_name
-        self.vehicle_log('elevator_trace', bb_enums.LOLO_ELEVATOR, bb)
-        self.vehicle_log('elevon_port_trace', bb_enums.LOLO_ELEVON_PORT, bb)
-        self.vehicle_log('elevon_strb_trace', bb_enums.LOLO_ELEVON_STRB, bb)
-        self.vehicle_log('aft_tank_trace', bb_enums.LOLO_AFT_TANK, bb)
-        self.vehicle_log('aft_tank_target_trace', bb_enums.LOLO_AFT_TANK_TARGET, bb)
-        self.vehicle_log('front_tank_trace', bb_enums.LOLO_FRONT_TANK, bb)
-        self.vehicle_log('front_tank_target_trace', bb_enums.LOLO_FRONT_TANK_TARGET, bb)
-
-        return True
-
-
-    def log_sam(self, bb):
-        if 'sam' not in self.robot_name:
-            return False
-        return True
-
 
     def log(self, bb, mplan, t=None):
-        ############################################
-        # vehicle-specific stuff
-        logged_lolo = self.log_lolo(bb)
-        logged_sam = self.log_sam(bb)
-
-
-        ############################################
         # vehicle-agnostic stuff
         self.swath = bb.get(bb_enums.SWATH)
         self.loc_uncertainty_growth = bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH)
@@ -162,20 +127,12 @@ class MissionLog:
             rospy.logerr("Error when getting vehicle pose:\n{}".format(e))
             rospy.logerr("The vehicle doesnt know where it is, is DR working ok?")
             pose = (None,None,None,None,None,None)
+
+        # add the pose to the trace
         self.navigation_trace.append(pose)
 
-        try:
-            point = vehicle.position_point_stamped
-            ps = PoseStamped()
-            ps.header = point.header
-            ps.pose.position.x = point.point.x
-            ps.pose.position.y = point.point.y
-            ps.pose.position.z = point.point.z
-            self.path_msg.poses.append(ps)
-            self.path_pub.publish(self.path_msg)
-        except Exception as e:
-            rospy.logwarn("E when trying to publish vehicle path:\n{}".format(e))
-            pass
+
+
 
         # velocities from dvl
         vel_msg = vehicle.dvl_velocity_msg
@@ -184,6 +141,8 @@ class MissionLog:
             vels = (None, None, None)
         else:
             vels = (vel_msg.x, vel_msg.y, vel_msg.z)
+
+        # add velocities to trace
         self.velocity_trace.append(vels)
 
 
@@ -221,7 +180,25 @@ class MissionLog:
         alt = vehicle.altitude
         self.altitude_trace.append(alt)
 
+        ################################################
         # publish some visualization stuffs for rviz
+        ################################################
+        # the path of the vehicle to ros
+        try:
+            point = vehicle.position_point_stamped
+            ps = PoseStamped()
+            ps.header = point.header
+            ps.pose.position.x = point.point.x
+            ps.pose.position.y = point.point.y
+            ps.pose.position.z = point.point.z
+            self.path_msg.poses.append(ps)
+            self.path_pub.publish(self.path_msg)
+        except Exception as e:
+            rospy.logwarn("E when trying to publish vehicle path:\n{}".format(e))
+            pass
+
+
+        # bottom profile
         ps = PoseStamped()
         ps.header = point.header
         ps.pose.position.x = point.point.x
@@ -230,6 +207,7 @@ class MissionLog:
         self.bottom_msg.poses.append(ps)
         self.bottom_pub.publish(self.bottom_msg)
 
+        # the currently running plan
         if self.plan_id != 'MANUAL':
             self.plan_msg = Path()
             self.plan_msg.header.frame_id = 'utm'
@@ -242,6 +220,7 @@ class MissionLog:
                 self.plan_msg.poses.append(ps)
             self.plan_pub.publish(self.plan_msg)
 
+        # an arrow towards the current WP from vehicle position
         current_loc = vehicle.position_utm
         mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None and current_loc is not None:
