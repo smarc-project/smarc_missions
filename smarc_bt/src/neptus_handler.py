@@ -183,8 +183,6 @@ class NeptusHandler(object):
         current_mission_plan = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
         plan_info = PlanDBInformation()
         plan_info.plan_id = current_mission_plan.plan_id
-        if current_mission_plan.plandb_msg is not None:
-            plan_info.md5 = current_mission_plan.plandb_msg.plan_spec_md5
         plan_info.change_time = current_mission_plan.creation_time/1000.0
         return plan_info
 
@@ -225,7 +223,7 @@ class NeptusHandler(object):
         rospy.loginfo_throttle_identical(30, "Answered GET_STATE for plan:\n"+str(response.plan_id))
 
 
-    def _imc_maneuver_to_smarc_wp(self, maneuver):
+    def _imc_maneuver_to_gotowaypoint(self, maneuver):
         gwp  = GotoWaypoint()
         gwp.pose.header.frame_id = 'latlon'
         gwp.lat = np.degrees(maneuver.lat) # because neptus uses radians, we use degrees
@@ -255,9 +253,7 @@ class NeptusHandler(object):
             gwp.z_control_mode = GotoWaypoint.Z_CONTROL_DEPTH
 
 
-        return Waypoint(goto_waypoint = gwp,
-                        imc_man_id = maneuver.maneuver_imc_id,
-                        extra_data = None)
+        return gwp
 
 
 
@@ -269,18 +265,15 @@ class NeptusHandler(object):
         mission_control_msg = MissionControl()
         mission_control_msg.waypoints = []
         mission_control_msg.name = plandb.plan_id
-        mission_control_msg.command = MisionControl.CMD_SET_PLAN
+        mission_control_msg.command = MissionControl.CMD_SET_PLAN
 
         if len(plandb.plan_spec.maneuvers) <= 0:
             rospy.logwarn("THERE WERE NO MANEUVERS IN THE NEPTUS PLAN! plan_id:{}".format(plandb.plan_id))
 
         for plan_man in plandb.plan_spec.maneuvers:
-            man_id = plan_man.maneuver_id
             maneuver = plan_man.maneuver
-            man_name = maneuver.maneuver_name
-            man_imc_id = maneuver.maneuver_imc_id
             # construct the waypoint object
-            wp = self._imc_maneuver_to_smarc_wp(maneuver)
+            wp = self._imc_maneuver_to_gotowaypoint(maneuver)
             mission_control_msg.waypoints.append(wp)
 
         return mission_control_msg
