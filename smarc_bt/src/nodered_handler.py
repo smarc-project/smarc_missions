@@ -81,6 +81,44 @@ class NoderedHandler(object):
             return False
         return True
 
+
+    def _load_mission(self, hsh):
+        #TODO
+        pass
+
+
+    def _save_mission(self, mission):
+        hsh = mission.get_hash()
+        path = self._config.MISSION_PLAN_STORAGE_FOLDER
+
+        pass
+
+
+    def _set_plan(self, msg):
+        """
+        The message might contain a proper complete plan
+        or just the hash of a plan.
+        If its a proper mission:
+            - Compute a hash of it
+            - Check if a saved mission with the same name exists
+                - if names match but hash doesnt, over-write the old one
+                - if everything matches, dont do anything
+            - If no same-name saved mission exists, save this one with its hash
+        If it is NOT a proper mission = no waypoints then we need to check if we have a saved
+        mission with the same hash. If so, we load it, if not, do nothing.
+            - Check the msg.hash field, everything else can be empty for this
+            - Purpose: Super-low-bandwidth mission selection
+        """
+        if(msg.name == "" and msg.hash != ""):
+            new_plan = self._load_mission(msg.hash)
+        else:
+            new_plan = MissionPlan(auv_config = self._config,
+                                   plan_id = msg.name,
+                                   mission_control_msg = msg)
+            self._save_mission(new_plan)
+        self._bb.set(bb_enums.MISSION_PLAN_OBJ, new_plan)
+
+
     def tick(self):
         self._publish_current_plan()
 
@@ -119,12 +157,7 @@ class NoderedHandler(object):
             rospy.logwarn("Aborted")
 
         elif msg.command == MissionControl.CMD_SET_PLAN:
-            new_plan = MissionPlan(auv_config = self._config,
-                                   plan_id = msg.name,
-                                   mission_control_msg = msg,
-                                   coverage_swath = self._bb.get(bb_enums.SWATH),
-                                   vehicle_localization_error_growth = self._bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH))
-            self._bb.set(bb_enums.MISSION_PLAN_OBJ, new_plan)
+            self._set_plan(msg)
             rospy.loginfo("New mission {} set!".format(msg.name))
 
         elif msg.command == MissionControl.CMD_IS_FEEDBACK:
