@@ -64,6 +64,7 @@
   <depend>visualization_msgs</depend>
   <depend>lolo_msgs</depend>
   <depend>vision_msgs</depend>
+  <depend>rospy_message_converter</depend>
 
 
   <!--buildtool_depend>catkin</buildtool_depend>

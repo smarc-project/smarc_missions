@@ -133,10 +133,6 @@ class Waypoint:
         # if the control modes are different, that was handled above already
         return all((xy_too_close, z_too_close, speed_too_close))
 
-
-
-
-
     @property
     def x(self):
         return self.wp.pose.pose.position.x
@@ -159,7 +155,6 @@ class Waypoint:
             return False
 
         return True
-
 
     def __str__(self):
         s = 'Man: {}'.format(self.wp)
@@ -186,6 +181,7 @@ class MissionPlan:
         if plan_id is None:
             plan_id = "Unnamed - self.creation_time"
         self.plan_id = plan_id
+        self.hash = ""
 
         # test if the service is usable!
         # if not, test the backup
@@ -280,6 +276,7 @@ class MissionPlan:
         and set our plan_id from its name
         """
         self.plan_id = msg.name
+        self.hash = msg.hash
         waypoints = []
         serv = self._get_latlon_to_utm_service()
         for wp_msg in msg.waypoints:
@@ -350,7 +347,7 @@ class MissionPlan:
     def get_hash(self):
         """
         Return a unique hash derived from the mission params
-        such that if a relevant part changes the hash changes too
         """
-        return "totally a hash"
+        #TODO
+        return "hash"
 
