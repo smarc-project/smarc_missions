@@ -7,10 +7,12 @@ import imc_enums, bb_enums
 from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 from sensor_msgs.msg import NavSatFix
 
+from smarc_msgs.msg import MissionControl, GotoWaypoint
+
 import rospy, time
 import numpy as np
 
-from mission_plan import MissionPlan
+from mission_plan import MissionPlan, Waypoint
 
 class NeptusHandler(object):
     """
@@ -181,8 +183,6 @@ class NeptusHandler(object):
         current_mission_plan = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
         plan_info = PlanDBInformation()
         plan_info.plan_id = current_mission_plan.plan_id
-        if current_mission_plan.plandb_msg is not None:
-            plan_info.md5 = current_mission_plan.plandb_msg.plan_spec_md5
         plan_info.change_time = current_mission_plan.creation_time/1000.0
         return plan_info
 
@@ -222,12 +222,70 @@ class NeptusHandler(object):
         self._plandb_pub.publish(response)
         rospy.loginfo_throttle_identical(30, "Answered GET_STATE for plan:\n"+str(response.plan_id))
 
+
+    def _imc_maneuver_to_gotowaypoint(self, maneuver):
+        gwp  = GotoWaypoint()
+        gwp.pose.header.frame_id = 'latlon'
+        gwp.lat = np.degrees(maneuver.lat) # because neptus uses radians, we use degrees
+        gwp.lon = np.degrees(maneuver.lon)
+        gwp.name = maneuver.maneuver_name
+        gwp.goal_tolerance = 2 # to make this reactive, whoever sends the WP should set it
+
+        # convert the IMC enums into SMaRC enums
+        if maneuver.speed_units == imc_enums.SPEED_UNIT_RPM:
+            gwp.speed_control_mode = GotoWaypoint.SPEED_CONTROL_RPM
+            gwp.travel_rpm = maneuver.speed
+        elif maneuver.speed_units == imc_enums.SPEED_UNIT_MPS:
+            gwp.speed_control_mode = GotoWaypoint.SPEED_CONTROL_SPEED
+            gwp.travel_speed = maneuver.speed
+        else:
+            gwp.speed_control_mode = GotoWaypointGoal.SPEED_CONTROL_NONE
+            rospy.logwarn("Speed control of the waypoint is NONE!")
+
+        gwp.z_control_mode = maneuver.z_units # same in smarc and imc
+        if maneuver.z_units == imc_enums.Z_DEPTH:
+            gwp.travel_depth = maneuver.z
+        elif maneuver.z_units == imc_enums.Z_ALTITUDE:
+            gwp.travel_altitude = maneuver.z
+        else:
+            rospy.logwarn("Z control mode not depth or alt, defaulting to 0 depth!")
+            gwp.travel_depth = 0
+            gwp.z_control_mode = GotoWaypoint.Z_CONTROL_DEPTH
+
+
+        return gwp
+
+
+
+    def _plandb_to_missioncontrol(self, plandb):
+        """
+        Construct a smarc_msgs/mission_control from an imc plandb message
+        """
+        waypoints = []
+        mission_control_msg = MissionControl()
+        mission_control_msg.waypoints = []
+        mission_control_msg.name = plandb.plan_id
+        mission_control_msg.command = MissionControl.CMD_SET_PLAN
+
+        if len(plandb.plan_spec.maneuvers) <= 0:
+            rospy.logwarn("THERE WERE NO MANEUVERS IN THE NEPTUS PLAN! plan_id:{}".format(plandb.plan_id))
+
+        for plan_man in plandb.plan_spec.maneuvers:
+            maneuver = plan_man.maneuver
+            # construct the waypoint object
+            wp = self._imc_maneuver_to_gotowaypoint(maneuver)
+            mission_control_msg.waypoints.append(wp)
+
+        return mission_control_msg
+
+
+
     def _handle_set_plan(self, plandb_msg):
+        mission_control_msg = self._plandb_to_missioncontrol(plandb_msg)
+
         # there is a plan we can at least look at
         mission_plan = MissionPlan(auv_config = self._config,
-                                   plandb_msg = plandb_msg,
-                                   coverage_swath = self._bb.get(bb_enums.SWATH),
-                                   vehicle_localization_error_growth = self._bb.get(bb_enums.LOCALIZATION_ERROR_GROWTH))
+                                   mission_control_msg = mission_control_msg)
 
         if mission_plan.no_service:
             self.feedback_messages.append("MISSION PLAN HAS NO SERVICE")
@@ -237,6 +295,7 @@ class NeptusHandler(object):
         self._bb.set(bb_enums.ENABLE_AUTONOMY, False)
         self._bb.set(bb_enums.MISSION_FINALIZED, False)
         rospy.loginfo_throttle_identical(5, "Set the mission plan to:{} and un-finalized the mission.".format(mission_plan))
+
 
     def _handle_plandb_msg(self):
         plandb_msg = self._last_received_plandb_msg

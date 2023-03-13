@@ -191,8 +191,8 @@ class A_ManualMissionLog(pt.behaviour.Behaviour):
         self.num_saved_logs = 0
 
         # used just for the latlontoutm function only
-        self.mplan = MissionPlan(plandb_msg = None,
-                                 auv_config = config,
+        self.mplan = MissionPlan(auv_config = config,
+                                 mission_control_msg = None,
                                  waypoints = [])
 
 

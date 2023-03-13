@@ -65,7 +65,7 @@
 		<arg name="imc_system_name" value="$(arg imc_system_name)"/>
 	</include>
 
-	<include file="$(find mqtt_ros_bridge)/launch/mqtt_ros_bridge.launch" ns="$(arg robot_name)">
+	<include file="$(find smarc_nodered)/launch/smarc_nodered.launch" ns="$(arg robot_name)">
 		<arg name="robot_name" value="$(arg robot_name)"/>
 	</include>
     
