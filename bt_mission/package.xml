@@ -53,6 +53,7 @@
   <build_export_depend>smarc_bt</build_export_depend>
   <exec_depend>smarc_bt</exec_depend>
   <exec_depend>sam_action_servers</exec_depend>
+  <depend>smarc_nodered</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
