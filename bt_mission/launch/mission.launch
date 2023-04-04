@@ -2,11 +2,6 @@
 
     <arg name="robot_name" default="sam"/>
 
-	<!--  All SAM action servers -->
-	<!--include file="$(find sam_action_servers)/launch/action_servers.launch" >
-		<arg name="robot_name" value="$(arg robot_name)"/>	
-	</include-->
-
 	<!-- Hard limits -->
     	<arg name="max_depth" default="20"/>
     	<arg name="min_altitude" default="-1"/>
