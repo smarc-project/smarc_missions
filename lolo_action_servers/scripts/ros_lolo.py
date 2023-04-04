@@ -62,9 +62,15 @@ class ROSLolo(object):
             self.elevator_sub = rospy.Subscriber(robot_name+"/core/elevator_fb", Float32, self.elevator_cb, queue_size=1)
             self.elevator_pub = rospy.Publisher(robot_name+"/core/elevator_cmd", Float32, queue_size=1)
 
+
     def stop(self):
         rospy.loginfo("Stopping lolo controller")
         self.timer.shutdown()
+
+    def start(self):
+        rospy.loginfo("Starting lolo controller")
+        self.timer.start()
+
 
     def update(self, timer_event):
         if self.control_thrusters:
