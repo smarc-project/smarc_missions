@@ -1,0 +1,4 @@
+update_freq : 10
+max_rpm : 2000
+max_fin_radians : 0.6
+

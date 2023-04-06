@@ -1,0 +1,16 @@
+<launch>
+
+    <arg name="robot_name" default="lolo"/>
+	<arg name="config_file" default="$(find lolo_action_servers)/launch/config.yaml"/>
+
+	<!-- Include all action servers in this launch file -->
+
+	<!-- WP following action -->
+	<node name="goto_waypoint" pkg="lolo_action_servers" type="goto_waypoint.py" output="screen" ns="$(arg robot_name)/ctrl">
+		<param name="robot_name" value="$(arg robot_name)"/>
+		<rosparam file="$(arg config_file)" command="load"/>
+	</node>
+	
+	
+    
+</launch>

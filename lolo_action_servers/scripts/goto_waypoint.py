@@ -26,14 +26,22 @@ from ros_lolo import ROSLolo
 
 from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
 
+
+def get_param(name, default=None):
+    return rospy.get_param(rospy.search_param(name), default)
+
 class LoloGotoWP(object):
-    def __init__(self,
-                 lolo,
-                 update_freq = 10,
-                 name="LoloGotoWP"):
-        self.lolo = lolo
-        self.update_freq = update_freq
-        self.name = name
+    def __init__(self):
+
+        self.lolo = Lolo(max_rpm = get_param("max_rpm", 2000),
+                         max_fin_radians = get_param("max_fin_radians", 0.6))
+
+        self.ros_lolo = ROSLolo(lolo = self.lolo,
+                                robot_name = get_param("robot_name", "lolo"))
+
+        self.update_freq = get_param("update_freq", 10)
+
+        self.name = rospy.get_name()
         self.action_server = actionlib.SimpleActionServer(self.name,
                                                           GotoWaypointAction,
                                                           execute_cb = self.run,
@@ -41,6 +49,8 @@ class LoloGotoWP(object):
         self.fb = GotoWaypointFeedback()
         self.result = GotoWaypointResult()
         self.goal = None
+
+        self.tf_listener = tf.TransformListener()
 
     def start(self):
         rospy.loginfo("[{}] Started!".format(self.name))
@@ -52,7 +62,7 @@ class LoloGotoWP(object):
         return
 
     def update(self):
-        pass
+        self.lolo.control_yaw_from_desired_pos()
 
     def on_done(self):
         self.goal = None
@@ -60,7 +70,21 @@ class LoloGotoWP(object):
         pass
 
     def run(self, goal):
-        self.goal = goal
+        # first, extract the position from the goal
+        # and convert that to whatever reference frame the lolo model is in
+        target_pos, _= self.tf_listener.transformPose(self.ros_lolo.reference_link, goal.pose)
+
+        # acquire the depth
+        if goal.z_control_mode == GotoWaypoint.Z_CONTROL_DEPTH:
+            depth = goal.travel_depth
+        # no other type of control yet
+        else:
+            rospy.logwarn("Lolo only does DEPTH control! Setting depth to 0")
+            depth = 0
+
+        self.lolo.set_desired_pos(target_pos.pose.x, target_pos.pose.y, depth)
+
+        rate = rospy.Rate(self.update_freq)
         while True:
             if self.action_server.is_preempt_requested():
                 self.on_preempt()
@@ -68,6 +92,7 @@ class LoloGotoWP(object):
                 return
 
             self.update()
+            rate.sleep()
 
         # finished running
         self.on_done()
@@ -75,14 +100,5 @@ class LoloGotoWP(object):
 
 if __name__ == "__main__":
     rospy.init_node("goto_waypoint")
-    L = Lolo()
-    RL = ROSLolo(L)
-
-    L.set_desired_pos(40, 20)
-
-    rate = rospy.Rate(1)
-    while not rospy.is_shutdown():
-        L.control_yaw_from_desired_pos()
-        rate.sleep()
-
-    RL.stop()
+    s = LoloGotoWP()
+    rospy.spin()
