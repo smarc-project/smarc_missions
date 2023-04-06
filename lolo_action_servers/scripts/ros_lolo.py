@@ -17,7 +17,7 @@
 
 from __future__ import division, print_function
 import numpy as np
-import rospy
+import rospy, tf
 
 from smarc_msgs.msg import ThrusterFeedback, ThrusterRPM
 from std_msgs.msg import Float32
@@ -26,6 +26,7 @@ class ROSLolo(object):
     def __init__(self,
                  lolo,
                  robot_name="lolo",
+                 reference_link = "world_ned",
                  control_thrusters=True,
                  control_elevons=True,
                  control_rudder=True,
@@ -36,6 +37,10 @@ class ROSLolo(object):
         """
         self.lolo = lolo
         robot_name = "/"+robot_name
+        self.base_link = robot_name + "/base_link"
+        self.reference_link = reference_link
+
+        self.tf_listener = tf.TransformListener()
         self.timer = rospy.Timer(rospy.Duration(0.1), self.update)
 
         self.control_thrusters = control_thrusters
@@ -65,14 +70,32 @@ class ROSLolo(object):
 
     def stop(self):
         rospy.loginfo("Stopping lolo controller")
+        self.lolo.reset_desires()
+        self.update()
         self.timer.shutdown()
+
 
     def start(self):
         rospy.loginfo("Starting lolo controller")
         self.timer.start()
 
 
-    def update(self, timer_event):
+    def update_tf(self):
+        self.tf_listener.waitForTransform(self.reference_link, self.base_link, rospy.Time(0), rospy.Duration(1))
+        trans, ori_quat = self.tf_listener.lookupTransform(self.reference_link, self.base_link, rospy.Time(0))
+        self.lolo.update_pos(x = trans[0],
+                             y = trans[1],
+                             depth = trans[2])
+
+        ori_rpy = tf.transformations.euler_from_quaternion(ori_quat)
+        self.lolo.update_ori(r = ori_rpy[0],
+                             p = ori_rpy[1],
+                             y = ori_rpy[2])
+
+
+    def update(self, timer_event=None):
+        self.update_tf()
+
         if self.control_thrusters:
             self.t1_pub.publish(int(self.lolo.desired_rpms[0]))
             self.t2_pub.publish(int(self.lolo.desired_rpms[1]))

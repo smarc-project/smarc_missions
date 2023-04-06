@@ -17,20 +17,72 @@
 
 
 import numpy as np
+import geometry as geom
 import rospy, tf, actionlib
 
 from lolo import Lolo
 from ros_lolo import ROSLolo
+
+
+from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
+
+class LoloGotoWP(object):
+    def __init__(self,
+                 lolo,
+                 update_freq = 10,
+                 name="LoloGotoWP"):
+        self.lolo = lolo
+        self.update_freq = update_freq
+        self.name = name
+        self.action_server = actionlib.SimpleActionServer(self.name,
+                                                          GotoWaypointAction,
+                                                          execute_cb = self.run,
+                                                          auto_start=False)
+        self.fb = GotoWaypointFeedback()
+        self.result = GotoWaypointResult()
+        self.goal = None
+
+    def start(self):
+        rospy.loginfo("[{}] Started!".format(self.name))
+        self.action_server.start()
+
+    def on_preempt(self):
+        self.goal = None
+        self.fb.feedback_message = "[{}] Pre-empted!".format(self.name)
+        return
+
+    def update(self):
+        pass
+
+    def on_done(self):
+        self.goal = None
+        self.fb.feedback_message = "[{}] Completed!".format(self.name)
+        pass
+
+    def run(self, goal):
+        self.goal = goal
+        while True:
+            if self.action_server.is_preempt_requested():
+                self.on_preempt()
+                self.action_server.set_preempted(self.result, "[{}] preempted!".format(self.name))
+                return
+
+            self.update()
+
+        # finished running
+        self.on_done()
+        self.action_server.set_succeeded(self.result, "[{}] Succeeded!")
 
 if __name__ == "__main__":
     rospy.init_node("goto_waypoint")
     L = Lolo()
     RL = ROSLolo(L)
 
+    L.set_desired_pos(40, 20)
 
-    rate = rospy.Rate(0.1)
+    rate = rospy.Rate(1)
     while not rospy.is_shutdown():
-        L.blarg()
+        L.control_yaw_from_desired_pos()
         rate.sleep()
 
     RL.stop()

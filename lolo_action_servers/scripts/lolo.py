@@ -19,10 +19,13 @@ from __future__ import division, print_function
 import numpy as np
 import tf
 
+import geometry as geom
+
 class Lolo(object):
     def __init__(self):
         """
         A container object that abstracts away ros-related stuff for a nice abstract vehicle
+        pose is in NED, x = north, y = east, z = down/depth
         """
 
         self.pos = np.zeros(3)
@@ -42,6 +45,10 @@ class Lolo(object):
         self.elevator_angle = 0
         self.desired_elevator_angle = 0
 
+    def set_desired_pos(self, x, y, z=0):
+        self.desired_pos[0] = x
+        self.desired_pos[1] = y
+        self.desired_pos[2] = z
 
     def update_pos(self, x=None, y=None, depth=None):
         if x is not None: self.pos[0] = x
@@ -70,6 +77,14 @@ class Lolo(object):
     def update_elevator_angle(self, a):
         self.elevator_angle = a
 
+    def reset_desires(self):
+        self.desired_elevator_angle = 0
+        self.desired_rudder_angle = 0
+        self.desired_elevon_angles[0] = 0
+        self.desired_elevon_angles[1] = 0
+        self.desired_rpms[0] = 0
+        self.desired_rpms[1] = 0
+
 
     def blarg(self):
         self.desired_elevator_angle = np.random.standard_normal()*0.6
@@ -78,6 +93,32 @@ class Lolo(object):
         self.desired_elevon_angles[1] = np.random.standard_normal()*0.6
         self.desired_rpms[0] = np.random.standard_normal()*2000
         self.desired_rpms[1] = np.random.standard_normal()*2000
+
+
+    def control_yaw_from_desired_pos(self):
+        xy_diff = self.position_error[:2]
+        yaw_diff = geom.vec2_directed_angle(self.yaw_vec, xy_diff) * geom.RADTODEG
+
+        # 1 direction = turn right
+        # -1 direction = turn left
+        turn_direction = np.sign(yaw_diff)
+        turn_mag = np.abs(yaw_diff)/180.
+
+        # super simple P controller for rudder
+        max_rudder = 0.6
+        self.desired_rudder_angle = turn_direction * turn_mag*2 * max_rudder
+
+        # left t, right t = 0,1
+        max_thrust = 2000
+        # assist turning with thrusters, because why not
+        if(turn_mag > 0.2):
+            self.desired_rpms[0] = -turn_direction * max_thrust
+            self.desired_rpms[1] =  turn_direction * max_thrust
+        else:
+            self.desired_rpms[0] = max_thrust
+            self.desired_rpms[1] = max_thrust
+
+
 
 
     ###############################
@@ -102,6 +143,9 @@ class Lolo(object):
     def yaw(self):
         return self.ori_rpy[2]
     @property
+    def yaw_vec(self):
+        return np.array([np.cos(self.yaw), np.sin(self.yaw)])
+    @property
     def ori_quat(self):
         return tf.transformations.quaternion_from_euler(self.roll, self.pitch, self.yaw)
     @property
@@ -116,6 +160,9 @@ class Lolo(object):
     @property
     def strb_elevon_angle(self):
         return self.elevon_angles[1]
+    @property
+    def position_error(self):
+        return self.desired_pos - self.pos
 
 
 
