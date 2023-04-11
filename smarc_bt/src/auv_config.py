@@ -62,24 +62,7 @@ class AUVConfig(object):
             config = yaml.safe_load(f)
             for k,v in config.items():
                 # and we want its keys to be the object fields
-                val = get_param(k)
-                if val is not None:
-                    # with values coming from rosparam server if they are there
-                    # we assume this requires no further processing
-                    self.__dict__[k] = val
-                else:
-                    # or from the yaml file if not in rosparams
-                    # in this case, services and base link
-                    # specifically need the robot name pre-prended
-                    # we assumed robot_name is the first thing in the dict always
-                    # and that it has already been interned
-                    if k in ['LATLONTOUTM_SERVICE',
-                             'UTM_TO_LATLON_SERVICE',
-                             'LATLONTOUTM_SERVICE_ALTERNATIVE',
-                             'BASE_LINK']:
-                        # slight idiot-proofing
-                        if val[0] != '/':
-                            val = '/' + self.robot_name + '/' + val
-                        else:
-                            val = '/' + self.robot_name +  val
+                # if rosparam for some reason doesnt have the
+                # key, then we use the value in yaml and hope for the best
+                self.__dict__[k] = get_param(k, v)
 
