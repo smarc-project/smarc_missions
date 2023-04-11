@@ -19,6 +19,7 @@ class AUVConfig(object):
     """
     def __init__(self):
         self._read_rosparams()
+        self._handle_robot_name_subs()
 
     def __str__(self):
         s = '\nAUV_CONFIG:\n'
@@ -65,4 +66,17 @@ class AUVConfig(object):
                 # if rosparam for some reason doesnt have the
                 # key, then we use the value in yaml and hope for the best
                 self.__dict__[k] = get_param(k, v)
+
+    def _handle_robot_name_subs(self):
+        # services need to look like /$(arg robot_name)/service_name
+        # so add the robot_name part
+        for k in ['LATLONTOUTM_SERVICE',
+                  'UTM_TO_LATLON_SERVICE',
+                  'LATLONTOUTM_SERVICE_ALTERNATIVE']:
+            self.__dict__[k] = '/' + self.robot_name + '/' + self.__dict__[k]
+
+        # and base link needs $(arg robot_name)/base_link
+        # or other TF names that depend on robot name
+        for k in ['BASE_LINK']:
+            self.__dict__[k] = self.robot_name + '/' + self.__dict__[k]
 

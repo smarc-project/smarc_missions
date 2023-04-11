@@ -4,14 +4,10 @@
 
 
 	<node name="smarc_bt" pkg="smarc_bt" type="smarc_bt.py" output="screen" ns="$(arg robot_name)">
+		<!--Load this first so it can be over-written by other params later-->
+		<!--Cant use subst_value in melodic...-->
+		<rosparam file="$(arg config_file)" command="load"/>
 		<param name="robot_name" value="$(arg robot_name)" />
 		<param name="config_file" value="$(arg config_file)"/>
-		<rosparam file="$(arg config_file)" command="load" subst_value="true">
-			robot_name : $(arg robot_name)
-			LATLONTOUTM_SERVICE : /$(arg robot_name)/dr/lat_lon_to_utm
-			UTM_TO_LATLON_SERVICE : /$(arg robot_name)/dr/utm_to_lat_lon
-			LATLONTOUTM_SERVICE_ALTERNATIVE : /$(arg robot_name)/lat_lon_to_utm
-			BASE_LINK : $(arg robot_name)/base_link
-		</rosparam>
 	</node>
 </launch>

@@ -5,8 +5,8 @@ PATH_TOPIC : 'ctrl/planned_path'
 LATLON_TOPIC : 'dr/lat_lon'
 GPS_TOPIC : 'core/gps'
 ROLL_TOPIC : 'dr/roll'
-PITCH_TOPIC : '/dr/pitch'
-YAW_TOPIC : '/dr/yaw'
+PITCH_TOPIC : 'dr/pitch'
+YAW_TOPIC : 'dr/yaw'
 
 EMERGENCY_TOPIC : 'core/abort'
 HEARTBEAT_TOPIC : 'core/heartbeat'
@@ -30,13 +30,14 @@ EMERGENCY_ACTION_NAMESPACE : 'ctrl/emergency_surface_action'
 
 
 # the sams in these should be subst_value'd in the launch file!
-LATLONTOUTM_SERVICE : '/sam/dr/lat_lon_to_utm'
-UTM_TO_LATLON_SERVICE : '/sam/dr/utm_to_lat_lon'
+# or over-written with params
+LATLONTOUTM_SERVICE : 'dr/lat_lon_to_utm'
+UTM_TO_LATLON_SERVICE : 'dr/utm_to_lat_lon'
 # in cases where the above service couldnt be found for some reason
-LATLONTOUTM_SERVICE_ALTERNATIVE : '/sam/lat_lon_to_utm'
+LATLONTOUTM_SERVICE_ALTERNATIVE : 'lat_lon_to_utm'
 
 # tf frame names
-BASE_LINK : 'sam/base_link'
+BASE_LINK : 'base_link'
 UTM_LINK : 'utm'
 LOCAL_LINK : 'map'
 

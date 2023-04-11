@@ -401,6 +401,7 @@ def main():
     # create a config object that will handle all the rosparams and such
     # read all the fields from rosparams and literally construct the fields of this object
     config = AUVConfig()
+    rospy.loginfo(config)
 
     # create a dynamic reconfig server that defaults to the
     # configs we already have
