@@ -1,0 +1,80 @@
+robot_name : 'sam'
+DVL_TOPIC : 'core/dvl'
+LEAK_TOPIC : 'core/leak'
+PATH_TOPIC : 'ctrl/planned_path'
+LATLON_TOPIC : 'dr/lat_lon'
+GPS_TOPIC : 'core/gps'
+ROLL_TOPIC : 'dr/roll'
+PITCH_TOPIC : '/dr/pitch'
+YAW_TOPIC : '/dr/yaw'
+
+EMERGENCY_TOPIC : 'core/abort'
+HEARTBEAT_TOPIC : 'core/heartbeat'
+MISSION_COMPLETE_TOPIC : 'core/mission_complete'
+
+# gui-given wp
+GUI_WP_ENABLE_TOPIC : 'smarc_bt/gui_wp/enable'
+GUI_WP : 'smarc_bt/gui_wp/wp'
+
+# live-wp that can be updated on the go
+LIVE_WP_ENABLE_TOPIC : 'smarc_bt/live_wp/enable'
+LIVE_WP : 'smarc_bt/live_wp/wp'
+
+# Zheng and Li's algae farm thing
+ALGAE_FOLLOW_ENABLE_TOPIC : 'smarc_bt/algae_farm/enable'
+ALGAE_FOLLOW_WP : 'smarc_bt/algae_farm/wp'
+
+# actions and services
+GOTO_ACTION_NAMESPACE : 'ctrl/goto_waypoint'
+EMERGENCY_ACTION_NAMESPACE : 'ctrl/emergency_surface_action'
+
+
+# the sams in these should be subst_value'd in the launch file!
+LATLONTOUTM_SERVICE : '/sam/dr/lat_lon_to_utm'
+UTM_TO_LATLON_SERVICE : '/sam/dr/utm_to_lat_lon'
+# in cases where the above service couldnt be found for some reason
+LATLONTOUTM_SERVICE_ALTERNATIVE : '/sam/lat_lon_to_utm'
+
+# tf frame names
+BASE_LINK : 'sam/base_link'
+UTM_LINK : 'utm'
+LOCAL_LINK : 'map'
+
+# imc related stuff, most likely never changes
+PLANDB_TOPIC : 'imc/plan_db'
+PLAN_CONTROL_TOPIC : 'imc/plan_control'
+ESTIMATED_STATE_TOPIC : 'imc/estimated_state'
+PLAN_CONTROL_STATE_TOPIC : 'imc/plan_control_state'
+VEHICLE_STATE_TOPIC : 'imc/vehicle_state'
+ABORT_TOPIC : 'imc/abort'
+GPSFIX_TOPIC : 'imc/gps_fix'
+GPS_NAV_DATA_TOPIC : 'imc/gps_nav_data'
+
+# mqtt related stuff
+LAST_WP_TOPIC : 'smarc_bt/last_wp'
+MISSION_CONTROL_TOPIC : 'smarc_bt/mission_control'
+
+# hard values
+MAX_DEPTH : 20
+MIN_ALTITUDE : 1
+# how many ticks to run emergency action before we give up
+# on the current wp and skip it
+# in ticks
+EMERGENCY_TRIALS_BEFORE_GIVING_UP : 30
+
+# default waypoint tolerance
+# can be changed with dynamic reconf
+WAYPOINT_TOLERANCE : 1.5
+
+# coverage planning variables
+# total width of sensor footprint, perpendicular to movement
+SWATH : 20
+# function of distance traveled. 0.01 means 1 meter error per 100m travel
+LOCALIZATION_ERROR_GROWTH : 0.02
+
+# Mission logging file location
+MISSION_LOG_FOLDER : '~/MissionLogs/'
+ENABLE_MANUAL_MISSION_LOG : False
+
+# Mission plan storage
+MISSION_PLAN_STORAGE_FOLDER : "~/MissionPlans/"

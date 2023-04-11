@@ -37,7 +37,6 @@ SWATH = 'swath'
 LOCALIZATION_ERROR_GROWTH = 'loc_err_growth'
 
 # Algae farm
-BUOYS = 'buoys'
 ALGAE_FOLLOW_ENABLE = 'algea_enable'
 ALGAE_FOLLOW_WP = 'algae_follow_wp'
 
