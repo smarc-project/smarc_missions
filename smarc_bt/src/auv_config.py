@@ -72,7 +72,9 @@ class AUVConfig(object):
         # so add the robot_name part
         for k in ['LATLONTOUTM_SERVICE',
                   'UTM_TO_LATLON_SERVICE',
-                  'LATLONTOUTM_SERVICE_ALTERNATIVE']:
+                  'LATLONTOUTM_SERVICE_ALTERNATIVE',
+                  'GOTO_ACTION_NAMESPACE',
+                  'EMERGENCY_ACTION_NAMESPACE']:
             self.__dict__[k] = '/' + self.robot_name + '/' + self.__dict__[k]
 
         # and base link needs $(arg robot_name)/base_link

@@ -438,6 +438,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             self.action_namespace,
             self.action_spec
         )
+
         if not self.action_client.wait_for_server(rospy.Duration(timeout)):
             self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
             self.action_client = None
