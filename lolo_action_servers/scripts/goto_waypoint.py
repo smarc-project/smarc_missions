@@ -29,18 +29,23 @@ from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypoin
 
 
 def get_param(name, default=None):
-    return rospy.get_param(rospy.search_param(name), default)
+    v = rospy.get_param(rospy.search_param(name), default)
+    print("got rosparam name:{}, val:{}".format(name, v))
+    return v
 
 class LoloGotoWP(object):
     def __init__(self):
 
+        # see launch/config.yaml
         self.lolo = Lolo(max_rpm = get_param("max_rpm", 2000),
-                         max_fin_radians = get_param("max_fin_radians", 0.6))
+                         max_fin_radians = get_param("max_fin_radians", 0.6),
+                         rudder_Kp = get_param("rudder_Kp", 50))
 
         self.ros_lolo = ROSLolo(lolo = self.lolo,
-                                robot_name = get_param("robot_name", "lolo"))
+                                robot_name = get_param("robot_name", "lolo"),
+                                update_freq = get_param("controller_update_freq", 10))
 
-        self.update_freq = get_param("update_freq", 10)
+        self.update_freq = get_param("action_update_freq", 10)
 
         self.tf_listener = tf.TransformListener()
 

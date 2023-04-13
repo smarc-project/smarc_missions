@@ -27,6 +27,7 @@ class ROSLolo(object):
                  lolo,
                  robot_name="lolo",
                  reference_link = "world_ned",
+                 update_freq = 10,
                  control_thrusters=True,
                  control_elevons=True,
                  control_rudder=True,
@@ -39,6 +40,7 @@ class ROSLolo(object):
         robot_name = "/"+robot_name
         self.base_link = robot_name + "/base_link"
         self.reference_link = reference_link
+        self.update_freq = update_freq
 
         self.tf_listener = tf.TransformListener()
         while not rospy.is_shutdown():
@@ -83,7 +85,7 @@ class ROSLolo(object):
 
     def start(self):
         rospy.loginfo("Starting lolo controller")
-        self.timer = rospy.Timer(rospy.Duration(0.1), self.update)
+        self.timer = rospy.Timer(rospy.Duration(1/self.update_freq), self.update)
 
 
     def update_tf(self):

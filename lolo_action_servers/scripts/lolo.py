@@ -41,7 +41,8 @@ class SimpleRPMGoal(object):
 class Lolo(object):
     def __init__(self,
                  max_rpm = 2000,
-                 max_fin_radians = 0.6):
+                 max_fin_radians = 0.6,
+                 rudder_Kp = 10):
         """
         A container object that abstracts away ros-related stuff for a nice abstract vehicle
         pose is in NED, x = north, y = east, z = down/depth
@@ -49,6 +50,7 @@ class Lolo(object):
 
         self.max_rpm = max_rpm
         self.max_fin_radians = max_fin_radians
+        self.rudder_Kp = rudder_Kp
 
         self.goal = None
 
@@ -130,11 +132,11 @@ class Lolo(object):
         # 1 direction = turn right
         # -1 direction = turn left
         turn_direction = np.sign(yaw_diff)
+        # map 0-180 to 0-1
         turn_mag = np.abs(yaw_diff)/180.
 
         # super simple P controller for rudder
-        max_rudder = self.max_fin_radians
-        self.desired_rudder_angle = turn_direction * turn_mag*10 * max_rudder
+        self.desired_rudder_angle = turn_direction * turn_mag * self.max_fin_radians * self.rudder_Kp
 
         # left t, right t = 0,1
         max_thrust = self.max_rpm
