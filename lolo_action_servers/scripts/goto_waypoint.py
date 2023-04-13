@@ -101,4 +101,6 @@ class LoloGotoWP(object):
 if __name__ == "__main__":
     rospy.init_node("goto_waypoint")
     s = LoloGotoWP()
+    s.start()
+    rospy.loginfo("Spinning~")
     rospy.spin()

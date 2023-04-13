@@ -41,7 +41,12 @@ class ROSLolo(object):
         self.reference_link = reference_link
 
         self.tf_listener = tf.TransformListener()
-        self.timer = rospy.Timer(rospy.Duration(0.1), self.update)
+        while not rospy.is_shutdown():
+            try:
+                self.tf_listener.waitForTransform(self.reference_link, self.base_link, rospy.Time(0), rospy.Duration(5))
+                break
+            except:
+                rospy.logwarn("Could not get tf between {} and {}, waiting until we do".format(self.reference_link, self.base_link))
 
         self.control_thrusters = control_thrusters
         if control_thrusters:
@@ -67,6 +72,8 @@ class ROSLolo(object):
             self.elevator_sub = rospy.Subscriber(robot_name+"/core/elevator_fb", Float32, self.elevator_cb, queue_size=1)
             self.elevator_pub = rospy.Publisher(robot_name+"/core/elevator_cmd", Float32, queue_size=1)
 
+
+        self.timer = rospy.Timer(rospy.Duration(0.1), self.update)
 
     def stop(self):
         rospy.loginfo("Stopping lolo controller")
