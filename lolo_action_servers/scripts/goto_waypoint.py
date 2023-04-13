@@ -24,7 +24,8 @@ from lolo import Lolo
 from ros_lolo import ROSLolo
 
 
-from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
+from smarc_msgs.msg import GotoWaypoint
+from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypointAction
 
 
 def get_param(name, default=None):
@@ -41,62 +42,112 @@ class LoloGotoWP(object):
 
         self.update_freq = get_param("update_freq", 10)
 
+        self.tf_listener = tf.TransformListener()
+
         self.name = rospy.get_name()
+        self.reset_fb_result()
         self.action_server = actionlib.SimpleActionServer(self.name,
                                                           GotoWaypointAction,
                                                           execute_cb = self.run,
-                                                          auto_start=False)
-        self.fb = GotoWaypointFeedback()
-        self.result = GotoWaypointResult()
-        self.goal = None
+                                                          auto_start = False)
 
-        self.tf_listener = tf.TransformListener()
+    ###################################################
+    # do something every tick here
+    # ideally you shouldnt need to think about ros at all
+    # inside this funtion
+    ###################################################
+    def update(self):
+        self.lolo.control_yaw_from_goal()
+
+    ###################################################
+    # action server piping, shouldnt need modification most of the time
+    ###################################################
+    def feedback(self, msg):
+        s = "{} [{}]".format(msg, self.name)
+        self.fb.feedback_message = s
+        rospy.loginfo_throttle(5, s)
+        self.action_server.publish_feedback(self.fb)
 
     def start(self):
-        rospy.loginfo("[{}] Started!".format(self.name))
         self.action_server.start()
+        rospy.loginfo("Started!")
 
     def on_preempt(self):
-        self.goal = None
-        self.fb.feedback_message = "[{}] Pre-empted!".format(self.name)
-        return
-
-    def update(self):
-        self.lolo.control_yaw_from_desired_pos()
+        self.ros_lolo.stop()
+        self.feedback("Pre-empted!")
+        self.action_server.set_preempted(self.result, "[{}] preempted!".format(self.name))
+        self.reset_fb_result()
 
     def on_done(self):
-        self.goal = None
-        self.fb.feedback_message = "[{}] Completed!".format(self.name)
-        pass
+        self.ros_lolo.stop()
+        self.feedback("Completed!")
+        self.result.reached_waypoint = True
+        self.action_server.set_succeeded(self.result, "[{}] Succeeded!")
+        self.reset_fb_result()
+
+    def on_new_goal(self):
+        self.feedback("Got goal!")
+        self.reset_fb_result()
+        self.ros_lolo.start()
+
+    def reset_fb_result(self):
+        self.fb = GotoWaypointFeedback()
+        self.result = GotoWaypointResult()
 
     def run(self, goal):
+        self.on_new_goal()
         # first, extract the position from the goal
         # and convert that to whatever reference frame the lolo model is in
-        target_pos, _= self.tf_listener.transformPose(self.ros_lolo.reference_link, goal.pose)
+        wp = goal.waypoint
+        goal_pose_stamped = self.tf_listener.transformPose(target_frame = self.ros_lolo.reference_link,
+                                                           ps = wp.pose)
+        target_posi = goal_pose_stamped.pose.position
 
         # acquire the depth
-        if goal.z_control_mode == GotoWaypoint.Z_CONTROL_DEPTH:
-            depth = goal.travel_depth
+        if wp.z_control_mode == GotoWaypoint.Z_CONTROL_DEPTH:
+            depth = wp.travel_depth
         # no other type of control yet
         else:
             rospy.logwarn("Lolo only does DEPTH control! Setting depth to 0")
             depth = 0
 
-        self.lolo.set_desired_pos(target_pos.pose.x, target_pos.pose.y, depth)
+        # acquire the rpm
+        if wp.speed_control_mode == GotoWaypoint.SPEED_CONTROL_RPM:
+            rpm = wp.travel_rpm
+        else:
+            rospy.logwarn("Lolo only does RPM control! Setting rpm to 0")
+            rpm = 0
 
+        tolerance = wp.goal_tolerance
+        if tolerance < 0.5:
+            rospy.logwarn("Goal tolerance is too small, lolo is not a surgeon! Setting to 0.5m")
+            tolerance = 0.5
+
+        # set internal goal from message params
+        self.lolo.set_goal(x = target_posi.x,
+                           y = target_posi.y,
+                           depth = depth,
+                           rpm = rpm)
+
+        # and finally, we start spinning and controlling things
         rate = rospy.Rate(self.update_freq)
-        while True:
+        while not rospy.is_shutdown():
             if self.action_server.is_preempt_requested():
                 self.on_preempt()
-                self.action_server.set_preempted(self.result, "[{}] preempted!".format(self.name))
+                # return, not break!
                 return
+
+            xy_dist = self.lolo.xy_diff_to_goal
+            self.feedback("trgt:{}, XYdist:{:.1f}, tol:{:.1f}".format(wp.name, xy_dist, tolerance))
+            if  xy_dist <= tolerance:
+                # success~
+                break
 
             self.update()
             rate.sleep()
 
         # finished running
         self.on_done()
-        self.action_server.set_succeeded(self.result, "[{}] Succeeded!")
 
 if __name__ == "__main__":
     rospy.init_node("goto_waypoint")

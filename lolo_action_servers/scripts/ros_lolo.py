@@ -73,18 +73,17 @@ class ROSLolo(object):
             self.elevator_pub = rospy.Publisher(robot_name+"/core/elevator_cmd", Float32, queue_size=1)
 
 
-        self.timer = rospy.Timer(rospy.Duration(0.1), self.update)
 
     def stop(self):
         rospy.loginfo("Stopping lolo controller")
-        self.lolo.reset_desires()
+        self.lolo.reset_goal()
         self.update()
         self.timer.shutdown()
 
 
     def start(self):
         rospy.loginfo("Starting lolo controller")
-        self.timer.start()
+        self.timer = rospy.Timer(rospy.Duration(0.1), self.update)
 
 
     def update_tf(self):

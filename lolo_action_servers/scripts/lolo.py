@@ -21,6 +21,23 @@ import tf
 
 import geometry as geom
 
+class SimpleRPMGoal(object):
+    def __init__(self,
+                 x,
+                 y,
+                 depth,
+                 rpm):
+        self.x = x
+        self.y = y
+        self.depth = depth
+        self.rpm = rpm
+
+    @property
+    def pos(self):
+        return np.array([self.x, self.y, self.depth])
+
+
+
 class Lolo(object):
     def __init__(self,
                  max_rpm = 2000,
@@ -33,9 +50,9 @@ class Lolo(object):
         self.max_rpm = max_rpm
         self.max_fin_radians = max_fin_radians
 
-        self.pos = np.zeros(3)
-        self.desired_pos = np.zeros(3)
+        self.goal = None
 
+        self.pos = np.zeros(3)
         self.ori_rpy = np.zeros(3)
 
         self.thruster_rpms = np.zeros(2)
@@ -50,10 +67,20 @@ class Lolo(object):
         self.elevator_angle = 0
         self.desired_elevator_angle = 0
 
-    def set_desired_pos(self, x, y, z=0):
-        self.desired_pos[0] = x
-        self.desired_pos[1] = y
-        self.desired_pos[2] = z
+    def set_goal(self,x,y,depth,rpm):
+        self.goal = SimpleRPMGoal(x,y,depth,rpm)
+
+    def reset_goal(self):
+        self._reset_desires()
+        self.goal = None
+
+    def _reset_desires(self):
+        self.desired_elevator_angle = 0
+        self.desired_rudder_angle = 0
+        self.desired_elevon_angles[0] = 0
+        self.desired_elevon_angles[1] = 0
+        self.desired_rpms[0] = 0
+        self.desired_rpms[1] = 0
 
     def update_pos(self, x=None, y=None, depth=None):
         if x is not None: self.pos[0] = x
@@ -82,13 +109,6 @@ class Lolo(object):
     def update_elevator_angle(self, a):
         self.elevator_angle = a
 
-    def reset_desires(self):
-        self.desired_elevator_angle = 0
-        self.desired_rudder_angle = 0
-        self.desired_elevon_angles[0] = 0
-        self.desired_elevon_angles[1] = 0
-        self.desired_rpms[0] = 0
-        self.desired_rpms[1] = 0
 
 
     def blarg(self):
@@ -100,7 +120,10 @@ class Lolo(object):
         self.desired_rpms[1] = np.random.standard_normal()*2000
 
 
-    def control_yaw_from_desired_pos(self):
+    def control_yaw_from_goal(self):
+        if self.goal is None:
+            return
+
         xy_diff = self.position_error[:2]
         yaw_diff = geom.vec2_directed_angle(self.yaw_vec, xy_diff) * geom.RADTODEG
 
@@ -111,17 +134,18 @@ class Lolo(object):
 
         # super simple P controller for rudder
         max_rudder = self.max_fin_radians
-        self.desired_rudder_angle = turn_direction * turn_mag*2 * max_rudder
+        self.desired_rudder_angle = turn_direction * turn_mag*10 * max_rudder
 
         # left t, right t = 0,1
         max_thrust = self.max_rpm
-        # assist turning with thrusters, because why not
-        if(turn_mag > 0.2):
+        if(turn_mag > 0.1):
+            # assist turning with thrusters, because why not
             self.desired_rpms[0] = -turn_direction * max_thrust
             self.desired_rpms[1] =  turn_direction * max_thrust
         else:
-            self.desired_rpms[0] = max_thrust
-            self.desired_rpms[1] = max_thrust
+            # if not turning in place, use the goal-rpms
+            self.desired_rpms[0] = self.goal.rpm
+            self.desired_rpms[1] = self.goal.rpm
 
 
 
@@ -167,7 +191,11 @@ class Lolo(object):
         return self.elevon_angles[1]
     @property
     def position_error(self):
-        return self.desired_pos - self.pos
+        return self.goal.pos - self.pos
+    @property
+    def xy_diff_to_goal(self):
+        return geom.euclid_distance(self.goal.pos[:2], self.pos[:2])
+
 
 
 
