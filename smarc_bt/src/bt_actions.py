@@ -400,6 +400,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             action_namespace = action_namespace,
             override_feedback_message_on_running = "Moving to waypoint"
         )
+        self.server_feedback_msg = None
 
         self.action_server_ok = False
 
@@ -458,7 +459,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         return goal
 
+
+    def feedback_cb(self, msg):
+        self.server_feedback_msg = msg
+
     def send_goal(self):
+        self.server_feedback_msg = None
         self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
         self.sent_goal = True
         self.vehicle.last_goto_wp = self.action_goal.waypoint
@@ -602,14 +608,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                     wp = mplan.get_current_wp()
                     x,y = current_loc
                     h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
-                    h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
                     v_dist = wp.depth - self.vehicle.depth
                     self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.wp.name)
 
+        if self.server_feedback_msg is not None and self.server_feedback_msg.feedback_message != "":
+            self.feedback_message = "[S:{}]  [C:{}]".format(self.server_feedback_msg.feedback_message, self.feedback_message)
+
         return pt.Status.RUNNING
 
-
-    def feedback_cb(self, msg):
-        fb = str(msg.ETA)
-        rospy.loginfo_throttle(5, "feedback from server:{}".format(fb))
 
