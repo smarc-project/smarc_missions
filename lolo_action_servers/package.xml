@@ -1,14 +1,13 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>smarc_mission_sim</name>
-  <version>0.0.17</version>
-  <description>The smarc_mission_sim package</description>
+  <name>lolo_action_servers</name>
+  <version>0.0.16</version>
+  <description>The lolo_action_servers package with action servers for Lolo</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="nilsbore@gmail.com">nbore</maintainer>
-  <maintainer email="ozkahramanozer@gmail.com">nbore</maintainer>
+  <maintainer email="ozero@kth.se">ozero</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -20,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/smarc_mission_sim</url> -->
+  <!-- <url type="website">http://wiki.ros.org/bezier_planner</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -50,44 +49,33 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>geodesy</build_depend>
-  <build_depend>geographic_msgs</build_depend>
-  <build_depend>smarc_msgs</build_depend>
-  <build_depend>sensor_msgs</build_depend>
+
+  <build_depend>geometry_msgs</build_depend>
   <build_depend>nav_msgs</build_depend>
-  <build_depend>tf2_ros</build_depend>
-  <build_depend>tf2_geometry_msgs</build_depend>
-  <build_depend>imc_ros_bridge</build_depend>
-  <build_depend>rostest</build_depend>
-  <build_depend>tf_lat_lon</build_depend>
-  <build_depend>lolo_description</build_depend>
-  <build_depend>bt_mission</build_depend>
-  <build_export_depend>geodesy</build_export_depend>
-  <build_export_depend>geographic_msgs</build_export_depend>
-  <build_export_depend>smarc_msgs</build_export_depend>
-  <build_export_depend>sensor_msgs</build_export_depend>
+  <build_depend>smarc_msgs</build_depend>
+  <build_depend>sam_msgs</build_depend>
+  <build_depend>tf</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>actionlib</build_depend>
+
+  <build_export_depend>geometry_msgs</build_export_depend>
   <build_export_depend>nav_msgs</build_export_depend>
-  <build_export_depend>tf2_ros</build_export_depend>
-  <build_export_depend>tf2_geometry_msgs</build_export_depend>
-  <build_export_depend>imc_ros_bridge</build_export_depend>
-  <build_export_depend>tf_lat_lon</build_export_depend>
-  <build_export_depend>lolo_description</build_export_depend>
-  <build_export_depend>bt_mission</build_export_depend>
-  <exec_depend>geodesy</exec_depend>
-  <exec_depend>geographic_msgs</exec_depend>
-  <exec_depend>smarc_msgs</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>smarc_msgs</build_export_depend>
+  <build_export_depend>sam_msgs</build_export_depend>
+  <build_export_depend>tf</build_export_depend>
+  <build_export_depend>rospy</build_export_depend>
+  <build_export_depend>actionlib</build_export_depend>
+
+  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>tf2_geometry_msgs</exec_depend>
-  <exec_depend>imc_ros_bridge</exec_depend>
-  <exec_depend>tf_lat_lon</exec_depend>
-  <exec_depend>lolo_description</exec_depend>
-  <exec_depend>bt_mission</exec_depend>
-
-  <depend>sam_action_servers</depend>
-  <depend>lolo_action_servers</depend>
-
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>smarc_msgs</exec_depend>
+  <exec_depend>sam_msgs</exec_depend>
+  <exec_depend>tf</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>actionlib</exec_depend>
+  <depend>ddynamic_reconfigure_python</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

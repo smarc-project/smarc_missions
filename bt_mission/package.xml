@@ -49,13 +49,11 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>smarc_nodered</build_depend>
-  <build_depend>smarc_bt</build_depend>
-  <build_export_depend>smarc_bt</build_export_depend>
-  <build_export_depend>smarc_nodered</build_export_depend>
-  <exec_depend>smarc_nodered</exec_depend>
-  <exec_depend>smarc_bt</exec_depend>
-  <exec_depend>sam_action_servers</exec_depend>
+
+  <depend>smarc_bt</depend>
+  <depend>smarc_nodered</depend>
+  <depend>sam_action_servers</depend>
+  <depend>lolo_action_servers</depend>
   
 
   <!-- The export tag contains other, unspecified, tags -->

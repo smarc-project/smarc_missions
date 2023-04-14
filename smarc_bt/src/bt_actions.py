@@ -400,6 +400,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             action_namespace = action_namespace,
             override_feedback_message_on_running = "Moving to waypoint"
         )
+        self.server_feedback_msg = None
 
         self.action_server_ok = False
 
@@ -438,6 +439,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             self.action_namespace,
             self.action_spec
         )
+
         if not self.action_client.wait_for_server(rospy.Duration(timeout)):
             self.logger.error("{0}.setup() could not connect to the action server at '{1}'".format(self.__class__.__name__, self.action_namespace))
             self.action_client = None
@@ -457,7 +459,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
         return goal
 
+
+    def feedback_cb(self, msg):
+        self.server_feedback_msg = msg
+
     def send_goal(self):
+        self.server_feedback_msg = None
         self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
         self.sent_goal = True
         self.vehicle.last_goto_wp = self.action_goal.waypoint
@@ -601,139 +608,12 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                     wp = mplan.get_current_wp()
                     x,y = current_loc
                     h_dist = math.sqrt( (x-wp.x)**2 + (y-wp.y)**2 )
-                    h_dist -= self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
                     v_dist = wp.depth - self.vehicle.depth
                     self.feedback_message = "HDist:{:.2f}, VDist:{:.2f} towards {}".format(h_dist, v_dist, wp.wp.name)
+
+        if self.server_feedback_msg is not None and self.server_feedback_msg.feedback_message != "":
+            self.feedback_message = "[S:{}]  [C:{}]".format(self.server_feedback_msg.feedback_message, self.feedback_message)
 
         return pt.Status.RUNNING
 
 
-    def feedback_cb(self, msg):
-        fb = str(msg.ETA)
-        rospy.loginfo_throttle(5, "feedback from server:{}".format(fb))
-
-
-
-
-
-class A_ReadBuoys(pt.behaviour.Behaviour):
-
-    '''
-    This action reads the uncertain positions
-    (mean and covariance) of buoys from the rostopic.
-    '''
-
-    def __init__(
-        self,
-        topic_name,
-        buoy_link,
-        utm_link,
-        latlon_utm_serv,
-    ):
-
-        # rostopic name and type (e.g. marker array)
-        self.topic_name = topic_name
-
-        # frame IDs for TF
-        self.buoy_link = buoy_link
-        self.utm_link = utm_link
-
-        # lat/lon to utm service
-        self.latlon_utm_serv = latlon_utm_serv
-
-        # blackboard for info
-        self.bb = pt.blackboard.Blackboard()
-
-        # become a behaviour
-        pt.behaviour.Behaviour.__init__(
-            self,
-            name="A_ReadBuoys"
-        )
-
-        # for coordinate frame transformations
-        self.tf_listener = tf.TransformListener()
-
-    def setup(self, timeout):
-
-        # wait for TF transformation
-        try:
-            rospy.loginfo('Waiting for transform from {} to {}.'.format(
-                self.buoy_link,
-                self.utm_link
-            ))
-            self.tf_listener.waitForTransform(
-                self.buoy_link,
-                self.utm_link,
-                rospy.Time(),
-                rospy.Duration(timeout)
-            )
-        except:
-            rospy.loginfo('Transform from {} to {} not found.'.format(
-                self.buoy_link,
-                self.utm_link
-            ))
-
-        # subscribe to buoy positions
-        self.sub = rospy.Subscriber(
-            self.topic_name,
-            MarkerArray,
-            callback=self.cb,
-            queue_size=10
-        )
-        # self.bb.set(bb_enums.BUOYS, None)
-        self.buoys = None
-        return True
-
-    def cb(self, msg):
-
-        '''
-        This will read the uncertain buoy positions
-        from the SLAM backend and sensors.
-        But, for now, it just read the simulator buoys.
-        The buoys here are assumed to be in the map frame.
-        '''
-
-        # space for bouy positions
-        # rospy.loginfo('hello')
-        self.buoys = list()
-
-        # loop through visualization markers
-        for marker in msg.markers:
-
-            # convert their pose to pose stamped
-            pose = PoseStamped(
-                header=marker.header,
-                pose=marker.pose
-            )
-
-            # # transform it from local to UTM frame
-            # pose = self.tf_listener.transformPose(
-            #     self.utm_link,
-            #     pose
-            # )
-
-            # add it to the list
-            self.buoys.append([
-                pose.pose.position.x,
-                pose.pose.position.y,
-                pose.pose.position.z
-            ])
-
-        # make it into a numpy array because why not
-        self.buoys = np.array(self.buoys)
-        self.buoys = self.buoys[np.argsort(self.buoys[:,0])]
-        self.buoys = self.buoys.reshape((-1, 3, 3))
-        self.buoys = np.sort(self.buoys, axis=1)
-        self.buoys = dict(
-            front=self.buoys[:,0,:],
-            left=self.buoys[0,:,:],
-            back=self.buoys[:,-1,:],
-            right=self.buoys[-1,:,:],
-            all=self.buoys
-        )
-
-    def update(self):
-
-        # put the buoy positions in the blackboard
-        self.bb.set(bb_enums.BUOYS, self.buoys)
-        return pt.Status.SUCCESS

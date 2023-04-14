@@ -3,7 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-import os, time
+import os, time, sys
 
 import rospy
 
@@ -52,7 +52,6 @@ from bt_common import Sequence, \
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
-                       A_ReadBuoys, \
                        A_UpdateMissionLog, \
                        A_SaveMissionLog, \
                        A_ManualMissionLog, \
@@ -108,13 +107,6 @@ def const_tree(auv_config):
          # allow_silence = True -> If false, will fail if no message is received ever
 
 
-        read_buoys = A_ReadBuoys(
-            topic_name=auv_config.BUOY_TOPIC,
-            buoy_link=auv_config.LOCAL_LINK,
-            utm_link=auv_config.UTM_LINK,
-            latlon_utm_serv=auv_config.LATLONTOUTM_SERVICE
-        )
-
         read_reloc_enable = ReadTopic(
             name = "A_ReadLiveWPEnable",
             topic_name = auv_config.LIVE_WP_ENABLE_TOPIC,
@@ -166,7 +158,6 @@ def const_tree(auv_config):
                         children=[
                             publish_heartbeat,
                             read_abort,
-                            read_buoys,
                             read_reloc_enable,
                             read_reloc_wp,
                             read_gui_enable,
@@ -403,22 +394,14 @@ def const_tree(auv_config):
 
 
 def main():
-    # create a config object that will handle all the rosparams and such
-    # and then auto-generate the launch file from it
-    config = AUVConfig()
-    package_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-    launch_path = os.path.join(package_path, 'launch', 'smarc_bt.launch')
-    try:
-        config.generate_launch_file(launch_path)
-    except Exception as e:
-        print("Did not generate the launch file, will continue: \n{}".format(e))
 
     # init the node
     rospy.init_node("bt", log_level=rospy.INFO)
 
-    # read all the fields from rosparams, lowercased and with ~ prepended
-    # this might over-write the defaults in py, as it should
-    config.read_rosparams()
+    # create a config object that will handle all the rosparams and such
+    # read all the fields from rosparams and literally construct the fields of this object
+    config = AUVConfig()
+    rospy.loginfo(config)
 
     # create a dynamic reconfig server that defaults to the
     # configs we already have

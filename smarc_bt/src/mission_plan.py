@@ -227,7 +227,7 @@ class MissionPlan:
                 rospy.loginfo("Got it")
             except:
                 rospy.logerr("No lat_lon_to_utm service could be reached! The BT can not accept missions in this state!")
-                rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} service and then {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(latlontoutm_service_name, latlontoutm_service_name_alternative))
+                rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(self.latlontoutm_service_name))
                 self.no_service = True
 
 
