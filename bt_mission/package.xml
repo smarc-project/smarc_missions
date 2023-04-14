@@ -7,7 +7,7 @@
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="ozer@todo.todo">ozer</maintainer>
+  <maintainer email="ozero@kth.se">ozer</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -50,10 +50,10 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
 
-  <depend>smarc_bt</depend>
-  <depend>smarc_nodered</depend>
-  <depend>sam_action_servers</depend>
-  <depend>lolo_action_servers</depend>
+  <exec_depend>smarc_bt</exec_depend>
+  <exec_depend>sam_action_servers</exec_depend>
+  <exec_depend>lolo_action_servers</exec_depend>
+  <exec_depend>smarc_nodered</exec_depend>
   
 
   <!-- The export tag contains other, unspecified, tags -->
