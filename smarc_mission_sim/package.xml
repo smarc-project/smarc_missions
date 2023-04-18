@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>smarc_mission_sim</name>
-  <version>0.0.17</version>
+  <version>0.0.18</version>
   <description>The smarc_mission_sim package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
