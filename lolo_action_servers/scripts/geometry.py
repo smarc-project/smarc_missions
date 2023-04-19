@@ -10,6 +10,7 @@ import math
 import numpy as np
 
 RADTODEG = 360 / (np.pi * 2)
+DEGTORAD = 1/RADTODEG
 
 ##############################################################
 #  VECTOR STUFF

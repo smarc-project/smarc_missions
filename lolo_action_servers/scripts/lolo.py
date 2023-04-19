@@ -42,7 +42,8 @@ class Lolo(object):
     def __init__(self,
                  max_rpm = 2000,
                  max_fin_radians = 0.6,
-                 rudder_Kp = 10):
+                 rudder_Kp = 10,
+                 rudder_cone_degrees = 5.72):
         """
         A container object that abstracts away ros-related stuff for a nice abstract vehicle
         pose is in NED, x = north, y = east, z = down/depth
@@ -51,6 +52,7 @@ class Lolo(object):
         self.max_rpm = max_rpm
         self.max_fin_radians = max_fin_radians
         self.rudder_Kp = rudder_Kp
+        self.rudder_cone_degrees = 5.72
 
         self.goal = None
 
@@ -68,6 +70,13 @@ class Lolo(object):
 
         self.elevator_angle = 0
         self.desired_elevator_angle = 0
+
+    ######################################
+    # Call this when you want lolo to actually control something
+    ######################################
+    def update(self):
+        self.control_yaw_from_goal()
+
 
     def set_goal(self,x,y,depth,rpm):
         self.goal = SimpleRPMGoal(x,y,depth,rpm)
@@ -123,6 +132,10 @@ class Lolo(object):
 
 
     def control_yaw_from_goal(self):
+        """
+        Simple P controller that also uses
+        the thrusters to do some tight turns when needed
+        """
         if self.goal is None:
             return
 
@@ -140,7 +153,7 @@ class Lolo(object):
 
         # left t, right t = 0,1
         max_thrust = self.max_rpm
-        if(turn_mag > 0.1):
+        if(turn_mag*180 > self.rudder_cone_degrees):
             # assist turning with thrusters, because why not
             self.desired_rpms[0] = -turn_direction * max_thrust
             self.desired_rpms[1] =  turn_direction * max_thrust

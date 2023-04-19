@@ -39,7 +39,8 @@ class LoloGotoWP(object):
         # see launch/config.yaml
         self.lolo = Lolo(max_rpm = get_param("max_rpm", 2000),
                          max_fin_radians = get_param("max_fin_radians", 0.6),
-                         rudder_Kp = get_param("rudder_Kp", 50))
+                         rudder_Kp = get_param("rudder_Kp", 50),
+                         rudder_cone_degrees = get_param("rudder_cone_degrees", 5.72))
 
         self.ros_lolo = ROSLolo(lolo = self.lolo,
                                 robot_name = get_param("robot_name", "lolo"),
@@ -62,7 +63,7 @@ class LoloGotoWP(object):
     # inside this funtion
     ###################################################
     def update(self):
-        self.lolo.control_yaw_from_goal()
+        self.lolo.update()
 
     ###################################################
     # action server piping, shouldnt need modification most of the time
