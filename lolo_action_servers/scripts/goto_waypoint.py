@@ -31,6 +31,9 @@ from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypoin
 def get_param(name, default=None):
     v = rospy.get_param(rospy.search_param(name), default)
     print("got rosparam name:{}, val:{}".format(name, v))
+    if type(v) == type({}):
+        print("{} returned a dict! Defaulting to {}".format(name, default))
+        v = default
     return v
 
 class LoloGotoWP(object):
@@ -39,7 +42,10 @@ class LoloGotoWP(object):
         # see launch/config.yaml
         self.lolo = Lolo(max_rpm = get_param("max_rpm", 2000),
                          max_fin_radians = get_param("max_fin_radians", 0.6),
-                         rudder_Kp = get_param("rudder_Kp", 50))
+                         rudder_Kp = get_param("rudder_Kp", 50),
+                         elevator_Kp = get_param("elevator_Kp", 50),
+                         rudder_cone_degrees = get_param("rudder_cone_degrees", 5.72),
+                         forward_cone_degrees = get_param("forward_cone_degrees", 10))
 
         self.ros_lolo = ROSLolo(lolo = self.lolo,
                                 robot_name = get_param("robot_name", "lolo"),
@@ -62,7 +68,7 @@ class LoloGotoWP(object):
     # inside this funtion
     ###################################################
     def update(self):
-        self.lolo.control_yaw_from_goal()
+        self.lolo.update()
 
     ###################################################
     # action server piping, shouldnt need modification most of the time
@@ -132,7 +138,8 @@ class LoloGotoWP(object):
         self.lolo.set_goal(x = target_posi.x,
                            y = target_posi.y,
                            depth = depth,
-                           rpm = rpm)
+                           rpm = rpm,
+                           tolerance = tolerance)
 
         # and finally, we start spinning and controlling things
         rate = rospy.Rate(self.update_freq)
@@ -142,9 +149,10 @@ class LoloGotoWP(object):
                 # return, not break!
                 return
 
-            xy_dist = self.lolo.xy_diff_to_goal
-            self.feedback("trgt:{}, XYdist:{:.1f}, tol:{:.1f}".format(wp.name, xy_dist, tolerance))
-            if  xy_dist <= tolerance:
+            xy_dist = self.lolo.xy_dist_to_goal
+            depth_dist = self.lolo.depth_to_goal
+            self.feedback("trgt:{}, XYdist:{:.1f}, Depth:{:.1f} tol:{:.1f}".format(wp.name, xy_dist, depth_dist, tolerance))
+            if  xy_dist <= tolerance and np.abs(depth_dist) <= tolerance:
                 # success~
                 break
 

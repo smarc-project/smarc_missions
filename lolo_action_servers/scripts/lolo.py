@@ -26,11 +26,13 @@ class SimpleRPMGoal(object):
                  x,
                  y,
                  depth,
-                 rpm):
+                 rpm,
+                 tolerance):
         self.x = x
         self.y = y
         self.depth = depth
         self.rpm = rpm
+        self.tolerance = tolerance
 
     @property
     def pos(self):
@@ -39,10 +41,18 @@ class SimpleRPMGoal(object):
 
 
 class Lolo(object):
+    IDLE = "IDLE"
+    DRIVE = "DRIVE"
+    THRUSTER_TURN = "THRUSTER_TURN"
+    BACKWARDS_SPIRAL = "BACKWARDS_SPIRAL"
+
     def __init__(self,
                  max_rpm = 2000,
                  max_fin_radians = 0.6,
-                 rudder_Kp = 10):
+                 rudder_Kp = 50,
+                 elevator_Kp = 50,
+                 rudder_cone_degrees = 5.72,
+                 forward_cone_degrees = 10):
         """
         A container object that abstracts away ros-related stuff for a nice abstract vehicle
         pose is in NED, x = north, y = east, z = down/depth
@@ -51,8 +61,12 @@ class Lolo(object):
         self.max_rpm = max_rpm
         self.max_fin_radians = max_fin_radians
         self.rudder_Kp = rudder_Kp
+        self.elevator_Kp = elevator_Kp
+        self.rudder_cone_degrees = rudder_cone_degrees
+        self.forward_cone_degrees = forward_cone_degrees
 
         self.goal = None
+        self.control_mode = Lolo.IDLE
 
         self.pos = np.zeros(3)
         self.ori_rpy = np.zeros(3)
@@ -69,20 +83,146 @@ class Lolo(object):
         self.elevator_angle = 0
         self.desired_elevator_angle = 0
 
-    def set_goal(self,x,y,depth,rpm):
-        self.goal = SimpleRPMGoal(x,y,depth,rpm)
-
-    def reset_goal(self):
-        self._reset_desires()
-        self.goal = None
-
     def _reset_desires(self):
+        print("Reset desires to 0")
         self.desired_elevator_angle = 0
         self.desired_rudder_angle = 0
         self.desired_elevon_angles[0] = 0
         self.desired_elevon_angles[1] = 0
         self.desired_rpms[0] = 0
         self.desired_rpms[1] = 0
+
+    def _change_mode(self, new_mode):
+        if new_mode == self.control_mode:
+            return
+        print("Changing mode: {} -> {}".format(self.control_mode, new_mode))
+        self._reset_desires()
+        self.control_mode = new_mode
+
+    ######################################
+    # Call this when you want lolo to actually control something
+    ######################################
+    def update(self):
+        if self.goal is None:
+            self._change_mode(Lolo.IDLE)
+            return
+
+        ####
+        # Get all the diffs towards the goal
+        ####
+        depth_diff = self.goal.depth - self.depth
+        pitch_diff = np.arctan2(depth_diff, self.xy_dist_to_goal) * geom.RADTODEG
+        xy_diff = self.position_error[:2]
+        yaw_diff = geom.vec2_directed_angle(self.yaw_vec, xy_diff) * geom.RADTODEG
+
+        ####
+        # Change mode according to where the goal is relative to us
+        ####
+        # depth control priority
+        if np.abs(pitch_diff) > self.forward_cone_degrees and np.abs(depth_diff) > self.goal.tolerance:
+            self._change_mode(Lolo.BACKWARDS_SPIRAL)
+        # thruster-turn second priority
+        elif np.abs(yaw_diff) > self.rudder_cone_degrees:
+            self._change_mode(Lolo.THRUSTER_TURN)
+        # no special mode needed, just drive to goal
+        else:
+            self._change_mode(Lolo.DRIVE)
+
+
+        ####
+        # Finally control depending on the mode
+        ####
+        if self.control_mode == Lolo.IDLE:
+            self._reset_desires()
+            return
+
+        # Save some compute by doing this here
+        # 1 = go down, -1 = go up 
+        pitch_direction = np.sign(pitch_diff)
+        pitch_mag = np.abs(pitch_diff)/180.
+
+        if self.control_mode == Lolo.BACKWARDS_SPIRAL:
+            self._backwards_spiral_to_depth(pitch_direction)
+            return
+
+        # Save some compute by doing this here
+        # 1=turn right -1=turn left
+        turn_direction = np.sign(yaw_diff)
+        # map 0-180 to 0-1
+        turn_mag = np.abs(yaw_diff)/180.
+
+        if self.control_mode == Lolo.THRUSTER_TURN:
+            self._thruster_turn_to_yaw(turn_direction, turn_mag)
+            return
+
+
+        if self.control_mode == Lolo.DRIVE:
+            self._drive_to_yaw(turn_direction, turn_mag)
+            self._drive_to_depth(pitch_direction, pitch_mag)
+            return
+
+
+    def _backwards_spiral_to_depth(self, pitch_direction):
+        self.desired_elevator_angle = -pitch_direction * self.max_fin_radians
+        self.desired_rpms[0] = -self.max_rpm
+        self.desired_rpms[1] = -self.max_rpm
+
+        # to make a spiral, turn as harshly as we can
+        self.desired_rudder_angle = self.max_fin_radians
+        self.desired_elevon_angles[0] = self.max_fin_radians
+        self.desired_elevon_angles[1] = self.max_fin_radians
+
+        # and also if deep enough, use the elevons to pitch moar
+        if self.depth > 1:
+            self.desired_elevon_angles[0] = self.desired_elevator_angle
+            self.desired_elevon_angles[1] = self.desired_elevator_angle
+        else:
+            self.desired_elevon_angles[0] = 0
+            self.desired_elevon_angles[1] = 0
+
+
+    def _drive_to_depth(self, pitch_direction, pitch_mag):
+        self.desired_elevator_angle = -pitch_direction * pitch_mag * self.max_fin_radians * self.elevator_Kp
+        # TODO extract that 1m into config?
+        # we dont wanna use the elevons when shallow
+        # otherwise the thursters just lift up the water and we dont dive at all
+        if self.depth > 1:
+            self.desired_elevon_angles[0] = self.desired_elevator_angle
+            self.desired_elevon_angles[1] = self.desired_elevator_angle
+        else:
+            self.desired_elevon_angles[0] = 0
+            self.desired_elevon_angles[1] = 0
+
+
+    def _thruster_turn_to_yaw(self, turn_direction, turn_mag):
+        self.desired_rudder_angle = turn_direction * turn_mag * self.max_fin_radians * self.rudder_Kp
+        self.desired_rpms[0] = -turn_direction * self.max_rpm
+        self.desired_rpms[1] =  turn_direction * self.max_rpm
+
+
+    def _drive_to_yaw(self, turn_direction, turn_mag):
+        """
+        Simple P controller that also uses
+        the thrusters to do some tight turns when needed
+        """
+        # super simple P controller for rudder
+        self.desired_rudder_angle = turn_direction * turn_mag * self.max_fin_radians * self.rudder_Kp
+        # and just drive forward
+        # TODO possibly tune these for some light P control too
+        self.desired_rpms[0] = self.goal.rpm
+        self.desired_rpms[1] = self.goal.rpm
+
+
+
+    ###############################
+    ### Outward facing stuff, mostly automated away from this object
+    ###############################
+    def set_goal(self,x,y,depth,rpm,tolerance):
+        self.goal = SimpleRPMGoal(x,y,depth,rpm,tolerance)
+
+    def reset_goal(self):
+        self.goal = None
+        self.update()
 
     def update_pos(self, x=None, y=None, depth=None):
         if x is not None: self.pos[0] = x
@@ -111,8 +251,6 @@ class Lolo(object):
     def update_elevator_angle(self, a):
         self.elevator_angle = a
 
-
-
     def blarg(self):
         self.desired_elevator_angle = np.random.standard_normal()*0.6
         self.desired_rudder_angle = np.random.standard_normal()*0.6
@@ -120,36 +258,6 @@ class Lolo(object):
         self.desired_elevon_angles[1] = np.random.standard_normal()*0.6
         self.desired_rpms[0] = np.random.standard_normal()*2000
         self.desired_rpms[1] = np.random.standard_normal()*2000
-
-
-    def control_yaw_from_goal(self):
-        if self.goal is None:
-            return
-
-        xy_diff = self.position_error[:2]
-        yaw_diff = geom.vec2_directed_angle(self.yaw_vec, xy_diff) * geom.RADTODEG
-
-        # 1 direction = turn right
-        # -1 direction = turn left
-        turn_direction = np.sign(yaw_diff)
-        # map 0-180 to 0-1
-        turn_mag = np.abs(yaw_diff)/180.
-
-        # super simple P controller for rudder
-        self.desired_rudder_angle = turn_direction * turn_mag * self.max_fin_radians * self.rudder_Kp
-
-        # left t, right t = 0,1
-        max_thrust = self.max_rpm
-        if(turn_mag > 0.1):
-            # assist turning with thrusters, because why not
-            self.desired_rpms[0] = -turn_direction * max_thrust
-            self.desired_rpms[1] =  turn_direction * max_thrust
-        else:
-            # if not turning in place, use the goal-rpms
-            self.desired_rpms[0] = self.goal.rpm
-            self.desired_rpms[1] = self.goal.rpm
-
-
 
 
     ###############################
@@ -195,8 +303,12 @@ class Lolo(object):
     def position_error(self):
         return self.goal.pos - self.pos
     @property
-    def xy_diff_to_goal(self):
+    def xy_dist_to_goal(self):
         return geom.euclid_distance(self.goal.pos[:2], self.pos[:2])
+    @property
+    def depth_to_goal(self):
+        return self.goal.depth - self.depth
+
 
 
 
