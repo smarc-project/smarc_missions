@@ -6,14 +6,24 @@ controller_update_freq : 10
 # duh
 max_rpm : 2000
 max_fin_radians : 0.6
-# How aggressive lolo will be when using rudders
-# 0 = dont use at all, 999 = bang-bang, 50 = a nice number tuned in sim
+
+# How aggressive lolo will be when using control surfaces
+# 0 = dont use at all, 999 = bang-bang
+# 50 = a nice number tuned in sim
 # if set to 0, the only way lolo can turn is with thrusters
 rudder_Kp : 50
+elevator_Kp : 100
 
-# A cone in front of lolo where it will turn using just the rudders
+# A 2D cone placed on the yaw plane 
+# in front of lolo where it will turn using just the rudders
 # for yaw-control, if the target point is outside this cone
 # then it will use thrusters to turn in place towards until it is
 # measured from the centerline of the cone
 rudder_cone_degrees : 18
 
+# A 2D cone placed on the pitch plane 
+# in front of lolo where it will move forward at the given RPM
+# towards the goal. If the goal point is outside this cone, it will
+# make spirals to dive or rise towards the depth of the point until the point is
+# within the cone again
+forward_cone_degrees : 5
