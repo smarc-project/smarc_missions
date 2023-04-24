@@ -26,4 +26,4 @@ rudder_cone_degrees : 18
 # towards the goal. If the goal point is outside this cone, it will
 # make spirals to dive or rise towards the depth of the point until the point is
 # within the cone again
-forward_cone_degrees : 5
+forward_cone_degrees : 3

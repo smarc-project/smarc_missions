@@ -450,13 +450,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
 
     def make_goal_from_wp(self, wp):
-        # get the goal tolerance as a dynamic variable from the bb
-        goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
         # construct the message
         goal = GotoWaypointGoal()
         goal.waypoint = wp.wp
-        goal.waypoint.goal_tolerance = goal_tolerance
-
         return goal
 
 
