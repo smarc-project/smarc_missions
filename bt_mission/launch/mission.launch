@@ -3,14 +3,14 @@
     <arg name="robot_name" default="sam"/>
 
 	<!-- Bridge related -->
-	<arg name="neptus_addr" default="127.0.0.1"/>
-	<arg name="bridge_addr" default="127.0.0.1"/>
-	<arg name="bridge_port" default="6002"/>
-	<arg name="node_name" default="imc_bridge"/>	
+	<!--<arg name="neptus_addr" default="127.0.0.1"/>-->
+	<!--<arg name="bridge_addr" default="127.0.0.1"/>-->
+	<!--<arg name="bridge_port" default="6002"/>-->
+	<!--<arg name="node_name" default="imc_bridge"/>	-->
 	<!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
-	<arg name="imc_id" default="5"/>
-	<arg name="imc_src" default="$(arg imc_id)"/>
-	<arg name="imc_system_name" default="sam"/>
+	<!--<arg name="imc_id" default="5"/>-->
+	<!--<arg name="imc_src" default="$(arg imc_id)"/>-->
+	<!--<arg name="imc_system_name" default="sam"/>-->
 
 	<!-- Start all actions before the BT -->
 	<!--All the minute configs are in its own config file in the launch dir-->
@@ -18,15 +18,15 @@
 		<arg name="robot_name" value="$(arg robot_name)"/>
 	</include>
 
-	<include file="$(find imc_ros_bridge)/launch/bridge.launch" ns="$(arg robot_name)">
-		<arg name="neptus_addr" value="$(arg neptus_addr)"/>
-		<arg name="bridge_addr" value="$(arg bridge_addr)"/>
-		<arg name="bridge_port" value="$(arg bridge_port)"/>
-		<arg name="node_name" value="$(arg node_name)"/>
-		<arg name="imc_id" value="$(arg imc_id)"/>
-		<arg name="imc_src" value="$(arg imc_src)"/>
-		<arg name="imc_system_name" value="$(arg imc_system_name)"/>
-	</include>
+	<!--<include file="$(find imc_ros_bridge)/launch/bridge.launch" ns="$(arg robot_name)">-->
+		<!--<arg name="neptus_addr" value="$(arg neptus_addr)"/>-->
+		<!--<arg name="bridge_addr" value="$(arg bridge_addr)"/>-->
+		<!--<arg name="bridge_port" value="$(arg bridge_port)"/>-->
+		<!--<arg name="node_name" value="$(arg node_name)"/>-->
+		<!--<arg name="imc_id" value="$(arg imc_id)"/>-->
+		<!--<arg name="imc_src" value="$(arg imc_src)"/>-->
+		<!--<arg name="imc_system_name" value="$(arg imc_system_name)"/>-->
+	<!--</include>-->
 
 	<include file="$(find smarc_nodered)/launch/smarc_nodered.launch" ns="$(arg robot_name)">
 		<arg name="robot_name" value="$(arg robot_name)"/>
