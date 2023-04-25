@@ -10,21 +10,17 @@ import math
 import numpy as np
 
 import common_globals
-import imc_enums
 import bb_enums
 
 from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
-from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint
+from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint, MissionControl
 
 from coverage_planner import create_coverage_path
 
 class Waypoint:
-    def __init__(self,
-                 goto_waypoint = None,
-                 imc_man_id = None,
-                 extra_data = None):
+    def __init__(self, goto_waypoint = None):
         """
         goto_waypoint message reference:
             uint8 Z_CONTROL_NONE=0
@@ -60,13 +56,8 @@ class Waypoint:
             string name
         """
 
-
-        # this is a numerical "type" of maneuver identifier used
-        # only for imc/neptus
-        self.imc_man_id = imc_man_id
         # the GotoWaypoint object from smarc_msgs.msg
         self.wp = goto_waypoint
-        self.extra_data = extra_data
 
 
     def set_utm_from_latlon(self, lat_lon_to_utm_serv, set_frame=False):
@@ -163,51 +154,163 @@ class Waypoint:
 
 
 class MissionPlan:
+    state_names = [
+        "RUNNING",
+        "STOPPED",
+        "PAUSED",
+        "EMERGENCY",
+        "RECEIVED",
+        "COMPLETED"]
     def __init__(self,
                  auv_config,
-                 mission_control_msg = None,
-                 plan_id = None,
-                 waypoints=None
+                 mission_control_msg = None
                  ):
         """
         A container object to keep things related to the mission plan.
         best way to use is to construct a mission_control_msg
         or pass a list of Waypoint objects in waypoints
         """
+        # uint8 FB_RUNNING=0
+        # uint8 FB_STOPPED=1
+        # uint8 FB_PAUSED=2
+        # uint8 FB_EMERGENCY=3
+        # uint8 FB_RECEIVED=4
+        self.state = MissionControl.FB_STOPPED
+
         # used to report when the mission was received
         self.creation_time = time.time()
         self._config = auv_config
-
-        if plan_id is None:
-            plan_id = "Unnamed - self.creation_time"
-        self.plan_id = plan_id
+        self.plan_id = "Unnamed plan - {}".format(self.creation_time)
         self.hash = ""
-
+        self.timeout = -1
+        self.mission_start_time = -1
+        # keep track of which waypoint we are going to
+        # start at -1 to indicate that _we are not going to any yet_
+        self.current_wp_index = -1
         # test if the service is usable!
         # if not, test the backup
         # if that fails too, raise exception
         self._set_latlon_to_utm_service_name()
+        # and finally read from the mission control message all
+        # the fields above
+        self.waypoints = []
+        if mission_control_msg is not None:
+            self._read_mission_control(mission_control_msg)
 
-        # a list of names for each maneuver
-        # good for feedback
-        self.waypoint_man_ids = []
 
-        if waypoints is None and mission_control_msg is not None:
-            self.waypoints = self.read_mission_control(mission_control_msg)
-        elif waypoints is not None:
-            self.waypoints = waypoints
-        else:
-            self.waypoints = []
+    def _change_state(self, new_state):
+        if self.state == MissionControl.FB_EMERGENCY:
+            rospy.logwarn("Mission in emergency state! Not changing that!")
+            return
 
+        if new_state != self.state:
+            a = MissionPlan.state_names[self.state]
+            b = MissionPlan.state_names[new_state]
+            rospy.loginfo("{} -> {}".format(a,b))
+            self.state = new_state
+
+    def _read_mission_control(self, msg):
+        """
+        read the waypoints off a smarc_msgs/MissionControl message
+        and set our plan_id from its name
+        """
+        self.plan_id = msg.name
+        self.hash = msg.hash
+        self.timeout = msg.timeout
+        waypoints = []
+        serv = self._get_latlon_to_utm_service()
+        for wp_msg in msg.waypoints:
+            wp = Waypoint(goto_waypoint = wp_msg)
+            # also make sure they are in utm
+            wp.set_utm_from_latlon(serv, set_frame=True)
+            waypoints.append(wp)
+
+        self.waypoints = waypoints
+        self._change_state(MissionControl.FB_RECEIVED)
+
+
+    def __str__(self):
+        s = self.plan_id+':\n'
         for wp in self.waypoints:
-            self.waypoint_man_ids.append(wp.wp.name)
+            s += '\t'+str(wp)+'\n'
+        return s
 
-        # keep track of which waypoint we are going to
-        # start at -1 to indicate that _we are not going to any yet_
+    def start_mission(self):
+        self.mission_start_time = time.time()
+        self.current_wp_index = 0
+        rospy.loginfo("{} Started".format(self.plan_id))
+        self._change_state(MissionControl.FB_RUNNING)
+
+    def pause_mission(self):
+        rospy.loginfo("{} Paused".format(self.plan_id))
+        self._change_state(MissionControl.FB_PAUSED)
+
+    def continue_mission(self):
+        rospy.loginfo("{} Continueing".format(self.plan_id))
+        self._change_state(MissionControl.FB_RUNNING)
+
+
+    def stop_mission(self):
         self.current_wp_index = -1
+        rospy.loginfo("{} Stopped".format(self.plan_id))
+        self._change_state(MissionControl.FB_STOPPED)
 
-        # state of this plan
-        self.plan_is_go = False
+    def emergency(self):
+        self.current_wp_index = -1
+        rospy.logwarn("{} EMERGENCY".format(self.plan_id))
+        self._change_state(MissionControl.FB_EMERGENCY)
+
+    def timeout_reached(self):
+        runtime = time.time() - self.mission_start_time
+        if runtime > self.timeout:
+            self.emergency()
+            rospy.logwarn("{} TIMEOUT".format(self.plan_id))
+            return True
+
+        return False
+
+
+    def visit_wp(self):
+        """ call this when you finish going to the wp"""
+        if self.state == MissionControl.FB_RUNNING:
+            self.current_wp_index += 1
+
+        if self.current_wp_index >= len(self.waypoints):
+            # we went tru all wps, we're done
+            self._change_state(MissionControl.FB_COMPLETED)
+
+
+    def get_current_wp(self):
+        """
+        pop a wp from the remaining wps and return it
+        """
+        if self.state == MissionControl.FB_RUNNING:
+            wp = self.waypoints[self.current_wp_index]
+            return wp
+
+        return None
+
+
+    def latlon_to_utm(self,
+                      lat,
+                      lon,
+                      z,
+                      in_degrees=False):
+
+        serv = self._get_latlon_to_utm_service()
+        if serv is None:
+            return (None, None)
+
+        gp = GeoPoint()
+        if in_degrees:
+            gp.latitude = lat
+            gp.longitude = lon
+        else:
+            gp.latitude = np.degrees(lat)
+            gp.longitude = np.degrees(lon)
+        gp.altitude = z
+        res = serv(gp)
+        return (res.utm_point.x, res.utm_point.y)
 
 
     def _set_latlon_to_utm_service_name(self):
@@ -248,106 +351,7 @@ class MissionPlan:
         return latlontoutm_service
 
 
-    def latlon_to_utm(self,
-                      lat,
-                      lon,
-                      z,
-                      in_degrees=False):
-
-        serv = self._get_latlon_to_utm_service()
-        if serv is None:
-            return (None, None)
-
-        gp = GeoPoint()
-        if in_degrees:
-            gp.latitude = lat
-            gp.longitude = lon
-        else:
-            gp.latitude = np.degrees(lat)
-            gp.longitude = np.degrees(lon)
-        gp.altitude = z
-        res = serv(gp)
-        return (res.utm_point.x, res.utm_point.y)
-
-
-    def read_mission_control(self, msg):
-        """
-        read the waypoints off a smarc_msgs/MissionControl message
-        and set our plan_id from its name
-        """
-        self.plan_id = msg.name
-        self.hash = msg.hash
-        waypoints = []
-        serv = self._get_latlon_to_utm_service()
-        for wp_msg in msg.waypoints:
-            wp = Waypoint(goto_waypoint = wp_msg,
-                          imc_man_id = imc_enums.MANEUVER_GOTO)
-            # also make sure they are in utm
-            wp.set_utm_from_latlon(serv, set_frame=True)
-            waypoints.append(wp)
-
-        return waypoints
-
-
-    def generate_coverage_pattern(self, polygon):
+    def _generate_coverage_pattern(self, polygon):
         return create_coverage_path(polygon,
                                     self._config.SWATH,
                                     self._config.LOCALIZATION_ERROR_GROWTH)
-
-
-
-    def __str__(self):
-        s = self.plan_id+':\n'
-        for wp in self.waypoints:
-            s += '\t'+str(wp)+'\n'
-        return s
-
-
-
-    def is_complete(self):
-        # check if we are 'done'
-        if self.current_wp_index >= len(self.waypoints):
-            # we went tru all wps, we're done
-            return True
-
-        return False
-
-    def is_in_progress(self):
-        if self.current_wp_index < len(self.waypoints) and\
-           self.current_wp_index >= 0:
-            return True
-
-        return False
-
-
-    def visit_wp(self):
-        """ call this when you finish going to the wp"""
-        if self.is_complete():
-            return
-
-        self.current_wp_index += 1
-
-
-    def get_current_wp(self):
-        """
-        pop a wp from the remaining wps and return it
-        """
-        if self.is_complete():
-            return None
-
-        # we havent started yet, this is the first time ever
-        # someone wanted a wp, meaning we _start now_
-        if self.current_wp_index == -1:
-            self.current_wp_index = 0
-
-        wp = self.waypoints[self.current_wp_index]
-        return wp
-
-
-    def get_hash(self):
-        """
-        Return a unique hash derived from the mission params
-        """
-        #TODO
-        return "hash"
-

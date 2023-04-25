@@ -22,7 +22,7 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty, Bool
-from smarc_msgs.msg import Leak, DVL
+from smarc_msgs.msg import Leak, DVL, MissionControl
 from sensor_msgs.msg import NavSatFix
 from geometry_msgs.msg import PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
@@ -33,14 +33,10 @@ from reconfig_server import ReconfigServer
 # tree leaves
 
 from bt_conditions import C_DepthOK, \
-                          C_PlanCompleted, \
                           C_NoAbortReceived, \
                           C_AltOK, \
                           C_LeakOK, \
-                          C_StartPlanReceived, \
-                          C_HaveCoarseMission, \
-                          C_PlanIsNotChanged, \
-                          C_CheckWaypointType
+                          C_ExpectPlanState
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -52,9 +48,6 @@ from bt_common import Sequence, \
 
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
-                       A_UpdateMissionLog, \
-                       A_SaveMissionLog, \
-                       A_ManualMissionLog, \
                        A_PublishFinalize, \
                        A_ReadWaypoint
 
@@ -62,13 +55,11 @@ from bt_actions import A_GotoWaypoint, \
 
 # globally defined values
 import bb_enums
-import imc_enums
 import common_globals
 
 # packed up object to keep vehicle-state up to date
 # to avoid having a million subscibers inside the tree
 from vehicle import Vehicle
-from neptus_handler import NeptusHandler
 from nodered_handler import NoderedHandler
 
 def const_tree(auv_config):
@@ -216,39 +207,12 @@ def const_tree(auv_config):
 
 
 
-    def const_synch_tree():
-        have_coarse_mission = C_HaveCoarseMission()
-        # we need one here too, to initialize the mission in the first place
-        # set dont_visit to True so we dont skip the first wp of the plan
-        # and simply ready the bb to have the waypoint in it
-        set_next_plan_action = A_SetNextPlanAction(do_not_visit=True)
-
-        return Sequence(name="SQ_GotMission",
-                        children=[
-                            have_coarse_mission,
-                            set_next_plan_action
-                        ])
-
-
-
 
     def const_execute_mission_tree():
+        #######################
         # GOTO
+        #######################
         goto_action = A_GotoWaypoint(auv_config = auv_config)
-        mission_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO)
-        goto_maneuver = Sequence(name="SQ_GotoWaypoint",
-                                 children=[
-                                     mission_wp_is_goto,
-                                     goto_action
-                                 ])
-
-
-
-        # put the known plannable maneuvers in here as each others backups
-        execute_maneuver = Fallback(name="FB_ExecuteManeuver",
-                                    children=[
-                                        goto_maneuver
-                                    ])
 
         unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
                                                          variable_value = False,
@@ -258,20 +222,18 @@ def const_tree(auv_config):
         # and then execute them in order
         follow_plan = Sequence(name="SQ_FollowMissionPlan",
                                children=[
-                                         C_HaveCoarseMission(),
-                                         C_StartPlanReceived(),
+                                         C_ExpectPlanState(MissionControl.FB_RUNNING),
                                          unfinalize,
-                                         execute_maneuver,
+                                         goto_action,
                                          A_SetNextPlanAction()
                                ])
 
+        #######################
         # LIVE WP
+        #######################
         live_wp_enabled = CheckBlackboardVariableValue(bb_enums.LIVE_WP_ENABLE,
                                                        True,
                                                        "C_LiveWPEnabled")
-
-        live_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
-                                              bb_key = bb_enums.LIVE_WP)
 
         goto_live_wp = A_GotoWaypoint(auv_config = auv_config,
                                       node_name="A_GotoLiveWP",
@@ -281,17 +243,16 @@ def const_tree(auv_config):
         live_wp_tree  = Sequence(name="SQ_FollowLiveWP",
                                  children=[
                                      live_wp_enabled,
-                                     live_wp_is_goto,
                                      goto_live_wp
                                  ])
 
+        #######################
         # GUI WP
+        #######################
         gui_wp_enabled = CheckBlackboardVariableValue(bb_enums.GUI_WP_ENABLE,
                                                       True,
                                                       "C_GUIWPEnabled")
 
-        gui_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
-                                             bb_key = bb_enums.GUI_WP)
 
         goto_gui_wp = A_GotoWaypoint(auv_config = auv_config,
                                      node_name="A_GotoGUIWP",
@@ -301,18 +262,17 @@ def const_tree(auv_config):
         gui_wp_tree  = Sequence(name="SQ_FollowGUIWP",
                                 children=[
                                     gui_wp_enabled,
-                                    gui_wp_is_goto,
                                     goto_gui_wp
                                 ])
 
 
+        #######################
         # Algae farm line following
+        #######################
         algae_follow_enabled = CheckBlackboardVariableValue(bb_enums.ALGAE_FOLLOW_ENABLE,
                                                             True,
                                                             "C_AlgaeFollowEnabled")
 
-        algae_wp_is_goto = C_CheckWaypointType(expected_wp_type = imc_enums.MANEUVER_GOTO,
-                                               bb_key = bb_enums.ALGAE_FOLLOW_WP)
 
         follow_algae = A_GotoWaypoint(auv_config = auv_config,
                                       node_name="A_FollowAlgae",
@@ -322,70 +282,43 @@ def const_tree(auv_config):
         algae_farm_tree = Sequence(name="SQ_FollowAlgaeFarm",
                                    children=[
                                        algae_follow_enabled,
-                                       algae_wp_is_goto,
                                        follow_algae
                                    ])
 
 
+        #######################
         # until the plan is done
+        #######################
         return Fallback(name="FB_ExecuteMissionPlan",
                         children=[
                                   gui_wp_tree,
                                   live_wp_tree,
                                   algae_farm_tree,
-                                  C_PlanCompleted(),
+                                  C_ExpectPlanState(MissionControl.FB_STOPPED),
                                   follow_plan
                         ])
 
 
-    def const_finalize_mission():
-        publish_complete = A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
 
-        plan_complete_or_stopped = Fallback(name="FB_PlanCompleteOrStopped",
-                                            children=[
-                                                      C_PlanCompleted(),
-                                                      Not(C_StartPlanReceived())
-                                            ])
-
-
-
-        return Sequence(name="SQ_FinalizeMission",
-                        children=[
-                                  C_HaveCoarseMission(),
-                                  C_PlanIsNotChanged(),
-                                  C_StartPlanReceived(),
-                                  A_UpdateMissionLog(),
-                                  plan_complete_or_stopped,
-                                  publish_complete,
-                                  A_SaveMissionLog()
-                        ])
-
-    # The root of the tree is here
-
-
+    ###############################################
+    # ROOT BEGINS
+    ###############################################
+    finalize_mission = Sequence(name="SQ_FinalizeMission",
+                                children=[
+                                          C_ExpectPlanState(MissionControl.FB_COMPLETED),
+                                          A_PublishFinalize(topic=auv_config.MISSION_COMPLETE_TOPIC)
+                                ])
     planned_mission = const_execute_mission_tree()
-
-
-    # use this to kind of set the tree to 'idle' mode that wont attempt
-    # to control anything and just chills as an observer
-    # finalized = CheckBlackboardVariableValue(bb_enums.MISSION_FINALIZED,
-                                             # True,
-                                             # "C_MissionFinalized")
-
     run_tree = Fallback(name="FB_Run",
                         children=[
-                            # finalized,
-                            const_finalize_mission(),
+                            finalize_mission,
                             planned_mission
                         ])
-
-    manual_logging = A_ManualMissionLog(config = auv_config)
 
 
     root = Sequence(name='SQ_ROOT',
                     children=[
                               const_data_ingestion_tree(),
-                              manual_logging,
                               const_safety_tree(),
                               run_tree
                     ])
@@ -428,10 +361,8 @@ def main():
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.VEHICLE_STATE, vehicle)
 
-    # construct the neptus handler that handles talking to neptus
-    # since the BT doesnt really care about the stuff from neptus beyond
-    # signals, it doesnt need these as actions and such
-    neptus_handler = NeptusHandler(config, vehicle, bb)
+    # this object will handle all the messages from nodered interface
+    # in and out
     nodered_handler = NoderedHandler(config, vehicle, bb)
 
     # construct the BT with the config and a vehicle model
@@ -447,19 +378,9 @@ def main():
             sleep(5)
 
 
-    # write the structure of the tree to file, useful for post-mortem inspections
-    # if needed
-    # this will put it in the ~/.ros folder if run from launch file
-    last_ran_tree_path = 'last_ran_tree.txt'
-    bt_viz = pt.display.ascii_tree(tree.root)
-    with open(last_ran_tree_path, 'w+') as f:
-        f.write(bt_viz)
-        rospy.loginfo("Wrote the tree to {}".format(last_ran_tree_path))
-
-
     # print out the config and the BT on screen
     rospy.loginfo(config)
-    rospy.loginfo(bt_viz)
+    rospy.loginfo(pt.display.ascii_tree(tree.root))
 
     # setup the ticking freq and the BlackBoard
     rate = rospy.Rate(common_globals.BT_TICK_RATE)
@@ -479,8 +400,6 @@ def main():
         # update the TF of the vehicle first
         # print(vehicle)
         vehicle.tick(tf_listener)
-        # print(neptus_handler)
-        neptus_handler.tick()
         nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()
