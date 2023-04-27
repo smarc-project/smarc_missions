@@ -14,7 +14,7 @@ import rospy
 import tf
 import actionlib
 
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint, MissionControl
 from smarc_msgs.srv import UTMToLatLon, LatLonToUTM
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
@@ -31,6 +31,7 @@ import bb_enums
 import common_globals
 
 from mission_plan import MissionPlan, Waypoint
+
 
 class A_AbortPlan(pt.behaviour.Behaviour):
     def __init__(self):
@@ -352,7 +353,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
     def initialise(self):
         if not self.action_server_ok:
-            self.feedback_message = "No action server found for A_GotoWaypoint!"
+            self.feedback_message = "No action server found for {}!".format(self.action_namespace)
             rospy.logwarn_throttle(5, self.feedback_message)
             return
 

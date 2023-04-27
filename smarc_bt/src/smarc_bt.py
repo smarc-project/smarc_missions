@@ -36,7 +36,8 @@ from bt_conditions import C_DepthOK, \
                           C_NoAbortReceived, \
                           C_AltOK, \
                           C_LeakOK, \
-                          C_ExpectPlanState
+                          C_ExpectPlanState, \
+                          C_TimeoutNotReached
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -163,19 +164,14 @@ def const_tree(auv_config):
 
 
     def const_safety_tree():
-        no_abort = C_NoAbortReceived()
-        altOK = C_AltOK()
-        depthOK = C_DepthOK()
-        leakOK = C_LeakOK()
-        # more safety checks will go here
-
         safety_checks = Sequence(name="SQ_SafetyChecks",
                         blackbox_level=1,
                         children=[
-                                  no_abort,
-                                  altOK,
-                                  depthOK,
-                                  leakOK
+                            C_NoAbortReceived(),
+                            C_AltOK(),
+                            C_DepthOK(),
+                            C_LeakOK(),
+                            C_TimeoutNotReached()
                         ])
 
 

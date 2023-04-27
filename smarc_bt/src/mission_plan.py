@@ -227,6 +227,11 @@ class MissionPlan:
 
         self.waypoints = waypoints
         self._change_state(MissionControl.FB_RECEIVED)
+        rospy.loginfo("Got mission: name:{}, timeout:{}, num wps:{}, hash:{}".format(
+            self.plan_id,
+            self.timeout,
+            len(self.waypoints),
+            self.hash))
 
 
     def __str__(self):
@@ -265,12 +270,23 @@ class MissionPlan:
         rospy.logwarn("{} EMERGENCY".format(self.plan_id))
         self._change_state(MissionControl.FB_EMERGENCY)
 
-    def timeout_reached(self):
+    def time_remaining(self):
+        if self.mission_start_time is None:
+            return -1
+
         runtime = time.time() - self.mission_start_time
-        if runtime > self.timeout:
-            self.emergency()
-            rospy.logwarn("{} TIMEOUT".format(self.plan_id))
+        remaining = self.timeout - runtime
+        return remaining
+
+    def timeout_reached(self):
+        if self.state == MissionControl.FB_EMERGENCY:
             return True
+
+        if self.state == MissionControl.FB_RUNNING:
+            if self.time_remaining() <= 0:
+                self.emergency()
+                rospy.logwarn("{} TIMEOUT".format(self.plan_id))
+                return True
 
         return False
 

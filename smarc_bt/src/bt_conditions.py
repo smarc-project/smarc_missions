@@ -14,6 +14,29 @@ import bb_enums
 
 from mission_plan import MissionPlan
 
+from smarc_msgs.msg import MissionControl
+
+class C_TimeoutNotReached(pt.behaviour.Behaviour):
+    """
+    check if mission has reached timeout
+    """
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        super(C_TimeoutNotReached, self).__init__(name="C_TimeoutNotReached")
+
+    def update(self):
+        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if plan is None:
+            self.feedback_message = "No plan for a timeout"
+            return pt.Status.SUCCESS
+
+        if plan.timeout_reached():
+            self.feedback_message = "TIMEOUT"
+            return pt.Status.FAILURE
+
+        self.feedback_message = "{:.2f} remaining in mission".format(plan.time_remaining())
+        return pt.Status.SUCCESS
+
 
 class C_NoAbortReceived(pt.behaviour.Behaviour):
     """
@@ -27,13 +50,19 @@ class C_NoAbortReceived(pt.behaviour.Behaviour):
         super(C_NoAbortReceived, self).__init__(name="C_NoAbortReceived")
 
     def update(self):
-        if self.bb.get(bb_enums.ABORT) or self.aborted or self.vehicle.aborted:
+        if self.bb.get(bb_enums.ABORT) or self.aborted:
             self.aborted = True
-            self.vehicle.abort()
             self.feedback_message = 'ABORTED'
             return pt.Status.FAILURE
-        else:
-            return pt.Status.SUCCESS
+
+        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if plan is not None:
+            if plan.state == MissionControl.FB_EMERGENCY:
+                self.feedback_message = 'EMERGENCY'
+                self.aborted = True
+                return pt.Status.FAILURE
+
+        return pt.Status.SUCCESS
 
 
 class C_LeakOK(pt.behaviour.Behaviour):
@@ -110,6 +139,7 @@ class C_ExpectPlanState(pt.behaviour.Behaviour):
         s = MissionPlan.state_names[expected_state]
         super(C_ExpectPlanState, self).__init__(name="C_ExpectPlanState({})".format(s))
         self.expected_state = expected_state
+        self.s = s
 
     def update(self):
         plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
@@ -118,10 +148,10 @@ class C_ExpectPlanState(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
         if plan.state == self.expected_state:
-            self.feedback_message = "OK"
+            self.feedback_message = "is {}".format(self.s)
             return pt.Status.SUCCESS
 
-        self.feedback_message = "Not OK"
+        self.feedback_message = "Not {}".format(self.s)
         return pt.Status.FAILURE
 
 

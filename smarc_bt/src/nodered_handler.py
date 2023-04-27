@@ -167,7 +167,6 @@ class NoderedHandler(object):
         if msg.command == MissionControl.CMD_EMERGENCY:
             rospy.loginfo("EMERGENCY command received")
             current_mission.emergency()
-            self._vehicle.abort()
             rospy.logwarn("Aborted")
             return
 
