@@ -287,11 +287,6 @@ def const_tree(auv_config):
                                        follow_algae
                                    ])
 
-        complete_or_stopped = Fallback(name="FB_CompleteOrStopped",
-                                       children=[
-                                           C_ExpectPlanState(MissionControl.FB_COMPLETED),
-                                           C_ExpectPlanState(MissionControl.FB_STOPPED)
-                                       ])
         #######################
         # until the plan is done
         #######################
@@ -300,7 +295,6 @@ def const_tree(auv_config):
                             gui_wp_tree,
                             live_wp_tree,
                             algae_farm_tree,
-                            complete_or_stopped,
                             follow_plan
                         ])
 
@@ -317,6 +311,7 @@ def const_tree(auv_config):
     planned_mission = const_execute_mission_tree()
     run_tree = Fallback(name="FB_Run",
                         children=[
+                            C_ExpectPlanState(MissionControl.FB_STOPPED),
                             finalize_mission,
                             planned_mission
                         ])

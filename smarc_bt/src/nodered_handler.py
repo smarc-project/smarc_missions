@@ -191,7 +191,6 @@ class NoderedHandler(object):
         if msg.command == MissionControl.CMD_STOP:
             rospy.loginfo("STOP command received")
             current_mission.stop_mission()
-            self._bb.set(bb_enums.MISSION_PLAN_OBJ, None)
             return
 
         if msg.command == MissionControl.CMD_PAUSE:

@@ -285,12 +285,14 @@ class MissionPlan:
             self._change_state(MissionControl.FB_COMPLETED)
 
 
-    def get_current_wp(self):
+    def get_current_wp(self, source=None):
         """
         pop a wp from the remaining wps and return it
         """
         if self.state == MissionControl.FB_RUNNING:
             wp = self.waypoints[self.current_wp_index]
+            if source != None:
+                rospy.loginfo("Current wp {} acquired from plan ({})".format(wp.wp.name, source))
             return wp
 
         return None

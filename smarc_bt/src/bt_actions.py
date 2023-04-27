@@ -228,7 +228,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         if not self.do_not_visit:
             mission_plan.visit_wp()
 
-        next_action = mission_plan.get_current_wp()
+        next_action = mission_plan.get_current_wp("SetNextPlanAction")
         if next_action is None:
             self.feedback_message = "Next action was None"
             rospy.logwarn_throttle(20, self.feedback_message)
@@ -376,7 +376,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                 rospy.logwarn(self.feedback_message)
                 return
 
-            wp = mission_plan.get_current_wp()
+            wp = mission_plan.get_current_wp("GotoWaypointAction")
 
         if wp is None:
             if self.wp_from_bb is None:
