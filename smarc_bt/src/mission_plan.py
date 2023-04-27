@@ -255,6 +255,11 @@ class MissionPlan:
         rospy.loginfo("{} Stopped".format(self.plan_id))
         self._change_state(MissionControl.FB_STOPPED)
 
+    def complete_mission(self):
+        rospy.loginfo("{} Completed".format(self.plan_id))
+        self._change_state(MissionControl.FB_COMPLETED)
+
+
     def emergency(self):
         self.current_wp_index = -1
         rospy.logwarn("{} EMERGENCY".format(self.plan_id))

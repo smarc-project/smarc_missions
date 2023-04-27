@@ -49,7 +49,8 @@ from bt_common import Sequence, \
 from bt_actions import A_GotoWaypoint, \
                        A_SetNextPlanAction, \
                        A_PublishFinalize, \
-                       A_ReadWaypoint
+                       A_ReadWaypoint, \
+                       A_AbortPlan
 
 
 
@@ -188,8 +189,9 @@ def const_tree(auv_config):
 
         abort = Sequence(name="SQ_ABORT",
                          children = [
-                            A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
-                                              message_object = Empty()),
+                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
+                                               message_object = Empty()),
+                             A_AbortPlan(),
                              A_GotoWaypoint(auv_config = auv_config,
                                             action_namespace = auv_config.EMERGENCY_ACTION_NAMESPACE,
                                             node_name = 'A_EmergencySurface',
@@ -285,17 +287,21 @@ def const_tree(auv_config):
                                        follow_algae
                                    ])
 
-
+        complete_or_stopped = Fallback(name="FB_CompleteOrStopped",
+                                       children=[
+                                           C_ExpectPlanState(MissionControl.FB_COMPLETED),
+                                           C_ExpectPlanState(MissionControl.FB_STOPPED)
+                                       ])
         #######################
         # until the plan is done
         #######################
         return Fallback(name="FB_ExecuteMissionPlan",
                         children=[
-                                  gui_wp_tree,
-                                  live_wp_tree,
-                                  algae_farm_tree,
-                                  C_ExpectPlanState(MissionControl.FB_STOPPED),
-                                  follow_plan
+                            gui_wp_tree,
+                            live_wp_tree,
+                            algae_farm_tree,
+                            complete_or_stopped,
+                            follow_plan
                         ])
 
 

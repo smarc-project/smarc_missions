@@ -118,8 +118,10 @@ class C_ExpectPlanState(pt.behaviour.Behaviour):
             return pt.Status.FAILURE
 
         if plan.state == self.expected_state:
+            self.feedback_message = "OK"
             return pt.Status.SUCCESS
 
+        self.feedback_message = "Not OK"
         return pt.Status.FAILURE
 
 

@@ -26,14 +26,31 @@ from geographic_msgs.msg import GeoPoint
 
 from std_srvs.srv import SetBool
 
-# from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 
 import bb_enums
-import imc_enums
 import common_globals
 
 from mission_plan import MissionPlan, Waypoint
-from mission_log import MissionLog
+
+class A_AbortPlan(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        super(A_AbortPlan, self).__init__(name="A_AbortPlan")
+
+    def update(self):
+        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if plan is None:
+            self.feedback_message = "No plan"
+            return pt.Status.FAILURE
+
+        if plan.state == MissionControl.FB_EMERGENCY:
+            self.feedback_message = "Aborted"
+            return pt.Status.SUCCESS
+
+        plan.emergency()
+        return pt.Status.SUCCESS
+
+
 
 
 class A_ReadWaypoint(pt.behaviour.Behaviour):
@@ -168,7 +185,7 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
                 self.last_published_time = time.time()
                 self.bb.set(bb_enums.MISSION_FINALIZED, True)
                 mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-                mission_plan.stop_mission()
+                mission_plan.complete_mission()
                 self.feedback_message = "Mission finalized, plan is go<-False"
                 return pt.Status.SUCCESS
             except:
@@ -214,7 +231,7 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         next_action = mission_plan.get_current_wp()
         if next_action is None:
             self.feedback_message = "Next action was None"
-            rospyl.logwarn_throttle(20, self.feedback_message)
+            rospy.logwarn_throttle(20, self.feedback_message)
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))

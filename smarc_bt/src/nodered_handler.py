@@ -151,10 +151,12 @@ class NoderedHandler(object):
             return
 
         if msg.command == MissionControl.CMD_SET_PLAN:
+            rospy.loginfo("SET PLAN command received")
             self._set_plan(msg)
             return
 
         if msg.command == MissionControl.CMD_REQUEST_FEEDBACK:
+            rospy.loginfo("REQ FEEDBACK command received")
             self._publish_current_plan()
             return
 
@@ -163,6 +165,7 @@ class NoderedHandler(object):
         # first order of buisness, if its an emergency, or a mission-indep message
         # handle that
         if msg.command == MissionControl.CMD_EMERGENCY:
+            rospy.loginfo("EMERGENCY command received")
             current_mission.emergency()
             self._vehicle.abort()
             rospy.logwarn("Aborted")
@@ -176,6 +179,7 @@ class NoderedHandler(object):
             return
 
         if msg.command == MissionControl.CMD_START:
+            rospy.loginfo("START command received")
             if current_mission.state in [MissionControl.FB_STOPPED, MissionControl.FB_RECEIVED]:
                 current_mission.start_mission()
                 return
@@ -185,11 +189,13 @@ class NoderedHandler(object):
                 return
 
         if msg.command == MissionControl.CMD_STOP:
+            rospy.loginfo("STOP command received")
             current_mission.stop_mission()
             self._bb.set(bb_enums.MISSION_PLAN_OBJ, None)
             return
 
         if msg.command == MissionControl.CMD_PAUSE:
+            rospy.loginfo("PAUSE command received")
             current_mission.pause_mission()
             return
 
