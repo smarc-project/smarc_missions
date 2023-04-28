@@ -92,6 +92,7 @@ class TestMonitorPlan(unittest.TestCase):
 
     def test_monitor_plan(self):
         init_time = time.time()
+        rate = rospy.Rate(1)
 
         # wait for the latlon_to_utm service to exist before we send a mission
         # to the BT. Normally this waiting is done by launching the BT last
