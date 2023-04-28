@@ -21,10 +21,6 @@
 <node name="fake_hardware" pkg="smarc_mission_sim" type="fake_hardware.py" />
 
 <include file="$(find bt_mission)/launch/mission.launch">
-    <!-- utm_zone:=$UTM_ZONE utm_band:=$UTM_BAND --> 
-    <arg name="neptus_addr" value="127.0.0.1"/>
-    <arg name="bridge_addr" value="127.0.0.1"/>
-    <arg name="bridge_port" value="6002"/>
     <arg name="robot_name" value="$(arg robot_name)"/>
 </include>
 

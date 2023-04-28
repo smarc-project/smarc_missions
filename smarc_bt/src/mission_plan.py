@@ -183,7 +183,7 @@ class MissionPlan:
         self.plan_id = "Unnamed plan - {}".format(self.creation_time)
         self.hash = ""
         self.timeout = -1
-        self.mission_start_time = -1
+        self.mission_start_time = None
         # keep track of which waypoint we are going to
         # start at -1 to indicate that _we are not going to any yet_
         self.current_wp_index = -1
