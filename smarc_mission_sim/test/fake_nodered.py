@@ -162,7 +162,10 @@ class TestMonitorPlan(unittest.TestCase):
         # and then the same, but wait for emergency now
         self.wait_for_state(MissionControl.FB_EMERGENCY, mc)
         rospy.loginfo("BT got into emergency as expected!")
-
+        
+        # if we reached this point without timeouts and errors, we good.
+        # this assert is only needed for melodic i think...
+        self.assert_(True)
 
 
 
