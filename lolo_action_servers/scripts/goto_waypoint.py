@@ -151,7 +151,12 @@ class LoloGotoWP(object):
 
             xy_dist = self.lolo.xy_dist_to_goal
             depth_dist = self.lolo.depth_to_goal
-            self.feedback("trgt:{}, XYdist:{:.1f}, Depth:{:.1f} tol:{:.1f}".format(wp.name, xy_dist, depth_dist, tolerance))
+            cm = self.lolo.control_mode
+            if cm == Lolo.DRIVE:
+                self.feedback("trgt:{}, XYdist:{:.1f}, Depth:{:.1f} tol:{:.1f}".format(wp.name, xy_dist, depth_dist, tolerance))
+            else:
+                self.feedback(cm)
+
             if  xy_dist <= tolerance and np.abs(depth_dist) <= tolerance:
                 # success~
                 break

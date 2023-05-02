@@ -48,9 +48,6 @@ LIVE_WP = 'live_wp'
 GUI_WP_ENABLE = 'gui_wp_enable'
 GUI_WP = 'gui_wp'
 
-# Goto action
-WAYPOINT_TOLERANCE = 'wp_tolerance'
-
 # Mission log object
 MISSION_LOG_OBJ = 'mission_log'
 MISSION_LOG_FOLDER = 'mission_logs_folder'

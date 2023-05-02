@@ -173,7 +173,7 @@ target_link_libraries(mission_sim_node
    #DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  #)
 
-catkin_install_python(PROGRAMS test/fake_neptus.py src/fake_hardware.py
+catkin_install_python(PROGRAMS test/fake_nodered.py src/fake_hardware.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -223,5 +223,5 @@ install(DIRECTORY launch/
 # catkin_add_nosetests(test)
 
 if(CATKIN_ENABLE_TESTING)
-  add_rostest(test/fake_neptus.launch)
+  add_rostest(test/fake_user.launch)
 endif()
