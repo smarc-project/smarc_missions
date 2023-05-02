@@ -92,14 +92,17 @@ class TestMonitorPlan(unittest.TestCase):
 
     def test_monitor_plan(self):
         init_time = time.time()
+        def log(s):
+            rospy.loginfo("Elapsed:{:.1f} -- {}".format(time.time()-init_time, s))
+
         rate = rospy.Rate(1)
 
         # wait for the latlon_to_utm service to exist before we send a mission
         # to the BT. Normally this waiting is done by launching the BT last
         # in the GUI.
-        rospy.loginfo("Checking if the services exist")
+        log("Checking if the services exist")
         service_exists = False
-        rospy.loginfo("Waiting for lat_lon_to_utm services")
+        log("Waiting for lat_lon_to_utm services")
         while not service_exists:
             try:
                 rospy.wait_for_service('lolo/dr/lat_lon_to_utm', timeout=1)
@@ -117,55 +120,56 @@ class TestMonitorPlan(unittest.TestCase):
 
         # wait for the BT to come alive too
         # we can listen to its heartbeat
-        rospy.loginfo("Waiting for BT heartbeat")
+        log("Waiting for BT heartbeat")
         while not rospy.is_shutdown() and self.heartbeats_received < 3:
-            rospy.loginfo("Got {} heartbeats".format(self.heartbeats_received))
+            log("Got {} heartbeats".format(self.heartbeats_received))
             rate.sleep()
-        rospy.loginfo("Got {} heartbeats".format(self.heartbeats_received))
-        rospy.loginfo("BT is living!")
+        log("Got {} heartbeats".format(self.heartbeats_received))
+        log("BT is living!")
 
         # now the BT is ready to rock, we send our mission to it
-        rospy.loginfo("Sending first plan to BT")
+        log("Sending first plan to BT")
         # make a simple  mission
         mc = make_random_plan(mission_name="should pass", timeout=600)
         self.mc_pub.publish(mc)
         # and then we start checking the feedback
         self.wait_for_state(MissionControl.FB_RECEIVED, mc)
-        rospy.loginfo("BT Got the first plan!")
+        log("BT Got the first plan!")
 
 
-        rospy.loginfo("Sending start to BT")
+        log("Sending start to BT")
         mc.command = MissionControl.CMD_START
         self.mc_pub.publish(mc)
         self.wait_for_state(MissionControl.FB_RUNNING, mc)
-        rospy.loginfo("BT is running the plan !")
+        log("BT is running the plan !")
 
         # and then the same, but wait for complete now
         self.wait_for_state(MissionControl.FB_COMPLETED, mc)
-        rospy.loginfo("BT completed the plan !")
+        log("BT completed the plan !")
 
 
         # cool, now we can test for a timeout emergency
         mc = make_random_plan(mission_name="shouldfail", timeout=10)
         mc.command = MissionControl.CMD_SET_PLAN
-        rospy.loginfo("Sending a short timeout mission to BT")
+        log("Sending a short timeout mission to BT")
         self.mc_pub.publish(mc)
         self.wait_for_state(MissionControl.FB_RECEIVED, mc)
-        rospy.loginfo("BT Got the failing plan!")
+        log("BT Got the failing plan!")
 
-        rospy.loginfo("Sending start to BT")
+        log("Sending start to BT")
         mc.command = MissionControl.CMD_START
         self.mc_pub.publish(mc)
         self.wait_for_state(MissionControl.FB_RUNNING, mc)
-        rospy.loginfo("BT is running the plan !")
+        log("BT is running the plan !")
 
         # and then the same, but wait for emergency now
         self.wait_for_state(MissionControl.FB_EMERGENCY, mc)
-        rospy.loginfo("BT got into emergency as expected!")
-        
+        log("BT got into emergency as expected!")
+
         # if we reached this point without timeouts and errors, we good.
         # this assert is only needed for melodic i think...
         self.assert_(True)
+        log("Done!")
 
 
 
