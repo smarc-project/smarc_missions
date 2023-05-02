@@ -20,8 +20,13 @@
 <node pkg="smarc_mission_sim" type="mission_sim_node" name="mission_sim_node" output="screen" ns="$(arg robot_name)"/>
 <node name="fake_hardware" pkg="smarc_mission_sim" type="fake_hardware.py" />
 
-<include file="$(find bt_mission)/launch/mission.launch">
-    <arg name="robot_name" value="$(arg robot_name)"/>
+<!--Instead of launching the entire mission, that also has nodered, just launch the bt-->
+<!--This doesnt test anything but the BT anyways-->
+<!--<include file="$(find bt_mission)/launch/mission.launch">-->
+    <!--<arg name="robot_name" value="$(arg robot_name)"/>-->
+<!--</include>-->
+<include file="$(find smarc_bt)/launch/smarc_bt.launch">
+	<arg name="robot_name" value="$(arg robot_name)"/>
 </include>
 
 </launch>
