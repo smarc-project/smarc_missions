@@ -182,39 +182,62 @@ class WPDepthPlanner(object):
         self.rpm2_pub.publish(rpm2)
         #rospy.loginfo("Thrusters forward")
 
-    def check_success(self, position_feedback, nav_goal):
-        start_pos = np.array(position_feedback)
-        end_pos = np.array([nav_goal.position.x, nav_goal.position.y, nav_goal.position.z])
+    # def check_success(self, position_feedback, nav_goal):
+    #     start_pos = np.array(position_feedback)
+    #     end_pos = np.array([nav_goal.position.x, nav_goal.position.y, nav_goal.position.z])
 
-        # We check for success out of the main control loop in case the main control loop is
-        # running at 300Hz or sth. like that. We dont need to check succes that frequently.
-        xydiff = start_pos[:2] - end_pos[:2]
-        zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
-        xydiff_norm = np.linalg.norm(xydiff)
+    #     # We check for success out of the main control loop in case the main control loop is
+    #     # running at 300Hz or sth. like that. We dont need to check succes that frequently.
+    #     xydiff = start_pos[:2] - end_pos[:2]
+    #     zdiff = np.abs(np.abs(start_pos[2]) - np.abs(end_pos[2]))
+    #     xydiff_norm = np.linalg.norm(xydiff)
 
-        #See if error is decreasing or increasing
-        self.error_gradient = xydiff_norm - self.prev_xydiff_norm
-        self.prev_xydiff_norm = xydiff_norm
-        # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
-        #rospy.loginfo_throttle_identical(5, "Using Crosstrack Error")
-        rospy.loginfo_throttle_identical(5, "diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
-        if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
-            rospy.loginfo("Reached WP!")
-            self.x_prev = self.nav_goal.position.x
-            self.y_prev = self.nav_goal.position.y
-            self.nav_goal = None
-            self._result.reached_waypoint= True
-            #self._as.set_succeeded(self._result, "Reached WP")
+    #     #See if error is decreasing or increasing
+    #     self.error_gradient = xydiff_norm - self.prev_xydiff_norm
+    #     self.prev_xydiff_norm = xydiff_norm
+    #     # rospy.logdebug("diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff))
+    #     #rospy.loginfo_throttle_identical(5, "Using Crosstrack Error")
+    #     rospy.loginfo_throttle_identical(5, "diff xy:"+ str(xydiff_norm)+' z:' + str(zdiff)+ " WP tol:"+ str(self.wp_tolerance)+ "Depth tol:"+str(self.depth_tolerance))
+    #     if xydiff_norm < self.wp_tolerance and zdiff < self.depth_tolerance:
+    #         rospy.loginfo("Reached WP!")
+    #         self.x_prev = self.nav_goal.position.x
+    #         self.y_prev = self.nav_goal.position.y
+    #         self.nav_goal = None
+    #         self._result.reached_waypoint= True
+    #         #self._as.set_succeeded(self._result, "Reached WP")
 
-        #consider timeout
-        current_time = time.time()
-        wp_duration = current_time-self.start_time
-        if xydiff_norm < 20 and wp_duration > self.timeout_limit:
-            rospy.loginfo("Timeout, going to next WP!")
-            self.nav_goal = None
-            self._result.reached_waypoint= True
+    #     #consider timeout
+    #     current_time = time.time()
+    #     wp_duration = current_time-self.start_time
+    #     if xydiff_norm < 20 and wp_duration > self.timeout_limit:
+    #         rospy.loginfo("Timeout, going to next WP!")
+    #         self.nav_goal = None
+    #         self._result.reached_waypoint= True
         
-        self.wp_distance = xydiff_norm
+    #     self.wp_distance = xydiff_norm
+
+    def timer_callback(self, event):
+        if self.nav_goal is None:
+            #rospy.loginfo_throttle(30, "Nav goal is None!")
+            return
+
+        # Check if the goal has been reached
+        try:
+            (trans, rot) = self.listener.lookupTransform(
+                self.nav_goal_frame, self.base_frame, rospy.Time(0))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            return
+
+        start_pos = np.array(trans[0:2])
+        end_pos = np.array(
+            [self.nav_goal.position.x, self.nav_goal.position.y])
+
+        rospy.logdebug("diff " + str(np.linalg.norm(start_pos - end_pos)))
+        if np.linalg.norm(start_pos - end_pos) < self.wp_tolerance:
+            # Goal reached
+            self.nav_goal = None
+            self._result.reached_waypoint= True
+
 
     def disengage_actuators(self):
         #Stop controllers
@@ -264,24 +287,6 @@ class WPDepthPlanner(object):
         if self.use_constant_rpm: #overriding neptus values
             self.vel_ctrl_flag = False #use constant rpm
 
-
-        goal_point = PointStamped()
-        goal_point.header.frame_id = self.nav_goal_frame
-        goal_point.header.stamp = rospy.Time(0)
-        goal_point.point.x = self.nav_goal.position.x
-        goal_point.point.y = self.nav_goal.position.y
-        goal_point.point.z = self.nav_goal.position.z
-        try:
-            goal_point_local = self.listener.transformPoint(self.nav_goal_frame, goal_point)
-            self.nav_goal.position.x = goal_point_local.point.x
-            self.nav_goal.position.y = goal_point_local.point.y
-            self.nav_goal.position.z = goal_point_local.point.z
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            print ("Not transforming point to world local")
-            pass
-
-        rospy.loginfo('Nav goal in local %s ' % self.nav_goal.position.x)
-
         r = rospy.Rate(20.) # 10hz
         counter = 0
         while not rospy.is_shutdown() and self.nav_goal is not None:
@@ -299,86 +304,28 @@ class WPDepthPlanner(object):
 
             # Compute controller setpoints
             if counter % 5 == 0:
+
+                goal_point = PointStamped()
+                goal_point.header.frame_id = self.nav_goal_frame
+                goal_point.header.stamp = rospy.Time(0)
+                goal_point.point.x = self.nav_goal.position.x
+                goal_point.point.y = self.nav_goal.position.y
+                goal_point.point.z = self.nav_goal.position.z
                 try:
-                    (trans, rot) = self.listener.lookupTransform(self.nav_goal_frame, self.base_frame, rospy.Time(0))
+                    goal_point_local = self.listener.transformPoint(self.base_frame, goal_point)
+                    self.nav_goal.position.x = goal_point_local.point.x
+                    self.nav_goal.position.y = goal_point_local.point.y
+                    self.nav_goal.position.z = goal_point_local.point.z
+                    rospy.loginfo('Nav goal in local')
+
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                    rospy.loginfo("Error with tf:"+str(self.nav_goal_frame) + " to "+str(self.base_frame))
-                    continue
+                    print ("Heading controller: Could not transform WP to base_link")
+                    pass
 
-                pose_fb = PoseStamped()
-                pose_fb.header.frame_id = self.nav_goal_frame
-                pose_fb.pose.position.x = trans[0]
-                pose_fb.pose.position.y = trans[1]
-                pose_fb.pose.position.z = trans[2]
-                #self._feedback.feedback.pose = pose_fb
-                #self._feedback.feedback.pose.header.stamp = rospy.get_rostime()
-                #self._as.publish_feedback(self._feedback)
-                #rospy.loginfo("Sending feedback")
-                
-                xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
-                ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
-
-                '''#Compensate for overshooting a waypoint
-                if not self.wp_overshoot_flag:
-                    self.error_gradient = -1 #Disable overshoot compensation
-                
-                overshot_wp = False
-                if self.error_gradient > 0:
-                    overshot_wp = True #logic for overshooting waypoint'''
-
-                '''if overshot_wp:
-                    rospy.loginfo_throttle_identical(5, "Compensating for overshoot!")
-                    self.crosstrack_flag = False
-                else:
-                    self.crosstrack_flag = False'''
-                
-                #self.crosstrack_flag = False
-                if self.crosstrack_flag:
-                    #considering cross-track error according to Fossen, Page 261 eq 10.73,10.74
-                    x_goal = self.nav_goal.position.x
-                    y_goal = self.nav_goal.position.y
-
-                    #checking if there is a previous WP, if there is no previous WP, it considers the current position. 
-                    # It also uses this check to see if we overshot the WP and compensates for overshoot
-                    if not self.wp_overshoot_flag:
-                        self.error_gradient = -1 #Disable overshoot compensation
-                    
-                    overshot_wp = False
-                    if self.error_gradient > 0:
-                        overshot_wp = True #logic for overshooting waypoint
-
-                    if (self.y_prev == 0 and self.x_prev == 0) or overshot_wp:
-                        rospy.loginfo_throttle_identical(5, "Compensating for overshoot!")
-                        self.y_prev = pose_fb.pose.position.y
-                        self.x_prev = pose_fb.pose.position.x
-                
-                    y_prev = self.y_prev #read previous WP
-                    x_prev = self.x_prev 
-
-                    #considering cross-track error according to Fossen, Page 261 eq 10.73,10.74
-                    err_tang = math.atan2(y_goal-y_prev, x_goal- x_prev) # path tangential vector
-                    #err_tang = math.atan2(ydiff, xdiff) # path tangential vector
-                    err_crosstrack = -(pose_fb.pose.position.x - x_prev)*math.sin(err_tang)+ (pose_fb.pose.position.y - y_prev)*math.cos(err_tang) # crosstrack error
-                    #lookahead = 3 #lookahead distance(m)
-                    lookahead = self.lookahead_dist
-                    err_velpath = math.atan2(-err_crosstrack,lookahead)
-
-                    yaw_setpoint = (err_tang) + (err_velpath)
-                    rospy.loginfo_throttle_identical(5, "Using Crosstrack Error, err_tang ="+str(err_tang)+"err_velpath"+str(err_velpath))
-                
-                else:
-                    #Compute yaw setpoint based on waypoint position and current position
-                    #xdiff = self.nav_goal.position.x - pose_fb.pose.position.x
-                    #ydiff = self.nav_goal.position.y - pose_fb.pose.position.y
-                    #yaw_setpoint = 1.57-math.atan2(ydiff,xdiff)
-                    #The original yaw setpoint!
-                    yaw_setpoint = math.atan2(ydiff,xdiff)
-                    rospy.loginfo_throttle_identical(5, "Using normal WP following")
-                    #print('xdiff:',xdiff,'ydiff:',ydiff,'yaw_setpoint:',yaw_setpoint)
-
-		        #compute yaw_error (e.g. for turbo_turn)
-                yaw_error= -(self.yaw_feedback - yaw_setpoint)
-                yaw_error= self.angle_wrap(yaw_error) #wrap angle error between -pi and pi
+                #Compute yaw setpoint based on waypoint position and current position
+                yaw_setpoint = math.atan2(goal_point_local.point.y, goal_point_local.point.x)
+                rospy.loginfo_throttle_identical(5, "Using normal WP following")
+                rospy.loginfo('Current heading error ', yaw_setpoint)
 
                 depth_setpoint = self.nav_goal.position.z
                 #depth_setpoint = goal.travel_depth
@@ -387,48 +334,16 @@ class WPDepthPlanner(object):
             ## Publish setpoints to controllers 
             self.publish_depth_setpoint(depth_setpoint) # call function that uses vbs at low speeds, dynamic depth at higher speeds
 
-            #Not used currently, feature for turboturn when waypoint is close
-            '''if self.wp_distance < 8.0: 
-                wp_is_close = True
+            #if it is not turboturning
+            if self.vel_ctrl_flag:
+                self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
             else:
-                wp_is_close = False'''
-                
-
-            if self.turbo_turn_flag:
-            #if turbo turn is included, turbo turn at large yaw deviations
-                if (abs(yaw_error) > self.turbo_angle_min and abs(yaw_error) < self.turbo_angle_max): # or wp_is_close:
-                    rospy.loginfo("Yaw error: %f", yaw_error)
-                    #turbo turn with large deviations, maximum deviation is 3.0 radians to prevent problems with discontinuities at +/-pi
-                    self.toggle_yaw_ctrl.toggle(False)
-                    self.toggle_speed_ctrl.toggle(False)
-                    self.turbo_turn(yaw_error)
-                    self.toggle_depth_ctrl.toggle(False)
-                    self.toggle_vbs_ctrl.toggle(True)
-                    #self.depth_pub.publish(depth_setpoint) #Already
-                else:
-                #if it is outside the turboturning range
-                    if self.vel_ctrl_flag:
-                        self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
-                    else:
-                        self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
-            else:
-                #if it is not turboturning
-                if self.vel_ctrl_flag:
-                    self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
-                else:
-                    self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
-
-            if counter % 10 == 0: 
-                #periodically check if waypoint is reached
-                self.check_success(trans,self.nav_goal)
+                self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
 
             counter += 1
             r.sleep()
 
         self.disengage_actuators()
-        #self.x_prev = self.nav_goal.position.x
-        #self.y_prev = self.nav_goal.position.y
-        #self._result.reached_waypoint= True
         rospy.loginfo('%s: Succeeded' % self._action_name)
         self._as.set_succeeded(self._result,"WP Reached")
 
@@ -526,8 +441,11 @@ class WPDepthPlanner(object):
         self._as = actionlib.SimpleActionServer(self._action_name, GotoWaypointAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
         rospy.loginfo("Announced action server with name: %s", self._action_name)
+        
+        rospy.Timer(rospy.Duration(1), self.timer_callback)
 
         reconfig = ReconfigServer(self)
+
 
         rospy.spin()
 
