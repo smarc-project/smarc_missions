@@ -18,16 +18,6 @@
 		<arg name="robot_name" value="$(arg robot_name)"/>
 	</include>
 
-	<!--<include file="$(find imc_ros_bridge)/launch/bridge.launch" ns="$(arg robot_name)">-->
-		<!--<arg name="neptus_addr" value="$(arg neptus_addr)"/>-->
-		<!--<arg name="bridge_addr" value="$(arg bridge_addr)"/>-->
-		<!--<arg name="bridge_port" value="$(arg bridge_port)"/>-->
-		<!--<arg name="node_name" value="$(arg node_name)"/>-->
-		<!--<arg name="imc_id" value="$(arg imc_id)"/>-->
-		<!--<arg name="imc_src" value="$(arg imc_src)"/>-->
-		<!--<arg name="imc_system_name" value="$(arg imc_system_name)"/>-->
-	<!--</include>-->
-
 	<include file="$(find smarc_nodered)/launch/smarc_nodered.launch" ns="$(arg robot_name)">
 		<arg name="robot_name" value="$(arg robot_name)"/>
 	</include>
