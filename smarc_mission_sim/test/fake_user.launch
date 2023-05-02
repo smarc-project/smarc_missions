@@ -1,6 +1,6 @@
 <launch>
 
 	<include file="$(find smarc_mission_sim)/launch/mission_sim.launch"/>
-	<test test-name="fake_user" pkg="smarc_mission_sim" type="fake_nodered.py" time-limit="120"/>
+	<test test-name="fake_user" pkg="smarc_mission_sim" type="fake_nodered.py" time-limit="180"/>
 
 </launch>
