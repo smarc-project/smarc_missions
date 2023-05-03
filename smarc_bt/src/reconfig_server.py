@@ -47,10 +47,6 @@ class ReconfigServer(object):
                                "default:{}".format(config.MISSION_LOG_FOLDER),
                                config.MISSION_LOG_FOLDER)
 
-        self.ddrc.add_variable(bb_enums.ENABLE_MANUAL_MISSION_LOG,
-                               "Check to start a new log, uncheck to stop and save it",
-                               config.ENABLE_MANUAL_MISSION_LOG)
-
 
         rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
 

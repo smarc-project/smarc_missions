@@ -90,7 +90,7 @@ class NoderedHandler(object):
         path = os.path.expanduser(self._config.MISSION_PLAN_STORAGE_FOLDER)
         if not os.path.exists(path):
             os.makedirs(path)
-            
+
         filename = os.path.join(path, msg.name+".json")
         with open(filename, 'w') as f:
             j = json_message_converter.convert_ros_message_to_json(msg)

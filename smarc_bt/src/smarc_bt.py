@@ -386,13 +386,7 @@ def main():
     while not rospy.is_shutdown():
         # some info _about the tree_ in the BB.
         # better do this outside the tree
-        tip = tree.tip()
-        if tip is None:
-            bb.set(bb_enums.TREE_TIP_NAME, '')
-            bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
-        else:
-            bb.set(bb_enums.TREE_TIP_NAME, tip.name)
-            bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
+        bb.set(bb_enums.TREE_TIP, tip = tree.tip())
 
         # update the TF of the vehicle first
         # print(vehicle)
