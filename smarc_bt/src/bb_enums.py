@@ -21,6 +21,7 @@ CURRENTLY_RUNNING_ACTION = 'currently_running_action'
 
 # feedback really, set outside a tick
 TREE_TIP = "tree_tip"
+LAST_HEARTBEAT_TIME = "last_heartbeat_time"
 
 # to set once the BT is 'DONE' done. LIke, it wont want to
 # set new waypoints or anything, and is just there chillin

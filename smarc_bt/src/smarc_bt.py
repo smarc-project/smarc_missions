@@ -383,7 +383,7 @@ def main():
     while not rospy.is_shutdown():
         # some info _about the tree_ in the BB.
         # better do this outside the tree
-        bb.set(bb_enums.TREE_TIP, tip = tree.tip())
+        bb.set(bb_enums.TREE_TIP, tree.tip())
 
         # update the TF of the vehicle first
         # print(vehicle)
