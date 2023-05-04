@@ -22,10 +22,7 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty, Bool
-from smarc_msgs.msg import Leak, DVL, MissionControl
-from sensor_msgs.msg import NavSatFix
-from geometry_msgs.msg import PointStamped, PoseStamped
-from geographic_msgs.msg import GeoPoint
+from smarc_msgs.msg import MissionControl
 
 from auv_config import AUVConfig
 from reconfig_server import ReconfigServer
@@ -372,7 +369,7 @@ def main():
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         if not setup_ok:
             rospy.logerr("Tree could not be setup! Retrying in 5s!")
-            sleep(5)
+            time.sleep(5)
 
 
     # print out the config and the BT on screen
@@ -394,6 +391,7 @@ def main():
         nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()
+        bb.set(bb_enums.LAST_HEARTBEAT_TIME, time.time())
 
         # use py-trees-tree-watcher if you can
         #  pt.display.print_ascii_tree(tree.root, show_status=True)

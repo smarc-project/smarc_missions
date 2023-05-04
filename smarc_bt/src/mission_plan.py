@@ -175,7 +175,7 @@ class MissionLog(object):
         }
         """
         self.bb = pt.blackboard.Blackboard()
-        self.vehicle = bb.get(bb_enums.VEHICLE_STATE)
+        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
 
         self.name = mission_plan.plan_id
         self.start = mission_plan.mission_start_time
@@ -191,7 +191,7 @@ class MissionLog(object):
         self.utm_z = utm_zone + "" + utm_band
 
 
-    def record(self):
+    def record(self, annotation=None):
         """
         r = {
             last_update:robot.last_update,
@@ -263,6 +263,7 @@ class MissionLog(object):
             "gps_lon": v.raw_gps_obj.longitude
         }
         tip = self.bb.get(bb_enums.TREE_TIP)
+        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         bt = {
             "tip":{
                 "name":tip.name,
@@ -272,22 +273,22 @@ class MissionLog(object):
             "algae_farm_enable":self.bb.get(bb_enums.ALGAE_FOLLOW_ENABLE),
             "live_wp_enable":self.bb.get(bb_enums.LIVE_WP_ENABLE),
             "gui_wp_enable":self.bb.get(bb_enums.GUI_WP_ENABLE),
-            "current_wp": <JSON version of GotoWaypoint>,
+            "current_wp": self.bb.get(bb_enums.CURRENT_PLAN_ACTION),
             "current_plan":{
-                "name":,
-                "hash":,
-                "timeout":,
-                "command":,
-                "plan_state":,
-                "feedback_str":,
+                "name":plan.plan_id,
+                "hash":plan.hash,
+                "timeout":plan.timeout,
+                "command":-1,
+                "plan_state":plan.state,
+                "feedback_str":"",
                 "waypoints":[]},
-            "last_heartbeat":}
-        }
+            "last_heartbeat":self.bb.get(bb_enums.LAST_HEARTBEAT_TIME)
+            }
 
         r = {'last_update':time.time(),
              'base':base,
-             'bt':None,
-             'annotation':None}
+             'bt':bt,
+             'annotation':annotation}
         self.data.append(r)
 
 
