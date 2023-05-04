@@ -144,10 +144,12 @@ class TestMonitorPlan(unittest.TestCase):
         log("BT Got the first plan!")
 
 
-        log("Sending start to BT")
         mc.command = MissionControl.CMD_START
-        self.mc_pub.publish(mc)
-        self.wait_for_state(MissionControl.FB_RUNNING, mc)
+        while not started:
+            log("Sending start to BT")
+            self.mc_pub.publish(mc)
+            self.wait_for_state(MissionControl.FB_RUNNING, mc, timeout=2)
+            rate.sleep()
         log("BT is running the plan !")
 
         # and then the same, but wait for complete now
