@@ -71,22 +71,26 @@ class TestMonitorPlan(unittest.TestCase):
         self.heartbeats_received += 1
 
 
-    def wait_for_state(self, state, mc):
-        rate = rospy.Rate(1)
+    def wait_for_state(self, state, mc, timeout=None):
+        rate = rospy.Rate(5)
         state_str = ["RUNNING","STOPPED","PAUSED","EMERGENCY","RECEIVED","COMPLETED"]
+        started = time.time()
         while not rospy.is_shutdown():
             rospy.loginfo("Waiting for {} for the sent plan {}".format(state_str[state], mc.name))
-            if self.mc_fb is not None:
-                if self.mc_fb.name == mc.name:
-                    if self.mc_fb.plan_state == state:
-                        break
-                    else:
-                        rospy.loginfo("Got {} instead?".format(state_str[mc.plan_state]))
-                else:
-                    rospy.loginfo("Got feedback for a different mission?")
-            else:
-                rospy.loginfo("Feedback mission control was none?")
             rate.sleep()
+            if timeout is not None and time.time() - started >= timeout:
+                rospy.loginfo("Timeout reached")
+                return False
+            if self.mc_fb is None:
+                rospy.loginfo("Feedback mission control was none?")
+                continue
+            if self.mc_fb.name != mc.name:
+                rospy.loginfo("Got feedback for a different mission?")
+                continue
+            if self.mc_fb.plan_state != state:
+                rospy.loginfo("Got {} instead?".format(state_str[mc.plan_state]))
+                continue
+            return True
 
 
 
@@ -128,12 +132,15 @@ class TestMonitorPlan(unittest.TestCase):
         log("BT is living!")
 
         # now the BT is ready to rock, we send our mission to it
-        log("Sending first plan to BT")
         # make a simple  mission
         mc = make_random_plan(mission_name="should pass", timeout=600)
-        self.mc_pub.publish(mc)
-        # and then we start checking the feedback
-        self.wait_for_state(MissionControl.FB_RECEIVED, mc)
+        received = False
+        while not received:
+            log("Sending first plan to BT")
+            self.mc_pub.publish(mc)
+            # and then we start checking the feedback
+            received = self.wait_for_state(MissionControl.FB_RECEIVED, mc, timeout=2)
+            rate.sleep()
         log("BT Got the first plan!")
 
 
