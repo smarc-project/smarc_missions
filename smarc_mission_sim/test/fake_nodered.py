@@ -145,10 +145,11 @@ class TestMonitorPlan(unittest.TestCase):
 
 
         mc.command = MissionControl.CMD_START
+        started = False
         while not started:
             log("Sending start to BT")
             self.mc_pub.publish(mc)
-            self.wait_for_state(MissionControl.FB_RUNNING, mc, timeout=2)
+            started = self.wait_for_state(MissionControl.FB_RUNNING, mc, timeout=2)
             rate.sleep()
         log("BT is running the plan !")
 
