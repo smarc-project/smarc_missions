@@ -40,6 +40,7 @@
 		<param name="wp_tolerance" value="$(arg wp_tolerance)"/>
 		<param name="depth_tolerance" value="$(arg depth_tolerance)"/>
 		<param name="base_frame" value="$(arg base_frame)"/>
+		<param name="base_frame_2d" value="$(arg robot_name)/base_link_2d"/>
 		<param name="forward_rpm" value="$(arg forward_rpm)"/>
 		
 		<param name="rpm1_cmd_topic" value="$(arg as_rpm1_topic)" />
