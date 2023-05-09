@@ -50,6 +50,11 @@ class Vehicle(object):
         self.auv_config = auv_config
         self.robot_name = auv_config.robot_name
 
+        # for visualizations
+        self._animation = StringAnimation(num_slots=5)
+        self.last_goto_wp = GotoWaypoint()
+        self._last_wp_pub = rospy.Publisher(self.auv_config.LAST_WP_TOPIC, GotoWaypoint, queue_size=1)
+
         self._init_tf_vars()
         # some state strings to be reported in case of trouble
         self._status_str_tf = "Uninitialized"
@@ -94,10 +99,6 @@ class Vehicle(object):
         self.batt_v = None
         self._batt_sub = rospy.Subscriber(self.auv_config.BATT_TOPIC, BatteryState, self._batt_cb, queue_size=2)
 
-        # for visualizations
-        self._animation = StringAnimation(num_slots=5)
-        self.last_goto_wp = GotoWaypoint()
-        self._last_wp_pub = rospy.Publisher(self.auv_config.LAST_WP_TOPIC, GotoWaypoint, queue_size=1)
 
 
     def __str__(self):

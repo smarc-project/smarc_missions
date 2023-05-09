@@ -182,7 +182,7 @@ def const_tree(auv_config):
 
         abort = Sequence(name="SQ_ABORT",
                          children = [
-                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
+                             A_SimplePublisher(topic=auv_config.ABORT_TOPIC,
                                                message_object = Empty()),
                              A_AbortPlan(),
                              A_GotoWaypoint(auv_config = auv_config,

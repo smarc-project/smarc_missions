@@ -13,7 +13,7 @@ T1_TOPIC: 'core/thruster1_fb'
 T2_TOPIC: 'core/thruster2_fb'
 BATT_TOPIC: 'core/battery'
 
-EMERGENCY_TOPIC : 'core/abort'
+ABORT_TOPIC : 'core/abort'
 HEARTBEAT_TOPIC : 'core/heartbeat'
 MISSION_COMPLETE_TOPIC : 'core/mission_complete'
 
