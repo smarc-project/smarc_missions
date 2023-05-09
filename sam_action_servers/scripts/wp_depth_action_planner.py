@@ -202,8 +202,8 @@ class WPDepthPlanner(object):
             wp_pos = np.array([goal_point_local.point.x, goal_point_local.point.y])
             rospy.loginfo("Dist to WP " + str(np.linalg.norm(wp_pos)))
             
-            #if np.linalg.norm(wp_pos) < self.wp_tolerance:
-            if np.linalg.norm(wp_pos) < 5.0:
+            if np.linalg.norm(wp_pos) < self.wp_tolerance:
+            #if np.linalg.norm(wp_pos) < 5.0:
                 # Goal reached
                 self.nav_goal = None
                 self._result.reached_waypoint= True           #print("WP control: checking goal ", self.nav_goal.position)
