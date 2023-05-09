@@ -4,11 +4,12 @@
 
 import rospy, time, os
 import numpy as np
+import json
 
 from mission_plan import MissionPlan
 import bb_enums
 
-from smarc_msgs.msg import MissionControl
+from smarc_msgs.msg import MissionControl, BTCommand
 
 from rospy_message_converter import json_message_converter
 
@@ -39,8 +40,22 @@ class NoderedHandler(object):
                                                     MissionControl,
                                                     queue_size=1)
 
+        self._last_received_btc_msg = None
+        self._bt_command_sub = rospy.Subscriber(self._config.BTCOMMAND_TOPIC,
+                                                BTCommand,
+                                                self._bt_command_cb,
+                                                queue_size=1)
+
+        self._btc_msg = BTCommand()
+        self._bt_command_pub = rospy.Publisher(self._config.BTCOMMAND_TOPIC,
+                                                    BTCommand,
+                                                    queue_size=1)
+
     def _mission_control_cb(self, msg):
         self._last_received_mc_msg = msg
+
+    def _bt_command_cb(self, msg):
+        self._last_received_btc_msg = msg
 
     def _publish_current_plan(self):
         # simply publish the current plan at every tick
@@ -139,9 +154,32 @@ class NoderedHandler(object):
         rospy.loginfo("New mission {} set!".format(msg.name))
 
 
-    def tick(self):
-        self._publish_current_plan()
+    def _handle_bt_command(self):
+        if self._last_received_btc_msg is None:
+            return
+        msg = self._last_received_btc_msg
 
+        if msg.msg_type == BTCommand.TYPE_FB:
+            # just ignore feedback
+            return
+
+
+        # turn the cmd_json thing into a dict so we can parse it easy
+        cmd_json = json.loads(msg.cmd_json)
+        cmd = cmd_json['cmd']
+        if cmd == "request_track_list":
+            rospy.loginfo("Got a request to publish track list!")
+            self._btc_msg.msg_type = BTCommand.TYPE_FB
+            fb = {"fb":"track_list",
+                  "track_list":["a track", "another track"]}
+            fb_json = json.dumps(fb)
+            self._btc_msg.fb_json = fb_json
+            self._bt_command_pub.publish(self._btc_msg)
+
+
+
+
+    def _handle_mission_control(self):
         if self._last_received_mc_msg is None:
             return
 
@@ -200,7 +238,9 @@ class NoderedHandler(object):
             return
 
 
-
-
+    def tick(self):
+        self._publish_current_plan()
+        self._handle_mission_control()
+        self._handle_bt_command()
 
 

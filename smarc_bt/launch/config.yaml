@@ -49,6 +49,7 @@ LOCAL_LINK : 'map'
 # mqtt related stuff
 LAST_WP_TOPIC : 'smarc_bt/last_wp'
 MISSION_CONTROL_TOPIC : 'smarc_bt/mission_control'
+BTCOMMAND_TOPIC: 'smarc_bt/bt_command'
 
 # hard values
 MAX_DEPTH : 20
