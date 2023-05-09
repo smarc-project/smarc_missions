@@ -97,6 +97,7 @@ class Vehicle(object):
 
         # battery
         self.batt_v = None
+        self.batt_percent = None
         self._batt_sub = rospy.Subscriber(self.auv_config.BATT_TOPIC, BatteryState, self._batt_cb, queue_size=2)
 
 
@@ -235,4 +236,5 @@ class Vehicle(object):
 
     def _batt_cb(self, msg):
         self.batt_v = msg.voltage
+        self.batt_percent = msg.percentage
 

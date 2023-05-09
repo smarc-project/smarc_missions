@@ -175,6 +175,7 @@ install(PROGRAMS
   src/bt_conditions.py
   src/common_globals.py
   src/mission_plan.py
+  src/mission_log.py
   src/reconfig_server.py
   src/coverage_planner.py
   src/vehicle.py

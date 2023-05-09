@@ -388,6 +388,9 @@ def main():
         # update the TF of the vehicle first
         # print(vehicle)
         vehicle.tick(tf_listener)
+        mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is not None:
+            mplan.update()
         nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()

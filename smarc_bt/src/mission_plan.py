@@ -4,13 +4,9 @@
 # Ozer Ozkahraman (ozero@kth.se)
 
 import rospy
-import tf
 import time
 import math
 import numpy as np
-import py_trees as pt
-
-import bb_enums
 
 from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
@@ -18,8 +14,8 @@ from smarc_msgs.srv import LatLonToUTM
 from smarc_msgs.msg import GotoWaypoint, MissionControl
 
 from coverage_planner import create_coverage_path
+from mission_log import MissionLog
 
-RADTODEG = 360 / (math.pi * 2)
 
 class Waypoint:
     def __init__(self, goto_waypoint = None):
@@ -154,143 +150,6 @@ class Waypoint:
         return s
 
 
-class MissionLog(object):
-    def __init__(self, mission_plan):
-        """
-        We want to mimic the same structure that nodered uses
-        function new_track(){
-            now = Date.now()
-            t = new Date(now).toTimeString().slice(0,8)
-            return {
-                // name should be
-                // start time - robot_name - mission name
-                name:"Track-"+ t,
-                start: null,
-                end: null,
-                robot_name: null,
-                recording: false,
-                locked: false,
-                data: []
-            }
-        }
-        """
-        self.bb = pt.blackboard.Blackboard()
-        self.vehicle = self.bb.get(bb_enums.VEHICLE_STATE)
-
-        self.name = mission_plan.plan_id
-        self.start = mission_plan.mission_start_time
-        self.end = None
-        self.robot_name = self.vehicle.robot_name
-        self.recording = False
-        self.locked = False
-        self.data = []
-
-
-        utm_zone = rospy.get_param(rospy.search_param("utm_zone"), "NOZONE")
-        utm_band = rospy.get_param(rospy.search_param("utm_band"), "NOBAND")
-        self.utm_z = utm_zone + "" + utm_band
-
-
-    def record(self, annotation=None):
-        """
-        r = {
-            last_update:robot.last_update,
-            base:JSON.parse(JSON.stringify(robot.base)),
-            bt:JSON.parse(JSON.stringify(robot.bt)),
-            annotation:null
-        }
-        base = {
-            "name":"ozer_lolo",
-            "lat":43.93182743256809,
-            "lon":15.442703734857105,
-            "utm_x":535534.0073,
-            "utm_y":4864396.35497,
-            "utm_z":"33T",
-            "heading":90.29722704759477,
-            "roll":-2.087671438919904,
-            "pitch":-1.213399861360573,
-            "depth":2.018167495727539,
-            "altitude":25.900665821211845,
-            "vbs":0,
-            "lcg":0,
-            "tcg":0,
-            "t1":0,
-            "t2":0,
-            "batt_v":12.5,
-            "gps_lat":0,
-            "gps_lon":0}
-        bt = {
-        "tip":{
-            "name":"C_ExpectPlanState(RUNNING)",
-            "message":"No plan",
-            "status":"failure"},
-        "algae_farm_enable":false,
-        "live_wp_enable":false,
-        "gui_wp_enable":false,
-        "current_wp": <JSON version of GotoWaypoint>,
-        "current_plan":{
-            "name":"No plan",
-            "hash":"",
-            "timeout":0,
-            "command":5,
-            "plan_state":1,
-            "feedback_str":"",
-            "waypoints":[]},
-        "last_heartbeat":1683107116329}
-        """
-
-        v = self.vehicle
-
-        base = {
-            "name":self.robot_name,
-            "lat":v.position_latlon[0],
-            "lon":v.position_latlon[1],
-            "utm_x":v.position_utm[0],
-            "utm_y":v.position_utm[1],
-            "utm_z":self.utm_z, # this is static in a deployment
-            "heading": RADTODEG * (math.pi/2 - v.orientation_rpy[2]), # same thing in nodered
-            "roll": v.orientation_rpy[0],
-            "pitch": v.orientation_rpy[1],
-            "depth": v.depth,
-            "altitude": v.altitude,
-            "vbs":v.vbs,
-            "lcg":v.lcg,
-            "tcg":None,
-            "t1":v.t1,
-            "t2":v.t2,
-            "batt_v":v.batt_v,
-            "gps_lat": v.raw_gps_obj.latitude,
-            "gps_lon": v.raw_gps_obj.longitude
-        }
-        tip = self.bb.get(bb_enums.TREE_TIP)
-        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        bt = {
-            "tip":{
-                "name":tip.name,
-                "message":tip.message,
-                "status":tip.status
-            },
-            "algae_farm_enable":self.bb.get(bb_enums.ALGAE_FOLLOW_ENABLE),
-            "live_wp_enable":self.bb.get(bb_enums.LIVE_WP_ENABLE),
-            "gui_wp_enable":self.bb.get(bb_enums.GUI_WP_ENABLE),
-            "current_wp": self.bb.get(bb_enums.CURRENT_PLAN_ACTION),
-            "current_plan":{
-                "name":plan.plan_id,
-                "hash":plan.hash,
-                "timeout":plan.timeout,
-                "command":-1,
-                "plan_state":plan.state,
-                "feedback_str":"",
-                "waypoints":[]},
-            "last_heartbeat":self.bb.get(bb_enums.LAST_HEARTBEAT_TIME)
-            }
-
-        r = {'last_update':time.time(),
-             'base':base,
-             'bt':bt,
-             'annotation':annotation}
-        self.data.append(r)
-
 
 class MissionPlan:
     state_names = [
@@ -336,17 +195,39 @@ class MissionPlan:
         if mission_control_msg is not None:
             self._read_mission_control(mission_control_msg)
 
+        # A track recording, in case this is a useful mission
+        # Need to do this after read_mission_control otherwise
+        # it wont know the name of the mission
+        self.track = MissionLog(self)
+
+
+    def update(self):
+        """
+        A general update function to call for the mission plan
+        Useful for things that might rely on mission state
+        AND are not event-driven
+        """
+        # Decide if we should be recording the state of the vehicle
+        # given the state of the mission plan
+        # We want to start a recording when the mission starts
+        # and end it when its stopped for whatever reason
+        if self.track.recording:
+            self.track.record()
+
+
 
     def _change_state(self, new_state):
         if self.state == MissionControl.FB_EMERGENCY:
             rospy.logwarn("Mission in emergency state! Not changing that!")
             return
+        if new_state == self.state:
+            return
 
-        if new_state != self.state:
-            a = MissionPlan.state_names[self.state]
-            b = MissionPlan.state_names[new_state]
-            rospy.loginfo("{} -> {}".format(a,b))
-            self.state = new_state
+        a = MissionPlan.state_names[self.state]
+        b = MissionPlan.state_names[new_state]
+        rospy.loginfo("{} -> {}".format(a,b))
+        self.state = new_state
+
 
     def _read_mission_control(self, msg):
         """
@@ -376,7 +257,7 @@ class MissionPlan:
     def __str__(self):
         s = self.plan_id+':\n'
         for wp in self.waypoints:
-            s += '\t'+str(wp)+'\n'
+            s += "->"+wp.wp.name
         return s
 
     def start_mission(self):
@@ -384,30 +265,34 @@ class MissionPlan:
         self.current_wp_index = 0
         rospy.loginfo("{} Started".format(self.plan_id))
         self._change_state(MissionControl.FB_RUNNING)
+        self.track.start_recording()
 
     def pause_mission(self):
         rospy.loginfo("{} Paused".format(self.plan_id))
         self._change_state(MissionControl.FB_PAUSED)
+        self.track.pause_recording()
 
     def continue_mission(self):
         rospy.loginfo("{} Continueing".format(self.plan_id))
         self._change_state(MissionControl.FB_RUNNING)
-
+        self.track.continue_recording()
 
     def stop_mission(self):
         self.current_wp_index = -1
         rospy.loginfo("{} Stopped".format(self.plan_id))
         self._change_state(MissionControl.FB_STOPPED)
+        self.track.stop_recording()
 
     def complete_mission(self):
         rospy.loginfo("{} Completed".format(self.plan_id))
         self._change_state(MissionControl.FB_COMPLETED)
-
+        self.track.complete_recording()
 
     def emergency(self):
         self.current_wp_index = -1
         rospy.logwarn("{} EMERGENCY".format(self.plan_id))
         self._change_state(MissionControl.FB_EMERGENCY)
+        self.track.stop_recording()
 
     def time_remaining(self):
         if self.mission_start_time is None:
