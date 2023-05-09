@@ -163,15 +163,24 @@ class WPDepthPlanner(object):
         self.roll_pub.publish(self.roll_setpoint)
         #rospy.loginfo("Velocity published")
 
-    def rpm_wp_following(self,forward_rpm,yaw_setpoint):
+    def rpm_wp_following(self,forward_rpm, yaw_setpoint):
         rospy.loginfo_throttle_identical(5,"Using Constant RPM")
         #rospy.loginfo("Using Constant RPM")
         #normal turning if the deviation is small
         self.toggle_vbs_ctrl.toggle(False)
         self.toggle_depth_ctrl.toggle(True)
-        self.toggle_yaw_ctrl.toggle(True)
-        self.yaw_pub.publish(yaw_setpoint)
-        self.toggle_speed_ctrl.toggle(False)
+        
+        # Bypass yaw ctrl for now
+        # self.toggle_yaw_ctrl.toggle(True)
+        # self.yaw_pub.publish(yaw_setpoint)
+        # self.toggle_speed_ctrl.toggle(False)
+        thrust_ang = ThrusterAngles()
+        thrust_ang.header.stamp = rospy.Time.now()
+        thrust_ang.thruster_horizontal_radians = yaw_setpoint
+        thrust_ang.thruster_vertical_radians = 0.
+        self.vec_pub.publish(thrust_ang)
+        # TODO: problem with this is the interference between this msg and the depth_ctrl in the vertical thruster
+
         # Thruster forward
         rpm1 = ThrusterRPM()
         rpm2 = ThrusterRPM()
@@ -292,25 +301,27 @@ class WPDepthPlanner(object):
                 print ("Heading controller: Could not transform WP to base_link")
                 pass
 
-            #Compute yaw setpoint based on waypoint position and current position
-            yaw_setpoint = math.atan2(goal_point_local.point.y, goal_point_local.point.x)
-            rospy.loginfo('Current heading error '+ str(yaw_setpoint))
-
-            depth_setpoint = self.nav_goal.position.z
-            #depth_setpoint = goal.travel_depth
-            #rospy.loginfo("Depth setpoint: %f", depth_setpoint)
-
             ## Publish setpoints to controllers 
+            depth_setpoint = self.nav_goal.position.z
             self.publish_depth_setpoint(depth_setpoint) # call function that uses vbs at low speeds, dynamic depth at higher speeds
+
+            # Compute yaw setpoint based on waypoint position and current position
+            yaw_error = math.atan2(
+                goal_point_local.point.y, goal_point_local.point.x)
+            rospy.loginfo('Current heading error ' + str(yaw_error))
+
+            # Inverst signs to actuate thrusters
+            sign = np.copysign(1, yaw_error)
+            yaw_error = -1 * sign * min(self.rudder_angle, abs(yaw_error))
 
             #if it is not turboturning
             if self.vel_ctrl_flag:
                 #print("Doing stuff")
-                self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
+                self.vel_wp_following(goal.waypoint.travel_speed, yaw_error)
                 #self.vel_wp_following(0., yaw_setpoint)
             else:
                 #print("Doing stuff")
-                self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
+                self.rpm_wp_following(self.forward_rpm, yaw_error)
                 #self.rpm_wp_following(0., yaw_setpoint)
 
             counter += 1
