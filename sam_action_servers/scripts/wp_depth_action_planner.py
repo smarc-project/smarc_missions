@@ -305,23 +305,34 @@ class WPDepthPlanner(object):
             depth_setpoint = self.nav_goal.position.z
             self.publish_depth_setpoint(depth_setpoint) # call function that uses vbs at low speeds, dynamic depth at higher speeds
 
-            # Compute yaw setpoint based on waypoint position and current position
+            # Current yaw error on local coordinates
             yaw_error = math.atan2(
                 goal_point_local.point.y, goal_point_local.point.x)
             rospy.loginfo('Current heading error ' + str(yaw_error))
-
+            
             # Inverst signs to actuate thrusters
             sign = np.copysign(1, yaw_error)
             yaw_error = -1 * sign * min(self.rudder_angle, abs(yaw_error))
 
-            #if it is not turboturning
+            # Yaw error with tolerance: use the 2/3 of the WP tolerance to create a circle around the WP. 
+            # If the yaw_error falls within the circle, meaning "abs(yaw_error) > abs(yaw_error_tol)", do not correct.
+            yaw_tolerance = self.wp_tolerance * (2./3.)
+            d_b = np.sqrt(np.power(np.linalg.norm(
+                np.array([goal_point_local.point.x, goal_point_local.point.y])), 2) 
+                - np.power(yaw_tolerance, 2))
+            
+            yaw_error_tol = math.atan2(yaw_tolerance, d_b)
+            rospy.loginfo('Current heading error with tolerance ' + str(yaw_error_tol))
+
+            yaw_setpoint = yaw_error if abs(yaw_error) > abs(yaw_error_tol) else 0.
+
             if self.vel_ctrl_flag:
                 #print("Doing stuff")
-                self.vel_wp_following(goal.waypoint.travel_speed, yaw_error)
+                self.vel_wp_following(goal.waypoint.travel_speed, yaw_setpoint)
                 #self.vel_wp_following(0., yaw_setpoint)
             else:
                 #print("Doing stuff")
-                self.rpm_wp_following(self.forward_rpm, yaw_error)
+                self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
                 #self.rpm_wp_following(0., yaw_setpoint)
 
             counter += 1
