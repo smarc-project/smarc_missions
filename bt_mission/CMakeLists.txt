@@ -8,7 +8,6 @@ project(bt_mission)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-	imc_ros_bridge
 	smarc_bt
 	sam_action_servers
 	lolo_action_servers
