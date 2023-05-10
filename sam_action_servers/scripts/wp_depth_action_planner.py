@@ -171,14 +171,14 @@ class WPDepthPlanner(object):
         self.toggle_depth_ctrl.toggle(True)
         
         # Bypass yaw ctrl for now
-        # self.toggle_yaw_ctrl.toggle(True)
-        # self.yaw_pub.publish(yaw_setpoint)
-        # self.toggle_speed_ctrl.toggle(False)
-        thrust_ang = ThrusterAngles()
-        thrust_ang.header.stamp = rospy.Time.now()
-        thrust_ang.thruster_horizontal_radians = yaw_setpoint
-        thrust_ang.thruster_vertical_radians = 0.
-        self.vec_pub.publish(thrust_ang)
+        self.toggle_yaw_ctrl.toggle(True)
+        self.yaw_pub.publish(yaw_setpoint)
+        self.toggle_speed_ctrl.toggle(False)
+        #thrust_ang = ThrusterAngles()
+        #thrust_ang.header.stamp = rospy.Time.now()
+        #thrust_ang.thruster_horizontal_radians = yaw_setpoint
+        #thrust_ang.thruster_vertical_radians = 0.
+        #self.vec_pub.publish(thrust_ang)
         # TODO: problem with this is the interference between this msg and the depth_ctrl in the vertical thruster
 
         # Thruster forward
