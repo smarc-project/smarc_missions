@@ -22,5 +22,8 @@
 		<arg name="robot_name" value="$(arg robot_name)"/>
 	</include>
 
+	<include file="$(find sam_action_servers)/launch/sam_actions.launch" >
+		<arg name="namespace" value="$(arg robot_name)"/>	
+	</include>
     
 </launch>
