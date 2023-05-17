@@ -131,8 +131,10 @@ class WPDepthPlanner(object):
         rpm2 = ThrusterRPM()
         rpm1.rpm = int(forward_rpm)
         rpm2.rpm = int(forward_rpm)
-        self.rpm1_pub.publish(rpm1)
-        self.rpm2_pub.publish(rpm2)
+        #self.rpm1_pub.publish(rpm1)
+        self.rpm1_pub.publish(0.)
+        #self.rpm2_pub.publish(rpm2)
+        self.rpm2_pub.publish(0.)
 
         # Yaw setpoint to heading PID
         self.yaw_pid_state.publish(0.)  # This is zero because the setpoint is calculated in the base_link
@@ -193,7 +195,7 @@ class WPDepthPlanner(object):
 
             # Check if the goal has been reached
             goal_point = PointStamped()
-            goal_point.header.frame_id = self.nav_goal_frame
+            goal_point.header.frame_id = self.nav_goal.waypoint.pose.header.frame_id
             goal_point.header.stamp = rospy.Time(0)
             goal_point.point.x = self.nav_goal.waypoint.pose.pose.position.x
             goal_point.point.y = self.nav_goal.waypoint.pose.pose.position.y
@@ -226,8 +228,8 @@ class WPDepthPlanner(object):
 
                 # Publish setpoints to controllers
                 # call function that uses vbs at low speeds, dynamic depth at higher speeds
-                self.publish_depth_setpoint(
-                    self.nav_goal.waypoint.pose.pose.position.z)
+                #self.publish_depth_setpoint(
+                #    self.nav_goal.waypoint.pose.pose.position.z)
 
                 # Current yaw error on local coordinates
                 yaw_error = math.atan2(
@@ -276,7 +278,7 @@ class WPDepthPlanner(object):
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
         self.base_frame_2d = rospy.get_param('~base_frame_2d', "sam/base_link")
         self.wp_tolerance = rospy.get_param('~wp_tolerance', 5.) #default value, overriden by Neptus if it is set in Neptus
-        self.node_freq = rospy.get_param("node_freq", "20.")
+        self.node_freq = rospy.get_param("~node_freq", "20.")
         # self.depth_tolerance = rospy.get_param('~depth_tolerance', 0.5)
         rpm1_cmd_topic = rospy.get_param('~rpm1_cmd_topic', '/sam/core/thruster1_cmd')
         rpm2_cmd_topic = rospy.get_param('~rpm2_cmd_topic', '/sam/core/thruster2_cmd')
@@ -286,6 +288,7 @@ class WPDepthPlanner(object):
         elev_setpoint_topic = rospy.get_param('~elevator_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
         elev_enable_topic = rospy.get_param('~elevator_enable_topic', '/sam/ctrl/dynamic_depth/setpoint')
         vbs_setpoint_topic = rospy.get_param('~vbs_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
+        self.rudder_angle = rospy.get_param('~rudder_angle', 0.1)
         
         self.forward_rpm = 0.
         self.vel_ctrl_flag = False
@@ -319,7 +322,7 @@ class WPDepthPlanner(object):
         
         # rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
-        reconfig = ReconfigServer(self)
+        #reconfig = ReconfigServer(self)
 
 
         rospy.spin()

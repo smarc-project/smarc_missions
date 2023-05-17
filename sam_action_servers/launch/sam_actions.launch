@@ -3,6 +3,7 @@
     <arg name="namespace" default="sam"/>
 
     <group ns="$(arg namespace)">
+    	<group ns="ctrl">
 
 		<node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen">
 			<param name="base_frame" value="$$(arg namespace)/base_link"/>
@@ -18,7 +19,10 @@
 			<param name="elevator_setpoint_topic" value="/$(arg namespace)/ctrl/elevator_pid/setpoint" />
 			<param name="elevator_enable_topic" value="/$(arg namespace)/ctrl/elevator_pid/pid_enable" />
 			<param name="vbs_setpoint_topic" value="/$(arg namespace)/ctrl/vbs/setpoint" />
+			<param name="rudder_angle" value="0.1" />
 		</node>
+
+	</group>
 
 	</group>
 
