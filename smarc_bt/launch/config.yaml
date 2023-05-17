@@ -63,10 +63,6 @@ MIN_ALTITUDE : 0.1
 # in ticks
 EMERGENCY_TRIALS_BEFORE_GIVING_UP : 30
 
-# default waypoint tolerance
-# can be changed with dynamic reconf
-WAYPOINT_TOLERANCE : 1.5
-
 # coverage planning variables
 # total width of sensor footprint, perpendicular to movement
 SWATH : 20

@@ -14,7 +14,7 @@ import rospy
 import tf
 import actionlib
 
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint
+from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint, MissionControl
 from smarc_msgs.srv import UTMToLatLon, LatLonToUTM
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point
@@ -26,14 +26,32 @@ from geographic_msgs.msg import GeoPoint
 
 from std_srvs.srv import SetBool
 
-# from imc_ros_bridge.msg import EstimatedState, VehicleState, PlanDB, PlanDBInformation, PlanDBState, PlanControlState, PlanControl, PlanSpecification, Maneuver
 
 import bb_enums
-import imc_enums
 import common_globals
 
 from mission_plan import MissionPlan, Waypoint
-from mission_log import MissionLog
+
+
+class A_AbortPlan(pt.behaviour.Behaviour):
+    def __init__(self):
+        self.bb = pt.blackboard.Blackboard()
+        super(A_AbortPlan, self).__init__(name="A_AbortPlan")
+
+    def update(self):
+        plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if plan is None:
+            self.feedback_message = "No plan"
+            return pt.Status.FAILURE
+
+        if plan.state == MissionControl.FB_EMERGENCY:
+            self.feedback_message = "Aborted"
+            return pt.Status.SUCCESS
+
+        plan.emergency()
+        return pt.Status.SUCCESS
+
+
 
 
 class A_ReadWaypoint(pt.behaviour.Behaviour):
@@ -168,7 +186,7 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
                 self.last_published_time = time.time()
                 self.bb.set(bb_enums.MISSION_FINALIZED, True)
                 mission_plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-                mission_plan.plan_is_go = False
+                mission_plan.complete_mission()
                 self.feedback_message = "Mission finalized, plan is go<-False"
                 return pt.Status.SUCCESS
             except:
@@ -182,139 +200,6 @@ class A_PublishFinalize(pt.behaviour.Behaviour):
 
 
 
-
-class A_ManualMissionLog(pt.behaviour.Behaviour):
-    def __init__(self, config):
-        super(A_ManualMissionLog, self).__init__(name="A_ManualMissionLog")
-        self.bb = pt.blackboard.Blackboard()
-        self.started_logs = 0
-        self.num_saved_logs = 0
-
-        # used just for the latlontoutm function only
-        self.mplan = MissionPlan(auv_config = config,
-                                 mission_control_msg = None,
-                                 waypoints = [])
-
-
-    def start_new_log(self):
-        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
-        log = MissionLog(mission_plan = None,
-                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
-                         save_location = save_location)
-        self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, log)
-        rospy.loginfo("Started new manual mission log")
-        self.started_logs += 1
-        return log
-
-    def update(self):
-        enabled = self.bb.get(bb_enums.ENABLE_MANUAL_MISSION_LOG)
-        log = self.bb.get(bb_enums.MANUAL_MISSION_LOG_OBJ)
-
-        if not enabled:
-            # if we have a log, we save it now
-            # and set it to None, so next time we are
-            # disabled we dont do anything
-            if log is not None:
-                log.save()
-                self.bb.set(bb_enums.MANUAL_MISSION_LOG_OBJ, None)
-                self.num_saved_logs += 1
-
-            self.feedback_message = "Disabled, {} logs saved".format(self.num_saved_logs)
-            return pt.Status.SUCCESS
-
-
-        if log is None:
-            log = self.start_new_log()
-
-        # check if there is already a mission plan
-        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        # otherwise use our default mplan
-        if mplan is None:
-            mplan = self.mplan
-
-        log.log(bb = self.bb,
-                mplan = mplan,
-                t = rospy.get_time())
-
-        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
-
-        return pt.Status.SUCCESS
-
-
-
-
-
-
-class A_SaveMissionLog(pt.behaviour.Behaviour):
-    def __init__(self):
-        super(A_SaveMissionLog, self).__init__(name="A_SaveMissionLog")
-        self.bb = pt.blackboard.Blackboard()
-        self.num_saved_logs = 0
-
-
-    def update(self):
-        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
-        if log is not None:
-            log.save()
-            self.num_saved_logs += 1
-            self.bb.set(bb_enums.MISSION_LOG_OBJ, None)
-            self.feedback_message = "Saved log #{}!".format(self.num_saved_logs)
-        else:
-            self.feedback_message = "#saved logs:{}".format(self.num_saved_logs)
-
-        return pt.Status.SUCCESS
-
-
-class A_UpdateMissionLog(pt.behaviour.Behaviour):
-    def __init__(self):
-        super(A_UpdateMissionLog, self).__init__(name="A_UpdateMissionLog")
-        self.bb = pt.blackboard.Blackboard()
-        self.started_logs = 0
-
-
-    def start_new_log(self, mplan):
-        save_location = self.bb.get(bb_enums.MISSION_LOG_FOLDER)
-        log = MissionLog(mission_plan = mplan,
-                         robot_name = self.bb.get(bb_enums.ROBOT_NAME),
-                         save_location = save_location)
-        self.bb.set(bb_enums.MISSION_LOG_OBJ, log)
-        rospy.loginfo("Started new mission log {}".format(log.data_full_path))
-        self.started_logs += 1
-        return log
-
-
-    def update(self):
-        # only update if there is an unfinalized mission that has been started
-        mplan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if mplan is None:
-            self.feedback_message = "No mission plan!"
-            return pt.Status.FAILURE
-
-
-        log = self.bb.get(bb_enums.MISSION_LOG_OBJ)
-        if log is None:
-            log = self.start_new_log(mplan)
-
-
-        # check if the mission has changed in the meantime
-        # this can happen when the user starts a mission, stops it,
-        # and then starts a different one
-        # we dont wanna log the incomplete one
-        # did it change since we last got called?
-        if abs(log.creation_time - mplan.creation_time) > 5:
-            # it changed!
-            # re-start a log
-            print("Log was old...")
-            log = self.start_new_log(mplan)
-
-
-        log.log(bb = self.bb,
-                mplan = mplan,
-                t = rospy.get_time())
-
-        self.feedback_message = "Log len:{} of log#{}".format(len(log.navigation_trace), self.started_logs)
-
-        return pt.Status.SUCCESS
 
 
 
@@ -344,10 +229,10 @@ class A_SetNextPlanAction(pt.behaviour.Behaviour):
         if not self.do_not_visit:
             mission_plan.visit_wp()
 
-        next_action = mission_plan.get_current_wp()
+        next_action = mission_plan.get_current_wp("SetNextPlanAction")
         if next_action is None:
             self.feedback_message = "Next action was None"
-            rospy.logwarn_throttle(5, "Mission is complete:{}".format(mission_plan.is_complete()))
+            rospy.logwarn_throttle(20, self.feedback_message)
             return pt.Status.FAILURE
 
         rospy.loginfo_throttle_identical(5, "Set CURRENT_PLAN_ACTION {} to: {}".format(self.do_not_visit, str(next_action)))
@@ -450,13 +335,9 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
 
     def make_goal_from_wp(self, wp):
-        # get the goal tolerance as a dynamic variable from the bb
-        goal_tolerance = self.bb.get(bb_enums.WAYPOINT_TOLERANCE)
         # construct the message
         goal = GotoWaypointGoal()
         goal.waypoint = wp.wp
-        goal.waypoint.goal_tolerance = goal_tolerance
-
         return goal
 
 
@@ -472,7 +353,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
     def initialise(self):
         if not self.action_server_ok:
-            self.feedback_message = "No action server found for A_GotoWaypoint!"
+            self.feedback_message = "No action server found for {}!".format(self.action_namespace)
             rospy.logwarn_throttle(5, self.feedback_message)
             return
 
@@ -496,7 +377,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
                 rospy.logwarn(self.feedback_message)
                 return
 
-            wp = mission_plan.get_current_wp()
+            wp = mission_plan.get_current_wp("GotoWaypointAction")
 
         if wp is None:
             if self.wp_from_bb is None:
@@ -514,7 +395,7 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
 
 
         self.action_goal = self.make_goal_from_wp(wp)
-        rospy.loginfo("Goto waypoint goal initialized:"+str(self.action_goal))
+        rospy.loginfo("Goto waypoint goal initialized:"+str(self.action_goal.waypoint.name))
         # ensure that we still need to send the goal
         self.sent_goal = False
 

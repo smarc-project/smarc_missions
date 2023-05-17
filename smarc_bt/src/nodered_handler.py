@@ -6,7 +6,7 @@ import rospy, time, os
 import numpy as np
 
 from mission_plan import MissionPlan
-import imc_enums, bb_enums
+import bb_enums
 
 from smarc_msgs.msg import MissionControl
 
@@ -51,20 +51,8 @@ class NoderedHandler(object):
             self._mc_msg.plan_state = MissionControl.FB_STOPPED
             self._mc_msg.waypoints = []
         else:
-            # there is a plan, inform the planner of its state
             self._mc_msg.name = mission_plan.plan_id
-            if mission_plan.is_complete():
-                self._mc_msg.plan_state = MissionControl.FB_STOPPED
-            elif mission_plan.is_in_progress():
-                if  mission_plan.plan_is_go:
-                    self._mc_msg.plan_state = MissionControl.FB_RUNNING
-                else:
-                    self._mc_msg.plan_state = MissionControl.FB_PAUSED
-            else:
-                self._mc_msg.plan_state = MissionControl.FB_RECEIVED
-
-            # XXX maybe check emergency as well, maybe not meh
-
+            self._mc_msg.plan_state = mission_plan.state
             # mission plan should contain a list of waypoint objects that each contain
             # a GotoWaypoint object called wp
             self._mc_msg.waypoints = [wp.wp for wp in mission_plan.waypoints]
@@ -82,7 +70,7 @@ class NoderedHandler(object):
         if current_mission.plan_id != msg.name:
             s = "Command given for: {}, but we got: {}, stopping current mission!".format(msg.name, current_mission.plan_id)
             rospy.loginfo(s)
-            current_mission.plan_is_go = False
+            current_mission.stop_mission()
             return False
         return True
 
@@ -100,9 +88,9 @@ class NoderedHandler(object):
 
     def _save_mission(self, msg):
         path = os.path.expanduser(self._config.MISSION_PLAN_STORAGE_FOLDER)
-        #os.makedirs(path, exist_ok=True)
         if not os.path.exists(path):
             os.makedirs(path)
+            
         filename = os.path.join(path, msg.name+".json")
         with open(filename, 'w') as f:
             j = json_message_converter.convert_ros_message_to_json(msg)
@@ -145,7 +133,6 @@ class NoderedHandler(object):
         # or the loaded mission message is good to use
         self._save_mission(msg)
         new_plan = MissionPlan(auv_config = self._config,
-                               plan_id = msg.name,
                                mission_control_msg = msg)
 
         self._bb.set(bb_enums.MISSION_PLAN_OBJ, new_plan)
@@ -159,48 +146,58 @@ class NoderedHandler(object):
             return
 
         # there might be a command from nodered, check it
-
         msg = self._last_received_mc_msg
-        current_mission = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
-        if msg.command == MissionControl.CMD_START:
-            # start a mission, but check that the start is given
-            # for the mission we got
-            # finally, start given for the mission we got...
-            if self._command_matches_known_mission(msg):
-                if current_mission.is_complete():
-                    current_mission.current_wp_index = 0
-                    current_mission.plan_is_go = True
-                    rospy.loginfo("RE-Started mission {}".format(msg.name))
-                else:
-                    rospy.loginfo("Started mission {}".format(msg.name))
-                    current_mission.plan_is_go = True
 
-        elif msg.command == MissionControl.CMD_STOP:
-            if self._command_matches_known_mission(msg):
-                rospy.loginfo("Stopped and removed mission {}".format(msg.name))
-                self._bb.set(bb_enums.MISSION_PLAN_OBJ, None)
+        if msg.command == MissionControl.CMD_IS_FEEDBACK:
+            # just silently ignore these
+            return
 
-        elif msg.command == MissionControl.CMD_PAUSE:
-            if self._command_matches_known_mission(msg):
-                rospy.loginfo("Paused mission {}".format(msg.name))
-                current_mission.plan_is_go = False
-
-        elif msg.command == MissionControl.CMD_EMERGENCY:
-            self._vehicle.abort()
-            rospy.logwarn("Aborted")
-
-        elif msg.command == MissionControl.CMD_SET_PLAN:
+        if msg.command == MissionControl.CMD_SET_PLAN:
+            rospy.loginfo("SET PLAN command received")
             self._set_plan(msg)
+            return
 
-        elif msg.command == MissionControl.CMD_IS_FEEDBACK:
-            # do nothing with feedback
-            pass
-
-        elif msg.command == MissionControl.CMD_REQUEST_FEEDBACK:
+        if msg.command == MissionControl.CMD_REQUEST_FEEDBACK:
+            rospy.loginfo("REQ FEEDBACK command received")
             self._publish_current_plan()
+            return
 
-        else:
-            pass
+        # other commands rely on the current mission in ways
+        current_mission = self._bb.get(bb_enums.MISSION_PLAN_OBJ)
+        # first order of buisness, if its an emergency, or a mission-indep message
+        # handle that
+        if msg.command == MissionControl.CMD_EMERGENCY:
+            rospy.loginfo("EMERGENCY command received")
+            current_mission.emergency()
+            rospy.logwarn("Aborted")
+            return
+
+
+        # anything else, we need to check if the command
+        # actually matches what we have already
+        if not self._command_matches_known_mission(msg):
+            rospy.logwarn("Received message ({}) doesn't match the current plan! Ignoring it!".format(msg))
+            return
+
+        if msg.command == MissionControl.CMD_START:
+            rospy.loginfo("START command received")
+            if current_mission.state in [MissionControl.FB_STOPPED, MissionControl.FB_RECEIVED]:
+                current_mission.start_mission()
+                return
+
+            if current_mission.state == MissionControl.FB_PAUSED:
+                current_mission.continue_mission()
+                return
+
+        if msg.command == MissionControl.CMD_STOP:
+            rospy.loginfo("STOP command received")
+            current_mission.stop_mission()
+            return
+
+        if msg.command == MissionControl.CMD_PAUSE:
+            rospy.loginfo("PAUSE command received")
+            current_mission.pause_mission()
+            return
 
 
 

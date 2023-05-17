@@ -83,7 +83,6 @@ class Vehicle(object):
         self.last_goto_wp = GotoWaypoint()
         self._last_wp_pub = rospy.Publisher(self.auv_config.LAST_WP_TOPIC, GotoWaypoint, queue_size=1)
 
-        self.aborted = False
 
     def __str__(self):
         anim = self._animation.__str__()
@@ -96,16 +95,10 @@ class Vehicle(object):
         ]
 
         s = ""
-        if self.aborted:
-            s += "ABORTED"
-            return s
 
         for name, frame, string in status:
             s += "{}:{} - {}\n".format(name, frame, string)
         return s
-
-    def abort(self):
-        self.aborted = True
 
 
     def _init_tf_vars(self):
