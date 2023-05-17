@@ -140,25 +140,25 @@ class WPDepthPlanner(object):
 
         # Diving logic to use VBS at low speeds below 0.5 m/s
         #TODO: we need something more clever here to compute the setpoint
-        if np.abs(self.vel_feedback) < 0.5:
-            self.elev_pid_sp.publish(
-                self.nav_goal.waypoint.pose.pose.position.z)
-        else:
-            self.elev_pid_sp.publish(
-                self.nav_goal.waypoint.pose.pose.position.z)
+        # if np.abs(self.vel_feedback) < 0.5:
+        self.elev_pid_sp.publish(
+            self.nav_goal.waypoint.pose.pose.position.z)
+        # else:
+        #     self.vbs_pid_sp.publish(
+        #         self.nav_goal.waypoint.pose.pose.position.z)
      
 
     def disengage_actuators(self):
 
         # Stop thrusters
-        # self.vel_pub.publish(0.0)
         rpm1 = ThrusterRPM()
         rpm2 = ThrusterRPM()
         rpm1.rpm = 0
         rpm2.rpm = 0
         self.rpm1_pub.publish(rpm1)
         self.rpm2_pub.publish(rpm2)
-        # self.rpm_enable_pub.publish(False)
+        self.yaw_pid_enable.publish(False)
+        self.elev_pid_enable.publish(False)
         
         
     def execute_cb(self, goal):
@@ -184,6 +184,10 @@ class WPDepthPlanner(object):
             self.wp_tolerance = goal.waypoint.goal_tolerance #take the goal tolerance from Neptus if it exists!
             rospy.loginfo_throttle(5,'Using Goal tolerance from UI:'+ str(goal.waypoint.goal_tolerance))
 
+        # Enable controllers
+        self.yaw_pid_enable.publish(True)
+        self.elev_pid_enable.publish(True)
+        rate = rospy.Rate(self.node_freq)
         
         while not rospy.is_shutdown() and self.nav_goal is not None:
 
@@ -194,6 +198,7 @@ class WPDepthPlanner(object):
             goal_point.point.x = self.nav_goal.waypoint.pose.pose.position.x
             goal_point.point.y = self.nav_goal.waypoint.pose.pose.position.y
             goal_point.point.z = self.nav_goal.waypoint.pose.pose.position.z
+            
             try:
                 goal_point_local = self.listener.transformPoint(
                     self.base_frame_2d, goal_point)
@@ -260,7 +265,8 @@ class WPDepthPlanner(object):
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 print("Heading controller: Could not transform WP to base_link")
                 pass
-
+            
+            rate.sleep()
 
 
 
@@ -270,13 +276,16 @@ class WPDepthPlanner(object):
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
         self.base_frame_2d = rospy.get_param('~base_frame_2d', "sam/base_link")
         self.wp_tolerance = rospy.get_param('~wp_tolerance', 5.) #default value, overriden by Neptus if it is set in Neptus
+        self.node_freq = rospy.get_param("node_freq", "20.")
         # self.depth_tolerance = rospy.get_param('~depth_tolerance', 0.5)
-
         rpm1_cmd_topic = rospy.get_param('~rpm1_cmd_topic', '/sam/core/thruster1_cmd')
         rpm2_cmd_topic = rospy.get_param('~rpm2_cmd_topic', '/sam/core/thruster2_cmd')
         heading_setpoint_topic = rospy.get_param('~heading_setpoint_topic', '/sam/ctrl/dynamic_heading/setpoint')
-        heading_state_topic = rospy.get_param('~heading_state_topic', '')   #TODO: connect this one
+        heading_state_topic = rospy.get_param('~heading_state_topic', '')   
+        heading_enable_topic = rospy.get_param('~heading_enable_topic', '')   
         elev_setpoint_topic = rospy.get_param('~elevator_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
+        elev_enable_topic = rospy.get_param('~elevator_enable_topic', '/sam/ctrl/dynamic_depth/setpoint')
+        vbs_setpoint_topic = rospy.get_param('~vbs_setpoint_topic', '/sam/ctrl/dynamic_depth/setpoint')
         
         self.forward_rpm = 0.
         self.vel_ctrl_flag = False
@@ -285,7 +294,10 @@ class WPDepthPlanner(object):
         
         self.yaw_pid_sp = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.yaw_pid_state = rospy.Publisher(heading_state_topic, Float64, queue_size=10)
+        self.yaw_pid_enable = rospy.Publisher(heading_enable_topic, Bool, queue_size=10)
         self.elev_pid_sp = rospy.Publisher(elev_setpoint_topic, Float64, queue_size=10)
+        self.elev_pid_enable = rospy.Publisher(elev_enable_topic, Bool, queue_size=10)
+        self.vbs_pid_sp = rospy.Publisher(vbs_setpoint_topic, Float64, queue_size=10)
         self.rpm1_pub = rospy.Publisher(rpm1_cmd_topic, ThrusterRPM, queue_size=10)
         self.rpm2_pub = rospy.Publisher(rpm2_cmd_topic, ThrusterRPM, queue_size=10)
 
