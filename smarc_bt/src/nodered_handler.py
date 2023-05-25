@@ -154,6 +154,13 @@ class NoderedHandler(object):
         rospy.loginfo("New mission {} set!".format(msg.name))
 
 
+    def _publish_fb_dict(self, fb):
+        fb_json = json.dumps(fb)
+        self._btc_msg.msg_type = BTCommand.TYPE_FB
+        self._btc_msg.fb_json = fb_json
+        self._bt_command_pub.publish(self._btc_msg)
+
+
     def _handle_bt_command(self):
         if self._last_received_btc_msg is None:
             return
@@ -163,18 +170,57 @@ class NoderedHandler(object):
             # just ignore feedback
             return
 
+        def _get_filepath():
+            path = os.path.expanduser(self._config.MISSION_LOG_FOLDER)
+            if arg is None:
+                fb = {"error":"No arg given"}
+                self._publish_fb_dict(fb)
+                return None
+            filepath = os.path.join(path, arg)
+            return filepath
+
 
         # turn the cmd_json thing into a dict so we can parse it easy
         cmd_json = json.loads(msg.cmd_json)
         cmd = cmd_json['cmd']
+        try:
+            arg = cmd_json['arg']
+        except:
+            arg = None
+        rospy.loginfo_throttle_identical(10, "Got command: {}, arg: {}".format(cmd, arg))
         if cmd == "request_track_list":
-            rospy.loginfo("Got a request to publish track list!")
-            self._btc_msg.msg_type = BTCommand.TYPE_FB
-            fb = {"fb":"track_list",
-                  "track_list":["a track", "another track"]}
-            fb_json = json.dumps(fb)
-            self._btc_msg.fb_json = fb_json
-            self._bt_command_pub.publish(self._btc_msg)
+            path = os.path.expanduser(self._config.MISSION_LOG_FOLDER)
+            files = sorted(os.listdir(path))
+            files_sizes = []
+            for file in files:
+                filepath = os.path.join(path, file)
+                stats = os.stat(filepath)
+                filesize = stats.st_size/1024
+                files_sizes.append({"filename":file, "filesize":filesize})
+            fb = {"track_list":files_sizes}
+            self._publish_fb_dict(fb)
+
+        if cmd == "download_track":
+            filepath = _get_filepath()
+            if filepath is None: return
+            with open(filepath, 'r') as f:
+                track = f.read()
+            fb = {"track":track}
+            self._publish_fb_dict(fb)
+
+        if cmd == "delete_track":
+            filepath = _get_filepath()
+            if filepath is None: return
+            os.remove(filepath)
+            fb = {"result":"Deleted {}".format(arg)}
+            self._publish_fb_dict(fb)
+
+        if cmd == "size_track":
+            filepath = _get_filepath()
+            if filepath is None: return
+            stat = os.stat(filepath)
+            fb = {"result":"Size= {} Bytes".format(stat.st_size)}
+            self._publish_fb_dict(fb)
 
 
 

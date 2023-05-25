@@ -390,7 +390,7 @@ def main():
         vehicle.tick(tf_listener)
         mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
         if mplan is not None:
-            mplan.update()
+            mplan.tick()
         nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()

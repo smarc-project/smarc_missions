@@ -68,6 +68,7 @@ LOCALIZATION_ERROR_GROWTH : 0.02
 # Mission logging file location
 MISSION_LOG_FOLDER : '~/MissionLogs/'
 ENABLE_MANUAL_MISSION_LOG : False
+MISSION_LOG_AUTOSAVE_INTERVAL_SECS: 30
 
 # Mission plan storage
 MISSION_PLAN_STORAGE_FOLDER : "~/MissionPlans/"

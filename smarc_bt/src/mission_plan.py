@@ -201,7 +201,7 @@ class MissionPlan:
         self.track = MissionLog(self)
 
 
-    def update(self):
+    def tick(self):
         """
         A general update function to call for the mission plan
         Useful for things that might rely on mission state
