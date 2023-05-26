@@ -27,8 +27,8 @@ from std_msgs.msg import Empty
 
 def make_random_plan(mission_name="test mission", timeout=600):
     mc = MissionControl()
-    rnd = "".join([random.choice("test mission") for i in range(10)])
-    mc.name = "{} -{}".format(mission_name, rnd)
+    rnd = "".join([random.choice("testmission") for i in range(10)])
+    mc.name = "TEST-- {} -{}".format(mission_name, rnd)
     mc.hash = "nohash"
     mc.timeout = timeout
     mc.command = MissionControl.CMD_SET_PLAN

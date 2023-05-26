@@ -102,6 +102,10 @@ class NoderedHandler(object):
 
 
     def _save_mission(self, msg):
+        if "TEST--" in msg.name:
+            rospy.loginfo("Test mission, not saving")
+            return
+
         path = os.path.expanduser(self._config.MISSION_PLAN_STORAGE_FOLDER)
         if not os.path.exists(path):
             os.makedirs(path)

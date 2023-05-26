@@ -229,8 +229,11 @@ class MissionLog(object):
         }
 
         with open(self.filepath, 'w') as f:
-            json.dump(dict_track, f)
-            rospy.loginfo("Dumped log into {}".format(self.filepath))
+            if not "TEST--" in dict_track["name"]:
+                json.dump(dict_track, f)
+                rospy.loginfo("Dumped log into {}".format(self.filepath))
+            else:
+                rospy.loginfo("Test mission, not dumping logs")
 
         self.last_save = time.time()
 
