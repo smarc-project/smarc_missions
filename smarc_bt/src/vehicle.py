@@ -8,8 +8,9 @@ import time
 import rospy, tf
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
-from smarc_msgs.msg import DVL, Leak, GotoWaypoint
-from sensor_msgs.msg import NavSatFix
+from smarc_msgs.msg import DVL, Leak, GotoWaypoint, ThrusterFeedback
+from sensor_msgs.msg import NavSatFix, BatteryState
+from sam_msgs.msg import PercentStamped
 
 
 class StringAnimation(object):
@@ -49,6 +50,11 @@ class Vehicle(object):
         self.auv_config = auv_config
         self.robot_name = auv_config.robot_name
 
+        # for visualizations
+        self._animation = StringAnimation(num_slots=5)
+        self.last_goto_wp = GotoWaypoint()
+        self._last_wp_pub = rospy.Publisher(self.auv_config.LAST_WP_TOPIC, GotoWaypoint, queue_size=1)
+
         self._init_tf_vars()
         # some state strings to be reported in case of trouble
         self._status_str_tf = "Uninitialized"
@@ -77,11 +83,23 @@ class Vehicle(object):
         self._status_str_gps = "Uninitialized"
         self._last_update_gps = -1
 
+        # VBS, LCG
+        self.vbs = None
+        self.lcg = None
+        self._vbs_sub = rospy.Subscriber(self.auv_config.VBS_TOPIC, PercentStamped, self._vbs_cb, queue_size=2)
+        self._lcg_sub = rospy.Subscriber(self.auv_config.LCG_TOPIC, PercentStamped, self._lcg_cb, queue_size=2)
 
-        # for visualizations
-        self._animation = StringAnimation(num_slots=5)
-        self.last_goto_wp = GotoWaypoint()
-        self._last_wp_pub = rospy.Publisher(self.auv_config.LAST_WP_TOPIC, GotoWaypoint, queue_size=1)
+        # thrusters
+        self.t1 = None
+        self.t2 = None
+        self._t1_sub = rospy.Subscriber(self.auv_config.T1_TOPIC, ThrusterFeedback, self._t1_cb, queue_size=2)
+        self._t2_sub = rospy.Subscriber(self.auv_config.T2_TOPIC, ThrusterFeedback, self._t2_cb, queue_size=2)
+
+        # battery
+        self.batt_v = None
+        self.batt_percent = None
+        self._batt_sub = rospy.Subscriber(self.auv_config.BATT_TOPIC, BatteryState, self._batt_cb, queue_size=2)
+
 
 
     def __str__(self):
@@ -204,6 +222,19 @@ class Vehicle(object):
         self._last_update_gps = time.time()
         self._animation.update(4)
 
+    def _vbs_cb(self, msg):
+        self.vbs = msg.value
 
+    def _lcg_cb(self, msg):
+        self.lcg = msg.value
 
+    def _t1_cb(self, msg):
+        self.t1 = msg.rpm.rpm
+
+    def _t2_cb(self, msg):
+        self.t2 = msg.rpm.rpm
+
+    def _batt_cb(self, msg):
+        self.batt_v = msg.voltage
+        self.batt_percent = msg.percentage
 

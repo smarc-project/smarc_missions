@@ -15,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   sensor_msgs
   actionlib_msgs
-  imc_ros_bridge
   ddynamic_reconfigure_python
   visualization_msgs
   lolo_msgs
@@ -176,6 +175,7 @@ install(PROGRAMS
   src/bt_conditions.py
   src/common_globals.py
   src/mission_plan.py
+  src/mission_log.py
   src/reconfig_server.py
   src/coverage_planner.py
   src/vehicle.py

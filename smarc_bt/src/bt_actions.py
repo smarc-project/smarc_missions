@@ -109,8 +109,7 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         if self.last_read_wp is None:
             return pt.Status.SUCCESS
 
-        wp = Waypoint(goto_waypoint = self.last_read_wp,
-                      imc_man_id = imc_enums.MANEUVER_GOTO)
+        wp = Waypoint(goto_waypoint = self.last_read_wp)
 
 
         frame_id = self.last_read_wp.pose.header.frame_id

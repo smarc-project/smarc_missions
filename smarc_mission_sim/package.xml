@@ -57,7 +57,6 @@
   <build_depend>nav_msgs</build_depend>
   <build_depend>tf2_ros</build_depend>
   <build_depend>tf2_geometry_msgs</build_depend>
-  <build_depend>imc_ros_bridge</build_depend>
   <build_depend>rostest</build_depend>
   <build_depend>tf_lat_lon</build_depend>
   <build_depend>lolo_description</build_depend>
@@ -69,7 +68,6 @@
   <build_export_depend>nav_msgs</build_export_depend>
   <build_export_depend>tf2_ros</build_export_depend>
   <build_export_depend>tf2_geometry_msgs</build_export_depend>
-  <build_export_depend>imc_ros_bridge</build_export_depend>
   <build_export_depend>tf_lat_lon</build_export_depend>
   <build_export_depend>lolo_description</build_export_depend>
   <build_export_depend>bt_mission</build_export_depend>
@@ -80,7 +78,6 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
-  <exec_depend>imc_ros_bridge</exec_depend>
   <exec_depend>tf_lat_lon</exec_depend>
   <exec_depend>lolo_description</exec_depend>
   <exec_depend>bt_mission</exec_depend>

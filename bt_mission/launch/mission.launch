@@ -2,16 +2,6 @@
 
     <arg name="robot_name" default="sam"/>
 
-	<!-- Bridge related -->
-	<!--<arg name="neptus_addr" default="127.0.0.1"/>-->
-	<!--<arg name="bridge_addr" default="127.0.0.1"/>-->
-	<!--<arg name="bridge_port" default="6002"/>-->
-	<!--<arg name="node_name" default="imc_bridge"/>	-->
-	<!-- 4=imc_ros_bridge, 5=sam, 6=lolo as defined in neptus configs -->
-	<!--<arg name="imc_id" default="5"/>-->
-	<!--<arg name="imc_src" default="$(arg imc_id)"/>-->
-	<!--<arg name="imc_system_name" default="sam"/>-->
-
 	<!-- Start all actions before the BT -->
 	<!--All the minute configs are in its own config file in the launch dir-->
 	<include file="$(find smarc_bt)/launch/smarc_bt.launch">

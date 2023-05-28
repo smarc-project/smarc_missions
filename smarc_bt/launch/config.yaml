@@ -7,8 +7,13 @@ GPS_TOPIC : 'core/gps'
 ROLL_TOPIC : 'dr/roll'
 PITCH_TOPIC : 'dr/pitch'
 YAW_TOPIC : 'dr/yaw'
+VBS_TOPIC: 'core/vbs_fb'
+LCG_TOPIC: 'core/lcg_fb'
+T1_TOPIC: 'core/thruster1_fb'
+T2_TOPIC: 'core/thruster2_fb'
+BATT_TOPIC: 'core/battery'
 
-EMERGENCY_TOPIC : 'core/abort'
+ABORT_TOPIC : 'core/abort'
 HEARTBEAT_TOPIC : 'core/heartbeat'
 MISSION_COMPLETE_TOPIC : 'core/mission_complete'
 
@@ -41,19 +46,10 @@ BASE_LINK : 'base_link'
 UTM_LINK : 'utm'
 LOCAL_LINK : 'map'
 
-# imc related stuff, most likely never changes
-PLANDB_TOPIC : 'imc/plan_db'
-PLAN_CONTROL_TOPIC : 'imc/plan_control'
-ESTIMATED_STATE_TOPIC : 'imc/estimated_state'
-PLAN_CONTROL_STATE_TOPIC : 'imc/plan_control_state'
-VEHICLE_STATE_TOPIC : 'imc/vehicle_state'
-ABORT_TOPIC : 'imc/abort'
-GPSFIX_TOPIC : 'imc/gps_fix'
-GPS_NAV_DATA_TOPIC : 'imc/gps_nav_data'
-
 # mqtt related stuff
 LAST_WP_TOPIC : 'smarc_bt/last_wp'
 MISSION_CONTROL_TOPIC : 'smarc_bt/mission_control'
+BTCOMMAND_TOPIC: 'smarc_bt/bt_command'
 
 # hard values
 MAX_DEPTH : 20
@@ -72,6 +68,7 @@ LOCALIZATION_ERROR_GROWTH : 0.02
 # Mission logging file location
 MISSION_LOG_FOLDER : '~/MissionLogs/'
 ENABLE_MANUAL_MISSION_LOG : False
+MISSION_LOG_AUTOSAVE_INTERVAL_SECS: 30
 
 # Mission plan storage
 MISSION_PLAN_STORAGE_FOLDER : "~/MissionPlans/"

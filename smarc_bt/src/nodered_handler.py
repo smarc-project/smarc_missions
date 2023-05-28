@@ -4,11 +4,12 @@
 
 import rospy, time, os
 import numpy as np
+import json
 
 from mission_plan import MissionPlan
 import bb_enums
 
-from smarc_msgs.msg import MissionControl
+from smarc_msgs.msg import MissionControl, BTCommand
 
 from rospy_message_converter import json_message_converter
 
@@ -39,8 +40,22 @@ class NoderedHandler(object):
                                                     MissionControl,
                                                     queue_size=1)
 
+        self._last_received_btc_msg = None
+        self._bt_command_sub = rospy.Subscriber(self._config.BTCOMMAND_TOPIC,
+                                                BTCommand,
+                                                self._bt_command_cb,
+                                                queue_size=1)
+
+        self._btc_msg = BTCommand()
+        self._bt_command_pub = rospy.Publisher(self._config.BTCOMMAND_TOPIC,
+                                                    BTCommand,
+                                                    queue_size=1)
+
     def _mission_control_cb(self, msg):
         self._last_received_mc_msg = msg
+
+    def _bt_command_cb(self, msg):
+        self._last_received_btc_msg = msg
 
     def _publish_current_plan(self):
         # simply publish the current plan at every tick
@@ -87,10 +102,14 @@ class NoderedHandler(object):
 
 
     def _save_mission(self, msg):
+        if "TEST--" in msg.name:
+            rospy.loginfo("Test mission, not saving")
+            return
+
         path = os.path.expanduser(self._config.MISSION_PLAN_STORAGE_FOLDER)
         if not os.path.exists(path):
             os.makedirs(path)
-            
+
         filename = os.path.join(path, msg.name+".json")
         with open(filename, 'w') as f:
             j = json_message_converter.convert_ros_message_to_json(msg)
@@ -139,9 +158,78 @@ class NoderedHandler(object):
         rospy.loginfo("New mission {} set!".format(msg.name))
 
 
-    def tick(self):
-        self._publish_current_plan()
+    def _publish_fb_dict(self, fb):
+        fb_json = json.dumps(fb)
+        self._btc_msg.msg_type = BTCommand.TYPE_FB
+        self._btc_msg.fb_json = fb_json
+        self._bt_command_pub.publish(self._btc_msg)
 
+
+    def _handle_bt_command(self):
+        if self._last_received_btc_msg is None:
+            return
+        msg = self._last_received_btc_msg
+
+        if msg.msg_type == BTCommand.TYPE_FB:
+            # just ignore feedback
+            return
+
+        def _get_filepath():
+            path = os.path.expanduser(self._config.MISSION_LOG_FOLDER)
+            if arg is None:
+                fb = {"error":"No arg given"}
+                self._publish_fb_dict(fb)
+                return None
+            filepath = os.path.join(path, arg)
+            return filepath
+
+
+        # turn the cmd_json thing into a dict so we can parse it easy
+        cmd_json = json.loads(msg.cmd_json)
+        cmd = cmd_json['cmd']
+        try:
+            arg = cmd_json['arg']
+        except:
+            arg = None
+        rospy.loginfo_throttle_identical(10, "Got command: {}, arg: {}".format(cmd, arg))
+        if cmd == "request_track_list":
+            path = os.path.expanduser(self._config.MISSION_LOG_FOLDER)
+            files = sorted(os.listdir(path))
+            files_sizes = []
+            for file in files:
+                filepath = os.path.join(path, file)
+                stats = os.stat(filepath)
+                filesize = stats.st_size/1024
+                files_sizes.append({"filename":file, "filesize":filesize})
+            fb = {"track_list":files_sizes}
+            self._publish_fb_dict(fb)
+
+        if cmd == "download_track":
+            filepath = _get_filepath()
+            if filepath is None: return
+            with open(filepath, 'r') as f:
+                track = f.read()
+            fb = {"track":track}
+            self._publish_fb_dict(fb)
+
+        if cmd == "delete_track":
+            filepath = _get_filepath()
+            if filepath is None: return
+            os.remove(filepath)
+            fb = {"result":"Deleted {}".format(arg)}
+            self._publish_fb_dict(fb)
+
+        if cmd == "size_track":
+            filepath = _get_filepath()
+            if filepath is None: return
+            stat = os.stat(filepath)
+            fb = {"result":"Size= {} Bytes".format(stat.st_size)}
+            self._publish_fb_dict(fb)
+
+
+
+
+    def _handle_mission_control(self):
         if self._last_received_mc_msg is None:
             return
 
@@ -200,7 +288,9 @@ class NoderedHandler(object):
             return
 
 
-
-
+    def tick(self):
+        self._publish_current_plan()
+        self._handle_mission_control()
+        self._handle_bt_command()
 
 
