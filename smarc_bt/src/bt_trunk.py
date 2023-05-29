@@ -22,10 +22,7 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty, Bool
-from smarc_msgs.msg import Leak, DVL, MissionControl
-from sensor_msgs.msg import NavSatFix
-from geometry_msgs.msg import PointStamped, PoseStamped
-from geographic_msgs.msg import GeoPoint
+from smarc_bt.msg import MissionControl
 
 from auv_config import AUVConfig
 from reconfig_server import ReconfigServer
@@ -185,7 +182,7 @@ def const_tree(auv_config):
 
         abort = Sequence(name="SQ_ABORT",
                          children = [
-                             A_SimplePublisher(topic=auv_config.EMERGENCY_TOPIC,
+                             A_SimplePublisher(topic=auv_config.ABORT_TOPIC,
                                                message_object = Empty()),
                              A_AbortPlan(),
                              A_GotoWaypoint(auv_config = auv_config,
@@ -372,7 +369,7 @@ def main():
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         if not setup_ok:
             rospy.logerr("Tree could not be setup! Retrying in 5s!")
-            sleep(5)
+            time.sleep(5)
 
 
     # print out the config and the BT on screen
@@ -386,20 +383,18 @@ def main():
     while not rospy.is_shutdown():
         # some info _about the tree_ in the BB.
         # better do this outside the tree
-        tip = tree.tip()
-        if tip is None:
-            bb.set(bb_enums.TREE_TIP_NAME, '')
-            bb.set(bb_enums.TREE_TIP_STATUS, 'Status.X')
-        else:
-            bb.set(bb_enums.TREE_TIP_NAME, tip.name)
-            bb.set(bb_enums.TREE_TIP_STATUS, str(tip.status))
+        bb.set(bb_enums.TREE_TIP, tree.tip())
 
         # update the TF of the vehicle first
         # print(vehicle)
         vehicle.tick(tf_listener)
+        mplan = bb.get(bb_enums.MISSION_PLAN_OBJ)
+        if mplan is not None:
+            mplan.tick()
         nodered_handler.tick()
         # an actual tick, finally.
         tree.tick()
+        bb.set(bb_enums.LAST_HEARTBEAT_TIME, time.time())
 
         # use py-trees-tree-watcher if you can
         #  pt.display.print_ascii_tree(tree.root, show_status=True)

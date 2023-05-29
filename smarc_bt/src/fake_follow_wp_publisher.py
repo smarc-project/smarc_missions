@@ -8,7 +8,7 @@ import rospy
 import time
 import math
 
-from smarc_msgs.msg import GotoWaypoint
+from smarc_bt.msg import GotoWaypoint
 from std_msgs.msg import Float64, Header, Bool, Empty
 
 

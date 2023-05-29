@@ -23,7 +23,7 @@ from sam_msgs.msg import PercentStamped
 from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool, Empty
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
+from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
 from std_srvs.srv import SetBool
 import time
 

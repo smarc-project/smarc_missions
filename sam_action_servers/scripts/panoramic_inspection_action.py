@@ -17,7 +17,7 @@ from __future__ import division, print_function
 import numpy as np
 from geometry_msgs.msg import PoseStamped, PointStamped
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
+from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
 import actionlib
 import rospy
 import tf

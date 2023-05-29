@@ -15,7 +15,7 @@
 from __future__ import division, print_function
 
 import numpy as np
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
+from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
 import actionlib
 import rospy
 import tf

@@ -4,20 +4,18 @@
 # Ozer Ozkahraman (ozero@kth.se)
 
 import rospy
-import tf
 import time
 import math
 import numpy as np
 
-import common_globals
-import bb_enums
-
-from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray
+from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
-from smarc_msgs.msg import GotoWaypointGoal, GotoWaypoint, MissionControl
+from smarc_bt.msg import GotoWaypoint, MissionControl
 
 from coverage_planner import create_coverage_path
+from mission_log import MissionLog
+
 
 class Waypoint:
     def __init__(self, goto_waypoint = None):
@@ -197,17 +195,39 @@ class MissionPlan:
         if mission_control_msg is not None:
             self._read_mission_control(mission_control_msg)
 
+        # A track recording, in case this is a useful mission
+        # Need to do this after read_mission_control otherwise
+        # it wont know the name of the mission
+        self.track = MissionLog(self)
+
+
+    def tick(self):
+        """
+        A general update function to call for the mission plan
+        Useful for things that might rely on mission state
+        AND are not event-driven
+        """
+        # Decide if we should be recording the state of the vehicle
+        # given the state of the mission plan
+        # We want to start a recording when the mission starts
+        # and end it when its stopped for whatever reason
+        if self.track.recording:
+            self.track.record()
+
+
 
     def _change_state(self, new_state):
         if self.state == MissionControl.FB_EMERGENCY:
             rospy.logwarn("Mission in emergency state! Not changing that!")
             return
+        if new_state == self.state:
+            return
 
-        if new_state != self.state:
-            a = MissionPlan.state_names[self.state]
-            b = MissionPlan.state_names[new_state]
-            rospy.loginfo("{} -> {}".format(a,b))
-            self.state = new_state
+        a = MissionPlan.state_names[self.state]
+        b = MissionPlan.state_names[new_state]
+        rospy.loginfo("{} -> {}".format(a,b))
+        self.state = new_state
+
 
     def _read_mission_control(self, msg):
         """
@@ -237,7 +257,7 @@ class MissionPlan:
     def __str__(self):
         s = self.plan_id+':\n'
         for wp in self.waypoints:
-            s += '\t'+str(wp)+'\n'
+            s += "->"+wp.wp.name
         return s
 
     def start_mission(self):
@@ -245,30 +265,34 @@ class MissionPlan:
         self.current_wp_index = 0
         rospy.loginfo("{} Started".format(self.plan_id))
         self._change_state(MissionControl.FB_RUNNING)
+        self.track.start_recording()
 
     def pause_mission(self):
         rospy.loginfo("{} Paused".format(self.plan_id))
         self._change_state(MissionControl.FB_PAUSED)
+        self.track.pause_recording()
 
     def continue_mission(self):
         rospy.loginfo("{} Continueing".format(self.plan_id))
         self._change_state(MissionControl.FB_RUNNING)
-
+        self.track.continue_recording()
 
     def stop_mission(self):
         self.current_wp_index = -1
         rospy.loginfo("{} Stopped".format(self.plan_id))
         self._change_state(MissionControl.FB_STOPPED)
+        self.track.stop_recording()
 
     def complete_mission(self):
         rospy.loginfo("{} Completed".format(self.plan_id))
         self._change_state(MissionControl.FB_COMPLETED)
-
+        self.track.complete_recording()
 
     def emergency(self):
         self.current_wp_index = -1
         rospy.logwarn("{} EMERGENCY".format(self.plan_id))
         self._change_state(MissionControl.FB_EMERGENCY)
+        self.track.stop_recording()
 
     def time_remaining(self):
         if self.mission_start_time is None:

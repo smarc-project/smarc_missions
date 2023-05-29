@@ -1,7 +1,6 @@
 - git: {local-name: smarc_missions, uri: 'https://github.com/smarc-project/smarc_missions.git', version: noetic-devel}
 - git: {local-name: smarc_navigation, uri: 'https://github.com/smarc-project/smarc_navigation.git', version: noetic-devel}
 - git: {local-name: smarc_msgs, uri: 'https://github.com/smarc-project/smarc_msgs.git', version: noetic-devel}
-- git: {local-name: imc_ros_bridge, uri: 'https://github.com/smarc-project/imc_ros_bridge.git', version: noetic-devel}
 - git: {local-name: smarc_nodered, uri: 'https://github.com/smarc-project/smarc_nodered.git', version: noetic-devel}
 - git: {local-name: lolo_common, uri: 'https://github.com/smarc-project/lolo_common.git', version: noetic-devel}
 - git: {local-name: sbg_ros_driver, uri: 'https://github.com/smarc-project/sbg_ros_driver.git', version: master}

@@ -7,5 +7,5 @@ CMake -> test/fake_user.launch
 	- odom_tf.launch
 	- smarc_mission_sim/mission_sim_node
 	- smarc_mission_sim/fake_hardware.py
-	- bt_mission/mission.launch
+	- smarc_bt/mission.launch
 - fake_nodered.py
