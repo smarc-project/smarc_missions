@@ -33,9 +33,9 @@
 	</include>
 
 	<!-- Planned surface node -->
-	<include file="$(find sam_action_servers)/launch/mission_complete_node.launch" >
+	<!-- <include file="$(find sam_action_servers)/launch/mission_complete_node.launch" >
 		<arg name="robot_name" value="$(arg namespace)"/>	
-	</include>
+	</include> -->
 
     
 </launch>

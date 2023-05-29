@@ -160,7 +160,7 @@ class WPDepthPlanner(object):
         self.rpm1_pub.publish(rpm1)
         self.rpm2_pub.publish(rpm2)
         self.yaw_pid_enable.publish(False)
-        self.elev_pid_enable.publish(False)
+        # self.elev_pid_enable.publish(False)
         
         
     def execute_cb(self, goal):
@@ -188,7 +188,7 @@ class WPDepthPlanner(object):
 
         # Enable controllers
         self.yaw_pid_enable.publish(True)
-        self.elev_pid_enable.publish(True)
+        # self.elev_pid_enable.publish(True)
         rate = rospy.Rate(self.node_freq)
         
         while not rospy.is_shutdown() and self.nav_goal is not None:
