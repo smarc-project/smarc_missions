@@ -24,8 +24,8 @@ from lolo import Lolo
 from ros_lolo import ROSLolo
 
 
-from smarc_msgs.msg import GotoWaypoint
-from smarc_msgs.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypointAction
+from smarc_bt.msg import GotoWaypoint
+from smarc_bt.msg import GotoWaypointFeedback, GotoWaypointResult, GotoWaypointAction
 
 
 def get_param(name, default=None):

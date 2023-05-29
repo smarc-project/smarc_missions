@@ -22,7 +22,7 @@
 
 <!--Instead of launching the entire mission, that also has nodered, just launch the bt-->
 <!--This doesnt test anything but the BT anyways-->
-<!--<include file="$(find bt_mission)/launch/mission.launch">-->
+<!--<include file="$(find smarc_bt)/launch/mission.launch">-->
     <!--<arg name="robot_name" value="$(arg robot_name)"/>-->
 <!--</include>-->
 <include file="$(find smarc_bt)/launch/smarc_bt.launch">

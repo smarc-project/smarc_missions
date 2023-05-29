@@ -22,7 +22,7 @@ from py_trees.composites import Selector as Fallback
 
 # messages
 from std_msgs.msg import Float64, Empty, Bool
-from smarc_msgs.msg import MissionControl
+from smarc_bt.msg import MissionControl
 
 from auv_config import AUVConfig
 from reconfig_server import ReconfigServer

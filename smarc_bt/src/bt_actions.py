@@ -14,7 +14,8 @@ import rospy
 import tf
 import actionlib
 
-from smarc_msgs.msg import GotoWaypointAction, GotoWaypointGoal, FloatStamped, GotoWaypoint, MissionControl
+from smarc_msgs.msg import FloatStamped
+from smarc_bt.msg import GotoWaypointAction, GotoWaypointGoal, GotoWaypoint, MissionControl
 from smarc_msgs.srv import UTMToLatLon, LatLonToUTM
 import actionlib_msgs.msg as actionlib_msgs
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Point

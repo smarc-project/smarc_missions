@@ -11,7 +11,7 @@ import numpy as np
 from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.srv import LatLonToUTM
-from smarc_msgs.msg import GotoWaypoint, MissionControl
+from smarc_bt.msg import GotoWaypoint, MissionControl
 
 from coverage_planner import create_coverage_path
 from mission_log import MissionLog

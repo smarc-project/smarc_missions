@@ -8,7 +8,8 @@ import time
 import rospy, tf
 from geometry_msgs.msg import PointStamped
 from geographic_msgs.msg import GeoPoint
-from smarc_msgs.msg import DVL, Leak, GotoWaypoint, ThrusterFeedback
+from smarc_msgs.msg import DVL, Leak, ThrusterFeedback
+from smarc_bt.msg import GotoWaypoint
 from sensor_msgs.msg import NavSatFix, BatteryState
 from sam_msgs.msg import PercentStamped
 

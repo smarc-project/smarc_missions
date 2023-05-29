@@ -9,7 +9,7 @@ import json
 from mission_plan import MissionPlan
 import bb_enums
 
-from smarc_msgs.msg import MissionControl, BTCommand
+from smarc_bt.msg import MissionControl, BTCommand
 
 from rospy_message_converter import json_message_converter
 

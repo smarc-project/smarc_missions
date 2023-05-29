@@ -20,8 +20,11 @@ find_package(catkin REQUIRED COMPONENTS
   lolo_msgs
   smarc_msgs
   vision_msgs
-
-  #uuv_gazebo_ros_plugins_msgs
+  actionlib
+  actionlib_msgs
+  message_generation
+  geographic_msgs
+  nav_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -58,9 +61,12 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-  # FILES
-# )
+add_message_files(
+  FILES
+  GotoWaypoint.msg
+  MissionControl.msg
+  BTCommand.msg	
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -70,15 +76,21 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate actions in the 'action' folder
-#  add_action_files(
-#    FILES
-#  )
+add_action_files(
+  FILES
+  Empty.action
+  GotoWaypoint.action
+)
 
 ## Generate added messages and services with any dependencies listed here
- #generate_messages(
-   #DEPENDENCIES
-   #std_msgs
- #)
+generate_messages(
+  DEPENDENCIES
+  geometry_msgs
+  geographic_msgs
+  nav_msgs
+  sensor_msgs
+  std_msgs
+)
 
 
 ################################################
@@ -183,7 +195,7 @@ install(PROGRAMS
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-catkin_install_python(PROGRAMS src/smarc_bt.py
+catkin_install_python(PROGRAMS src/bt_trunk.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

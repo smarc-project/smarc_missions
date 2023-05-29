@@ -22,7 +22,7 @@ import unittest
 import sys
 import random
 
-from smarc_msgs.msg import MissionControl, GotoWaypoint
+from smarc_bt.msg import MissionControl, GotoWaypoint
 from std_msgs.msg import Empty
 
 def make_random_plan(mission_name="test mission", timeout=600):
