@@ -206,7 +206,7 @@ class WPDepthPlanner(object):
                     self.base_frame_2d, goal_point)
                 wp_pos = np.array(
                     [goal_point_local.point.x, goal_point_local.point.y])
-                rospy.loginfo("Dist to WP " + str(np.linalg.norm(wp_pos)))
+                rospy.loginfo_throttle(5, "Dist to WP " + str(np.linalg.norm(wp_pos)))
 
                 # Goal reached
                 if np.linalg.norm(wp_pos) < self.wp_tolerance:
@@ -234,7 +234,7 @@ class WPDepthPlanner(object):
                 # Current yaw error on local coordinates
                 yaw_error = math.atan2(
                     goal_point_local.point.y, goal_point_local.point.x)
-                rospy.loginfo('Current heading error ' + str(yaw_error))
+                rospy.loginfo_throttle(5, 'Current heading error ' + str(yaw_error))
 
                 # Inverst signs to actuate thrusters
                 sign = np.copysign(1, yaw_error)
@@ -248,8 +248,8 @@ class WPDepthPlanner(object):
                     - np.power(yaw_tolerance, 2))
 
                 yaw_error_tol = math.atan2(yaw_tolerance, d_b)
-                rospy.loginfo(
-                    'Current heading error tolerance ' + str(yaw_error_tol))
+                # rospy.loginfo(
+                #     'Current heading error tolerance ' + str(yaw_error_tol))
 
                 yaw_setpoint = yaw_error if abs(
                     yaw_error) > abs(yaw_error_tol) else 0.
