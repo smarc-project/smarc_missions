@@ -7,6 +7,7 @@ import rospy
 import time
 import math
 import numpy as np
+import py_trees as pt
 
 from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
@@ -15,7 +16,7 @@ from smarc_bt.msg import GotoWaypoint, MissionControl
 
 from coverage_planner import create_coverage_path
 from mission_log import MissionLog
-
+# from dubins import dubins_mission_planner
 
 class Waypoint:
     def __init__(self, goto_waypoint = None):
@@ -215,6 +216,21 @@ class MissionPlan:
             self.track.record()
 
 
+    def _get_utm_to_latlon_service(self):
+        try:
+            rospy.wait_for_service(self.utmtolatlon_service_name, timeout=5)
+        except:
+            rospy.logwarn(str(self.utmtolatlon_service_name)+" service not found!")
+            return (None, None)
+
+        try:
+            utmtolatlon_service = rospy.ServiceProxy(self.utmtolatlon_service_name,
+                                                     UTMToLatLon)
+        except rospy.service.ServiceException:
+            rospy.logerr_throttle_identical(5, "UTM to LatLon service failed! namespace:{}".format(self.utmtolatlon_service_name))
+            return None
+        return utmtolatlon_service
+
 
     def _change_state(self, new_state):
         if self.state == MissionControl.FB_EMERGENCY:
@@ -242,7 +258,10 @@ class MissionPlan:
         for wp_msg in msg.waypoints:
             wp = Waypoint(goto_waypoint = wp_msg)
             # also make sure they are in utm
-            wp.set_utm_from_latlon(serv, set_frame=True)
+            if is_in_utm:
+                wp.wp.pose.header.frame_id = 'utm'
+            else:
+                wp.set_utm_from_latlon(serv, set_frame=True)
             waypoints.append(wp)
 
         self.waypoints = waypoints
@@ -402,3 +421,9 @@ class MissionPlan:
         return create_coverage_path(polygon,
                                     self._config.SWATH,
                                     self._config.LOCALIZATION_ERROR_GROWTH)
+
+
+    # def generate_dubins(self, mission):
+        # ll_to_utm_serv = self._get_latlon_to_utm_service()
+        # utm_to_ll_serv = self._get_utm_to_latlon_service()
+        # return dubins_mission_planner(mission, self.bb, ll_to_utm_serv, utm_to_ll_serv, self.utm_to_latlon, self.latlon_to_utm)
