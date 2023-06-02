@@ -131,10 +131,11 @@ class WPDepthPlanner(object):
         rpm2 = ThrusterRPM()
         rpm1.rpm = int(forward_rpm)
         rpm2.rpm = int(forward_rpm)
-        #self.rpm1_pub.publish(rpm1)
-        self.rpm1_pub.publish(0.)
-        #self.rpm2_pub.publish(rpm2)
-        self.rpm2_pub.publish(0.)
+        
+        self.rpm1_pub.publish(rpm1)
+        #self.rpm1_pub.publish(0.)
+        self.rpm2_pub.publish(rpm2)
+        #self.rpm2_pub.publish(0.)
 
         # Yaw setpoint to heading PID
         self.yaw_pid_state.publish(0.)  # This is zero because the setpoint is calculated in the base_link
@@ -206,7 +207,7 @@ class WPDepthPlanner(object):
                     self.base_frame_2d, goal_point)
                 wp_pos = np.array(
                     [goal_point_local.point.x, goal_point_local.point.y])
-                rospy.loginfo_throttle(5, "Dist to WP " + str(np.linalg.norm(wp_pos)))
+                rospy.loginfo_throttle(1, "Dist to WP " + str(np.linalg.norm(wp_pos)))
 
                 # Goal reached
                 if np.linalg.norm(wp_pos) < self.wp_tolerance:
@@ -234,7 +235,7 @@ class WPDepthPlanner(object):
                 # Current yaw error on local coordinates
                 yaw_error = math.atan2(
                     goal_point_local.point.y, goal_point_local.point.x)
-                rospy.loginfo_throttle(5, 'Current heading error ' + str(yaw_error))
+                rospy.loginfo_throttle(1, 'Current heading error ' + str(yaw_error))
 
                 # Inverst signs to actuate thrusters
                 sign = np.copysign(1, yaw_error)
@@ -242,7 +243,7 @@ class WPDepthPlanner(object):
 
                 # Yaw error with tolerance: use the 2/3 of the WP tolerance to create a circle around the WP.
                 # If the yaw_error falls within the circle, meaning "abs(yaw_error) > abs(yaw_error_tol)", do not correct.
-                yaw_tolerance = self.wp_tolerance * (2./3.)
+                yaw_tolerance = self.wp_tolerance * (1./5.)
                 d_b = np.sqrt(np.power(np.linalg.norm(
                     np.array([goal_point_local.point.x, goal_point_local.point.y])), 2)
                     - np.power(yaw_tolerance, 2))
