@@ -8,7 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, PointStamped
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
+from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
 import actionlib
 import rospy
 import tf

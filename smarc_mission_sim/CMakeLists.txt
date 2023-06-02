@@ -15,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   tf2_ros
   tf2_geometry_msgs
-  imc_ros_bridge
   rostest
 )
 

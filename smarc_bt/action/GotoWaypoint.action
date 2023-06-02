@@ -1,0 +1,6 @@
+smarc_bt/GotoWaypoint waypoint
+---
+bool reached_waypoint
+---
+time ETA
+string feedback_message

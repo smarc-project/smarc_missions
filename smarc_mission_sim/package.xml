@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>smarc_mission_sim</name>
-  <version>0.0.20</version>
+  <version>0.0.21</version>
   <description>The smarc_mission_sim package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -57,11 +57,10 @@
   <build_depend>nav_msgs</build_depend>
   <build_depend>tf2_ros</build_depend>
   <build_depend>tf2_geometry_msgs</build_depend>
-  <build_depend>imc_ros_bridge</build_depend>
   <build_depend>rostest</build_depend>
   <build_depend>tf_lat_lon</build_depend>
   <build_depend>lolo_description</build_depend>
-  <build_depend>bt_mission</build_depend>
+  <build_depend>smarc_bt</build_depend>
   <build_export_depend>geodesy</build_export_depend>
   <build_export_depend>geographic_msgs</build_export_depend>
   <build_export_depend>smarc_msgs</build_export_depend>
@@ -69,10 +68,9 @@
   <build_export_depend>nav_msgs</build_export_depend>
   <build_export_depend>tf2_ros</build_export_depend>
   <build_export_depend>tf2_geometry_msgs</build_export_depend>
-  <build_export_depend>imc_ros_bridge</build_export_depend>
   <build_export_depend>tf_lat_lon</build_export_depend>
   <build_export_depend>lolo_description</build_export_depend>
-  <build_export_depend>bt_mission</build_export_depend>
+  <build_export_depend>smarc_bt</build_export_depend>
   <exec_depend>geodesy</exec_depend>
   <exec_depend>geographic_msgs</exec_depend>
   <exec_depend>smarc_msgs</exec_depend>
@@ -80,10 +78,9 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
-  <exec_depend>imc_ros_bridge</exec_depend>
   <exec_depend>tf_lat_lon</exec_depend>
   <exec_depend>lolo_description</exec_depend>
-  <exec_depend>bt_mission</exec_depend>
+  <exec_depend>smarc_bt</exec_depend>
 
   <depend>sam_action_servers</depend>
   <depend>lolo_action_servers</depend>

@@ -6,7 +6,7 @@ import actionlib
 import rospy
 import time
 
-from smarc_msgs.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
+from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction, GotoWaypointGoal
 from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Header
 

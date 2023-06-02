@@ -1,13 +1,8 @@
 <launch>
 
 <arg name="robot_name" default="lolo"/>
-<arg name="utm_zone" default="34"/>
-<arg name="utm_band" default="V"/>
+<arg name="config_file" default="$(find smarc_bt)/launch/config.yaml"/>
 
-<param name="utm_zone" type="int" value="$(arg utm_zone)"/>
-<param name="utm_band" type="string" value="$(arg utm_band)"/> 
-
-<!-- TODO: change namespace to be in include instead -->
 <include file="$(find lolo_description)/launch/lolo_description.launch">
     <arg name="namespace" value="$(arg robot_name)"/>
 </include>
@@ -22,11 +17,15 @@
 
 <!--Instead of launching the entire mission, that also has nodered, just launch the bt-->
 <!--This doesnt test anything but the BT anyways-->
-<!--<include file="$(find bt_mission)/launch/mission.launch">-->
+<!--<include file="$(find smarc_bt)/launch/mission.launch">-->
     <!--<arg name="robot_name" value="$(arg robot_name)"/>-->
 <!--</include>-->
-<include file="$(find smarc_bt)/launch/smarc_bt.launch">
-	<arg name="robot_name" value="$(arg robot_name)"/>
-</include>
+<node name="smarc_bt" pkg="smarc_bt" type="bt_trunk.py" output="screen" ns="$(arg robot_name)">
+    <!--Load this first so it can be over-written by other params later-->
+    <!--Cant use subst_value in melodic...-->
+    <rosparam file="$(arg config_file)" command="load"/>
+    <param name="robot_name" value="$(arg robot_name)" />
+    <param name="config_file" value="$(arg config_file)"/>
+</node>
 
 </launch>

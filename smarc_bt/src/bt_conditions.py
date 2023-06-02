@@ -14,7 +14,7 @@ import bb_enums
 
 from mission_plan import MissionPlan
 
-from smarc_msgs.msg import MissionControl
+from smarc_bt.msg import MissionControl
 
 class C_TimeoutNotReached(pt.behaviour.Behaviour):
     """
