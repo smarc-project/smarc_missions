@@ -56,8 +56,8 @@ LAST_WP_TOPIC : 'smarc_bt/last_wp'
 MISSION_CONTROL_TOPIC : 'smarc_bt/mission_control'
 
 # hard values
-MAX_DEPTH : 20
-MIN_ALTITUDE : 0.1
+MAX_DEPTH : 5
+MIN_ALTITUDE : 0.5
 # how many ticks to run emergency action before we give up
 # on the current wp and skip it
 # in ticks
