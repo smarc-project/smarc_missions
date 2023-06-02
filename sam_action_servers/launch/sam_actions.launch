@@ -5,32 +5,36 @@
     <group ns="$(arg namespace)">
     	<group ns="ctrl">
 
-		<node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen">
-			<param name="base_frame" value="$$(arg namespace)/base_link"/>
-			<param name="base_frame_2d" value="$(arg namespace)/base_link_2d"/>
-			<param name="wp_tolerance" value="2."/>
-			<param name="node_freq" value="20." />
-			<!-- <param name="depth_tolerance" value="0.5"/> -->
-			<param name="rpm1_cmd_topic" value="/$(arg namespace)/core/thruster1_cmd" />
-			<param name="rpm2_cmd_topic" value="/$(arg namespace)/core/thruster2_cmd" />
-			<param name="heading_setpoint_topic" value="/$(arg namespace)/ctrl/heading_pid/setpoint" />
-			<param name="heading_state_topic" value="/$(arg namespace)/ctrl/heading_pid/state" />
-			<param name="heading_enable_topic" value="/$(arg namespace)/ctrl/heading_pid/pid_enable" />
-			<param name="elevator_setpoint_topic" value="/$(arg namespace)/ctrl/elevator_pid/setpoint" />
-			<param name="elevator_enable_topic" value="/$(arg namespace)/ctrl/elevator_pid/pid_enable" />
-			<param name="vbs_setpoint_topic" value="/$(arg namespace)/ctrl/vbs/setpoint" />
-			<param name="rudder_angle" value="0.1" />
-		</node>
+			<node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen">
+				<param name="base_frame" value="$$(arg namespace)/base_link"/>
+				<param name="base_frame_2d" value="$(arg namespace)/base_link_2d"/>
+				<param name="wp_tolerance" value="2."/>
+				<param name="node_freq" value="20." />
+				<!-- <param name="depth_tolerance" value="0.5"/> -->
+				<param name="rpm1_cmd_topic" value="/$(arg namespace)/core/thruster1_cmd" />
+				<param name="rpm2_cmd_topic" value="/$(arg namespace)/core/thruster2_cmd" />
+				<param name="heading_setpoint_topic" value="/$(arg namespace)/ctrl/heading_pid/setpoint" />
+				<param name="heading_state_topic" value="/$(arg namespace)/ctrl/heading_pid/state" />
+				<param name="heading_enable_topic" value="/$(arg namespace)/ctrl/heading_pid/pid_enable" />
+				<param name="elevator_setpoint_topic" value="/$(arg namespace)/ctrl/elevator_pid/setpoint" />
+				<param name="elevator_enable_topic" value="/$(arg namespace)/ctrl/elevator_pid/pid_enable" />
+				<param name="vbs_setpoint_topic" value="/$(arg namespace)/ctrl/vbs/setpoint" />
+				<param name="rudder_angle" value="0.1" />
+			</node>
+
+			<!-- Emergency surface action -->
+			<node name="emergency_surface_action" pkg="sam_action_servers" type="emergency_surface_action.py" output="screen">
+				<param name="emergency_topic" value="/$(arg robot_name)/core/abort" />
+				<param name="vbs_cmd_topic" value="/$(arg robot_name)/core/vbs_cmd" />
+				<param name="rpm1_cmd_topic" value="/$(arg robot_name)/core/thruster1_cmd" />
+				<param name="rpm2_cmd_topic" value="/$(arg robot_name)/core/thruster2_cmd" />
+				<param name="vbs_pid_enable_top" value="/$(arg robot_name)/ctrl/vbs/pid_enable" />
+			</node>
+
+		</group>
 
 	</group>
 
-	</group>
-
-	<!-- TODO: merge these launch files -->
-	<!-- Emergency surface action -->
-	<include file="$(find sam_action_servers)/launch/emergency_surface_action.launch" >
-		<arg name="robot_name" value="$(arg namespace)"/>	
-	</include>
 
 	<!-- Planned surface node -->
 	<!-- <include file="$(find sam_action_servers)/launch/mission_complete_node.launch" >

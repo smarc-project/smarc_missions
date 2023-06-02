@@ -10,13 +10,6 @@
         <param name="vbs_cmd_topic" value="/$(arg robot_name)/core/vbs_cmd" />
         <param name="rpm1_cmd_topic" value="/$(arg robot_name)/core/thruster1_cmd" />
         <param name="rpm2_cmd_topic" value="/$(arg robot_name)/core/thruster2_cmd" />
-        <param name="toggle_pitch_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_pitch_ctrl" />
-        <param name="toggle_vbs_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_vbs_ctrl" />
-        <param name="toggle_tcg_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_tcg_ctrl" />
-        <param name="toggle_yaw_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_yaw_ctrl" />
-        <param name="toggle_depth_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_depth_ctrl" />
-        <param name="toggle_speed_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_speed_ctrl" />
-        <param name="toggle_roll_ctrl_service" value="/$(arg robot_name)/ctrl/toggle_roll_ctrl" />
 	</node>
 
 </launch>
