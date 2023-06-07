@@ -13,7 +13,7 @@
 				<param name="vbs_pid_enable_top" value="/$(arg namespace)/ctrl/vbs/pid_enable" />
 			</node>
 
-		<node name="goto_waypoint" pkg="sam_action_servers" type="wp_depth_action_planner.py" output="screen">
+		<node name="goto_waypoint" pkg="sam_action_servers" type="wp_goto_action.py" output="screen">
 			<param name="base_frame" value="$$(arg namespace)/base_link"/>
 			<param name="base_frame_2d" value="$(arg namespace)/base_link_2d"/>
 			<param name="wp_tolerance" value="2."/>
