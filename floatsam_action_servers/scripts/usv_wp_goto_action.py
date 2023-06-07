@@ -19,7 +19,6 @@ from std_srvs.srv import SetBool
 import math
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler
-from toggle_controller import ToggleController  
 import time   
 
 from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
@@ -86,11 +85,9 @@ class WPDepthPlanner(object):
         rospy.loginfo_throttle_identical(5,"Using Constant RPM")
         
         # RPM setpoint to motion ctrl
-        self.rpm_ctrl_sp.publish(forward_rpm)
+        self.rpm_ctrl_sp.publish(int(forward_rpm))
         # Yaw setpoint to motion ctrl
         self.yaw_ctrl_sp.publish(yaw_setpoint)
-
-
 
     def disengage_actuators(self):
 
@@ -173,10 +170,6 @@ class WPDepthPlanner(object):
                     goal_point_local.point.y, goal_point_local.point.x)
                 rospy.loginfo_throttle(1, 'Current heading error ' + str(yaw_error))
 
-                # Inverst signs to actuate thrusters
-                sign = np.copysign(1, yaw_error)
-                yaw_error = -1 * sign * min(self.rudder_angle, abs(yaw_error))
-
                 # Yaw error with tolerance: use the 2/3 of the WP tolerance to create a circle around the WP.
                 # If the yaw_error falls within the circle, meaning "abs(yaw_error) > abs(yaw_error_tol)", do not correct.
                 yaw_tolerance = self.wp_tolerance * (1./5.)
@@ -191,15 +184,9 @@ class WPDepthPlanner(object):
                 yaw_setpoint = yaw_error if abs(
                     yaw_error) > abs(yaw_error_tol) else 0.
 
-                if self.vel_ctrl_flag:
-                    # print("Doing stuff")
-                    self.vel_wp_following(
-                        self.nav_goal.waypoint.travel_speed, yaw_setpoint)
-                    # self.vel_wp_following(0., yaw_setpoint)
-                else:
-                    # print("Doing stuff")
-                    self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
-                    # self.rpm_wp_following(0., yaw_setpoint)
+                # print("Doing stuff")
+                self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
+                # self.rpm_wp_following(0., yaw_setpoint)
 
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 print("Heading controller: Could not transform WP to base_link")
