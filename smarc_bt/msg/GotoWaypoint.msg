@@ -27,4 +27,5 @@ float64 travel_speed
 
 float64 lat
 float64 lon
+float64 arrival_heading
 string name

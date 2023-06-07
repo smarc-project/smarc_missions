@@ -37,9 +37,7 @@ EMERGENCY_ACTION_NAMESPACE : 'ctrl/emergency_surface_action'
 # the sams in these should be subst_value'd in the launch file!
 # or over-written with params
 LATLONTOUTM_SERVICE : 'dr/lat_lon_to_utm'
-UTM_TO_LATLON_SERVICE : 'dr/utm_to_lat_lon'
-# in cases where the above service couldnt be found for some reason
-LATLONTOUTM_SERVICE_ALTERNATIVE : 'lat_lon_to_utm'
+UTMTOLATLON_SERVICE : 'dr/utm_to_lat_lon'
 
 # tf frame names
 BASE_LINK : 'base_link'

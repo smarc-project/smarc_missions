@@ -13,7 +13,8 @@ from enum import Enum
 import rospy
 import bb_enums
 from tf.transformations import quaternion_from_euler
-from smarc_msgs.msg import GotoWaypoint
+from smarc_bt.msg import GotoWaypoint
+import mission_plan
 
 class TurnType(Enum):
     LSL = 1
@@ -24,7 +25,6 @@ class TurnType(Enum):
     LRL = 6
 
 class Waypoint:
-
     def __init__(self, x, y, psi):
         self.x = x
         self.y = y
@@ -185,18 +185,15 @@ def dubinsLRL(alpha, beta, d):
     return t, p, q
 
 # Build the trajectory from the lowest-cost path
-def dubins_traj(param,step):
+def dubins_traj(param, step):
     x = 0
-    i = 0
     length = (param.seg_final[0]+param.seg_final[1]+param.seg_final[2])*param.turn_radius
-    length = int(math.floor(length/step))
-    path = -1 * np.ones((length,3))
+    path = []
 
     while x < length:
-        path[i] = dubins_path(param,x)
+        path.append(dubins_path(param, x))
         x += step
-        i+=1
-    return path
+    return np.array(path)
 
 # Helper function for curve generation
 def dubins_path(param, t):
@@ -302,153 +299,273 @@ def circle_line_segment_intersection(circle_center, circle_radius, pt1, pt2, ful
             return intersections
 
 
-def dubins_mission_planner(mission, bb, ll_to_utm_serv, utm_to_ll_serv, utm_to_latlon, latlon_to_utm, num_points=2, inside_turn=True):
-    '''
-    Reads the waypoints from a MissionControl message and generates a sampled dubins
-    path between them.
 
-    :param mission: the original MissionControl message
-    :param num_points: the amount of waypoints to keep on each segment between waypoints
-    :param inside_turn: cut the waypoints corners
-    :return MissionControl.msg: new MissionControl message equal to the input one exc   ept for the waypoints attribute
-    '''
+def sample_between_wps(wp_from, wp_to, turn_radius, step):
+    path = dubins_traj(calc_dubins_path(wp_from, wp_to, turn_radius), step)
+    # ignore the first and last points in the path, since
+    # the first is wp_from and last is step-close to wp_to
+    return path[1:-1]
 
-    rospy.loginfo("Computing dubins path")
 
-    turn_radius = bb.get(bb_enums.DUBINS_TURNING_RADIUS)
-    int_radius = bb.get(bb_enums.DUBINS_INTERSECTION_RADIUS)
-    vehicle = bb.get(bb_enums.VEHICLE_STATE)
+def create_dubins_path(vehicle,
+                       waypoints,
+                       step,
+                       turning_radius):
+    """
+    Read the waypoints of a missionplan and sample dubins waypoints for it
+    :param vehicle: The vehicle object. Used if the first waypoint has a heading
+    :param step: How many meters to leave between each sampled point on the dubins path
+    :param turning_radius: Turning radius in meters of the vehicle.
+    :return [waypoints...]: List of MissionPlan.Waypoint objects.
+    """
+    dubins_wp = []
+    # for each user-given WP, we want to compute
+    # a sample path between such that the path leads into the
+    # next WP in the heading that it wants
+    for wp_i in range(len(waypoints)):
+        wp_current = waypoints[wp_i]
+        if wp_current.wp.arrival_heading is None:
+            # this WP doesnt care about the heading
+            # so we just keep it as is
+            dubins_wp.append(wp_current)
+            continue
 
-    # Get the auv's current position to use as the intial point of the dubins path
-    utm_x_auv, utm_y_auv = vehicle.position_utm
-    auv_utm = np.array([utm_x_auv, utm_y_auv])
-
-    # Get x, y of waypoints from original mission lat/lon
-    points = []
-    for wp in mission.waypoints:
-        utm_x, utm_y = latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
-        points.append([utm_x, utm_y, wp.goal_tolerance, wp.z_control_mode, wp.travel_altitude, wp.travel_depth, wp.speed_control_mode, wp.travel_rpm, wp.travel_speed])
-    points_np = np.array(points)
-    # points_with_auv = np.vstack((auv_utm, points_np))
-
-    if not inside_turn:
-        rospy.loginfo("Turning outside")
-        original_waypoints = points_np
-    else:
-        rospy.loginfo("Turning inside")
-        waypoints = []
-        for i in range(len(points_np)-1):
-            waypoints_i = circle_line_segment_intersection(circle_center=(points_np[i, 0], points_np[i, 1]), circle_radius=int_radius,
-                                                            pt1=(points_np[i, 0], points_np[i, 1]), pt2=(points_np[i+1, 0], points_np[i+1, 1]))
-            waypoints.append(np.array(waypoints_i).flatten())
-            # Include the other wp details
-            waypoints[-1] = np.append(waypoints[-1], points_np[i, 2:])
-
-            waypoints_j = circle_line_segment_intersection(circle_center=(points_np[i+1, 0], points_np[i+1, 1]), circle_radius=int_radius,
-                                                            pt1=(points_np[i, 0], points_np[i, 1]), pt2=(points_np[i+1, 0], points_np[i+1, 1]))
-            waypoints.append(np.array(waypoints_j).flatten())
-            # Include the other wp details
-            waypoints[-1] = np.append(waypoints[-1], points_np[i+1, 2:])
-
-        waypoints.append([(points_np[-1, 0], points_np[-1, 1])])
-        waypoints[-1] = np.append(waypoints[-1], points_np[-1, 2:])
-        waypoints_np = np.array(waypoints)
-        original_waypoints = waypoints_np.squeeze()  # Remove useless extra dimension
-
-    # Compute angle between waypoints and get the new wps array
-    waypoints_complete, _ = waypoints_with_yaw(original_waypoints)
-
-    path = []
-    for j in range(len(waypoints_complete)-1):
-        param = calc_dubins_path(waypoints_complete[j], waypoints_complete[j+1], turn_radius)
-        path.append(dubins_traj(param, 1))
-
-    dubins_waypoints = []
-    # Only define the new waypoints on the original waypoint and on the curve
-    # Each element of path is an array of points between on waypoint and the next one
-    for i, el in enumerate(path):
-        # Compute the differnece between orientation
-        # The maxima represent the points on the curve
-        delta_angles = abs(np.diff(el[:, 2]))
-        delta_angles = [0] + delta_angles
-        # Keep two points in each curve
-        max_idxs = np.argpartition(delta_angles, -num_points)[-num_points:]
-        max_idxs = np.sort(max_idxs)
-        for ind in max_idxs:
-            # A row of path[i] represents a single point
-            dubins_waypoints.append(el[ind])
-
-    # Sort the waypoints
-    full_path = []
-    ordered_idxs = []
-    for el in path:
-        for e in el:
-            full_path.append([e[0], e[1], e[2]])
-    for j, el in enumerate(dubins_waypoints):
-        try:
-            # Get the dubins wp index in the full path
-            ordered_idxs.append(full_path.index([el[0], el[1], el[2]]))
-        except ValueError:
-            rospy.logwarn("Point " + str(j) + " not found in the path!")
-    ordered_idxs = np.sort(ordered_idxs)
-    dubins_waypoints_ordered = [full_path[i] for i in ordered_idxs]
-
-    # Include original waypoints
-    wp_i = 0
-    for wp in waypoints_complete[:-1]:
-        dubins_waypoints_ordered.insert(wp_i, [wp.x, wp.y, wp.psi])
-        wp_i += num_points + 1
-    dubins_waypoints_ordered.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
-
-    dubins_mission = mission
-    del dubins_mission.waypoints[:]
-
-    current_wp = 0
-    dwp_count = 0
-    for wp in dubins_waypoints_ordered:
-
-        goal_tolerance = original_waypoints[current_wp, 2]
-        z_control_mode = original_waypoints[current_wp, 3]
-        travel_altitude = original_waypoints[current_wp, 4]
-        travel_depth = original_waypoints[current_wp, 5]
-        speed_control_mode = original_waypoints[current_wp, 6]
-        travel_rpm = original_waypoints[current_wp, 7]
-        travel_speed = original_waypoints[current_wp, 8]
-
-        dwp = GotoWaypoint()
-        dwp.pose.pose.position.x = wp[0]
-        dwp.pose.pose.position.y = wp[1]
-        dwp.pose.pose.position.z = travel_altitude
-        dwp.lat, dwp.lon = utm_to_latlon(wp[0], wp[1], utm_to_ll_serv)
-
-        quaternion = quaternion_from_euler(0.0, 0.0, math.radians(wp[2]))  # RPY [rad]
-        # Normalize quaternion
-        if len(quaternion) != 0:
-            quaternion = quaternion / np.sqrt(np.sum(quaternion**2))
-        dwp.pose.pose.orientation.x = quaternion[0]
-        dwp.pose.pose.orientation.y = quaternion[1]
-        dwp.pose.pose.orientation.z = quaternion[2]
-        dwp.pose.pose.orientation.w = quaternion[3]
-
-        dwp.goal_tolerance = goal_tolerance
-        dwp.z_control_mode = z_control_mode
-        dwp.travel_altitude = travel_altitude
-        dwp.travel_depth = travel_depth
-        dwp.speed_control_mode = speed_control_mode
-
-        dwp.travel_speed = travel_speed
-        dwp.travel_rpm = travel_rpm
-
-        # Name of the dwp = previousoriginalwp_nextoriginalwp_counter
-        dwp.name = "wp" + str(current_wp) + "_wp" + str(current_wp+1) + "_" + str(dwp_count)
-
-        if dwp_count == num_points:
-            dwp_count = 0
-            current_wp += 1
+        # so this WP wants a specific heading on arrival
+        # then we need to dubins from the previous one
+        if wp_i == 0:
+            # if this is the first planned WP
+            # previous WP is the current pose of the vehicle
+            d_wp_prev = Waypoint(vehicle.position_utm[0],
+                                vehicle.position_utm[1],
+                                vehicle.heading)
         else:
-            dwp_count += 1
+            wp_prev = waypoints[wp_i-1]
+            d_wp_prev = Waypoint(wp_prev.wp.pose.pose.position.x,
+                                 wp_prev.wp.pose.pose.position.y,
+                                 wp_prev.wp.arrival_heading)
 
-        dubins_mission.waypoints.append(dwp)
+        d_wp_current = Waypoint(wp_current.wp.pose.pose.position.x,
+                                wp_current.wp.pose.pose.position.y,
+                                wp_current.wp.arrival_heading)
 
-    rospy.loginfo("Dubins mission ready")
-    return dubins_mission
+        # now we have the simple waypoints so we can sample between them
+        # this path does not include the original wps
+        path = sample_between_wps(d_wp_prev,
+                                  d_wp_current,
+                                  turning_radius,
+                                  step)
+
+        # and then we add these to the final list of waypoints
+        for i,p in enumerate(path):
+            # the ones we generated here are too simple
+            # the mission plan requires detailed WPs like the ones in the input
+            goto_wp = GotoWaypoint()
+            # the x,y of the sampled stuff comes from the plan
+            goto_wp.pose.pose.position.x = p[0]
+            goto_wp.pose.pose.position.y = p[1]
+            goto_wp.pose.header.frame_id = wp_current.wp.pose.header.frame_id
+            # the goal tolerance of the intermittent points should be a little less
+            # than the distance between each point
+            goto_wp.goal_tolerance = step*0.8
+            # the speed and similar props come from the target WP
+            goto_wp.z_control_mode = wp_current.wp.z_control_mode
+            goto_wp.travel_altitude = wp_current.wp.travel_altitude
+            goto_wp.travel_depth = wp_current.wp.travel_depth
+            goto_wp.speed_control_mode = wp_current.wp.speed_control_mode
+            goto_wp.travel_rpm = wp_current.wp.travel_rpm
+            goto_wp.travel_speed = wp_current.wp.travel_speed
+            # latlon we will ask the WP object to fill in later
+            # heading from the interpolated point
+            goto_wp.arrival_heading = p[2]
+            # name based on the target wp
+            goto_wp.name = "{}_{}".format(wp_current.wp.name, i)
+
+            
+            wp = mission_plan.Waypoint(goto_waypoint= goto_wp,
+                                       source="dubins")
+            dubins_wp.append(wp)
+
+        # and finally add the current WP after having added the method to get to it
+        dubins_wp.append(wp_current)
+
+    # and finally finally we have a list of WPs with interpolated and planned WPs in between
+    return dubins_wp
+
+
+            
+
+
+
+
+
+
+
+
+
+
+# def dubins_mission_planner(mission, bb, ll_to_utm_serv, utm_to_ll_serv, utm_to_latlon, latlon_to_utm, num_points=2, inside_turn=True):
+#     '''
+#     Reads the waypoints from a MissionControl message and generates a sampled dubins
+#     path between them.
+
+#     :param mission: the original MissionControl message
+#     :param num_points: the amount of waypoints to keep on each segment between waypoints
+#     :param inside_turn: cut the waypoints corners
+#     :return MissionControl.msg: new MissionControl message equal to the input one exc   ept for the waypoints attribute
+#     '''
+
+#     rospy.loginfo("Computing dubins path")
+
+#     turn_radius = bb.get(bb_enums.DUBINS_TURNING_RADIUS)
+#     int_radius = bb.get(bb_enums.DUBINS_INTERSECTION_RADIUS)
+#     vehicle = bb.get(bb_enums.VEHICLE_STATE)
+
+#     # Get the auv's current position to use as the intial point of the dubins path
+#     utm_x_auv, utm_y_auv = vehicle.position_utm
+#     auv_utm = np.array([utm_x_auv, utm_y_auv])
+
+#     # Get x, y of waypoints from original mission lat/lon
+#     points = []
+#     for wp in mission.waypoints:
+#         utm_x, utm_y = latlon_to_utm(wp.lat, wp.lon, wp.pose.pose.position.z, serv=ll_to_utm_serv, in_degrees=True)
+#         points.append([utm_x, utm_y, wp.goal_tolerance, wp.z_control_mode, wp.travel_altitude, wp.travel_depth, wp.speed_control_mode, wp.travel_rpm, wp.travel_speed])
+#     points_np = np.array(points)
+#     # points_with_auv = np.vstack((auv_utm, points_np))
+
+#     if not inside_turn:
+#         rospy.loginfo("Turning outside")
+#         original_waypoints = points_np
+#     else:
+#         rospy.loginfo("Turning inside")
+#         waypoints = []
+#         for i in range(len(points_np)-1):
+#             waypoints_i = circle_line_segment_intersection(circle_center=(points_np[i, 0], points_np[i, 1]), circle_radius=int_radius,
+#                                                             pt1=(points_np[i, 0], points_np[i, 1]), pt2=(points_np[i+1, 0], points_np[i+1, 1]))
+#             waypoints.append(np.array(waypoints_i).flatten())
+#             # Include the other wp details
+#             waypoints[-1] = np.append(waypoints[-1], points_np[i, 2:])
+
+#             waypoints_j = circle_line_segment_intersection(circle_center=(points_np[i+1, 0], points_np[i+1, 1]), circle_radius=int_radius,
+#                                                             pt1=(points_np[i, 0], points_np[i, 1]), pt2=(points_np[i+1, 0], points_np[i+1, 1]))
+#             waypoints.append(np.array(waypoints_j).flatten())
+#             # Include the other wp details
+#             waypoints[-1] = np.append(waypoints[-1], points_np[i+1, 2:])
+
+#         waypoints.append([(points_np[-1, 0], points_np[-1, 1])])
+#         waypoints[-1] = np.append(waypoints[-1], points_np[-1, 2:])
+#         waypoints_np = np.array(waypoints)
+#         original_waypoints = waypoints_np.squeeze()  # Remove useless extra dimension
+
+#     # Compute angle between waypoints and get the new wps array
+#     waypoints_complete, _ = waypoints_with_yaw(original_waypoints)
+
+#     path = []
+#     for j in range(len(waypoints_complete)-1):
+#         param = calc_dubins_path(waypoints_complete[j], waypoints_complete[j+1], turn_radius)
+#         path.append(dubins_traj(param, 1))
+
+#     dubins_waypoints = []
+#     # Only define the new waypoints on the original waypoint and on the curve
+#     # Each element of path is an array of points between on waypoint and the next one
+#     for i, el in enumerate(path):
+#         # Compute the differnece between orientation
+#         # The maxima represent the points on the curve
+#         delta_angles = abs(np.diff(el[:, 2]))
+#         delta_angles = [0] + delta_angles
+#         # Keep two points in each curve
+#         max_idxs = np.argpartition(delta_angles, -num_points)[-num_points:]
+#         max_idxs = np.sort(max_idxs)
+#         for ind in max_idxs:
+#             # A row of path[i] represents a single point
+#             dubins_waypoints.append(el[ind])
+
+#     # Sort the waypoints
+#     full_path = []
+#     ordered_idxs = []
+#     for el in path:
+#         for e in el:
+#             full_path.append([e[0], e[1], e[2]])
+#     for j, el in enumerate(dubins_waypoints):
+#         try:
+#             # Get the dubins wp index in the full path
+#             ordered_idxs.append(full_path.index([el[0], el[1], el[2]]))
+#         except ValueError:
+#             rospy.logwarn("Point " + str(j) + " not found in the path!")
+#     ordered_idxs = np.sort(ordered_idxs)
+#     dubins_waypoints_ordered = [full_path[i] for i in ordered_idxs]
+
+#     # Include original waypoints
+#     wp_i = 0
+#     for wp in waypoints_complete[:-1]:
+#         dubins_waypoints_ordered.insert(wp_i, [wp.x, wp.y, wp.psi])
+#         wp_i += num_points + 1
+#     dubins_waypoints_ordered.append([waypoints_complete[-1].x, waypoints_complete[-1].y, waypoints_complete[-1].psi])
+
+#     dubins_mission = mission
+#     del dubins_mission.waypoints[:]
+
+#     current_wp = 0
+#     dwp_count = 0
+#     for wp in dubins_waypoints_ordered:
+
+#         goal_tolerance = original_waypoints[current_wp, 2]
+#         z_control_mode = original_waypoints[current_wp, 3]
+#         travel_altitude = original_waypoints[current_wp, 4]
+#         travel_depth = original_waypoints[current_wp, 5]
+#         speed_control_mode = original_waypoints[current_wp, 6]
+#         travel_rpm = original_waypoints[current_wp, 7]
+#         travel_speed = original_waypoints[current_wp, 8]
+
+#         dwp = GotoWaypoint()
+#         dwp.pose.pose.position.x = wp[0]
+#         dwp.pose.pose.position.y = wp[1]
+#         dwp.pose.pose.position.z = travel_altitude
+#         dwp.lat, dwp.lon = utm_to_latlon(wp[0], wp[1], utm_to_ll_serv)
+
+#         quaternion = quaternion_from_euler(0.0, 0.0, math.radians(wp[2]))  # RPY [rad]
+#         # Normalize quaternion
+#         if len(quaternion) != 0:
+#             quaternion = quaternion / np.sqrt(np.sum(quaternion**2))
+#         dwp.pose.pose.orientation.x = quaternion[0]
+#         dwp.pose.pose.orientation.y = quaternion[1]
+#         dwp.pose.pose.orientation.z = quaternion[2]
+#         dwp.pose.pose.orientation.w = quaternion[3]
+
+#         dwp.goal_tolerance = goal_tolerance
+#         dwp.z_control_mode = z_control_mode
+#         dwp.travel_altitude = travel_altitude
+#         dwp.travel_depth = travel_depth
+#         dwp.speed_control_mode = speed_control_mode
+
+#         dwp.travel_speed = travel_speed
+#         dwp.travel_rpm = travel_rpm
+
+#         # Name of the dwp = previousoriginalwp_nextoriginalwp_counter
+#         dwp.name = "wp" + str(current_wp) + "_wp" + str(current_wp+1) + "_" + str(dwp_count)
+
+#         if dwp_count == num_points:
+#             dwp_count = 0
+#             current_wp += 1
+#         else:
+#             dwp_count += 1
+
+#         dubins_mission.waypoints.append(dwp)
+
+#     rospy.loginfo("Dubins mission ready")
+#     return dubins_mission
+
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    plt.ion()
+
+    wps = [
+        Waypoint(0,0,0),
+        Waypoint(20,0,90)
+    ]
+    traj = sample_between_wps(wps[0], wps[1], 5, 2)
+    plt.plot(traj[:,0], traj[:,1])
+
+
+

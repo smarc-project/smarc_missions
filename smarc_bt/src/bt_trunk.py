@@ -122,19 +122,19 @@ def const_tree(auv_config):
         read_reloc_wp = A_ReadWaypoint(
             ps_topic = auv_config.LIVE_WP,
             bb_key = bb_enums.LIVE_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            utm_to_lat_lon_service_name=auv_config.UTMTOLATLON_SERVICE,
             lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
             bb_key = bb_enums.ALGAE_FOLLOW_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            utm_to_lat_lon_service_name=auv_config.UTMTOLATLON_SERVICE,
             lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
         read_gui_wp = A_ReadWaypoint(
             ps_topic = auv_config.GUI_WP,
             bb_key = bb_enums.GUI_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
+            utm_to_lat_lon_service_name=auv_config.UTMTOLATLON_SERVICE,
             lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
 
 

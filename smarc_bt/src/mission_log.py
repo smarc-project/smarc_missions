@@ -167,7 +167,7 @@ class MissionLog(object):
             xround(v.position_utm[0], 2),
             xround(v.position_utm[1], 2),
             self.utm_z,
-            xround(RADTODEG * (math.pi/2 - v.orientation_rpy[2]), 2), #heading
+            xround(v.heading, 2),
             xround(v.orientation_rpy[0], 2),
             xround(v.orientation_rpy[1], 2),
             xround(v.depth, 2),

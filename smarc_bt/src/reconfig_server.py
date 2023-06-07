@@ -44,21 +44,6 @@ class ReconfigServer(object):
                                float(config.LOCALIZATION_ERROR_GROWTH), 0, 0.1)
 
 
-        # dubins planner stuff
-        self.ddrc.add_variable(bb_enums.DUBINS_TURNING_RADIUS,
-                               "default:{}".format(config.DUBINS_TURNING_RADIUS),
-                               float(config.DUBINS_TURNING_RADIUS), 0.1, 50)
-
-        self.ddrc.add_variable(bb_enums.DUBINS_INTERSECTION_RADIUS,
-                               "Only used if the dubins path is set to cut the corner. Radius of the circle centered on the original waypoint itself, used to compute the intersection waypoints with the straight path. default:{}".format(
-                                   config.DUBINS_INTERSECTION_RADIUS),
-                               float(config.DUBINS_INTERSECTION_RADIUS), 0.1, 100)
-
-        self.ddrc.add_variable(bb_enums.DUBINS_COMPUTE_PATH,
-                               "Check to compute the dubins path between waypoints, uncheck to use the basic planner",
-                               config.DUBINS_COMPUTE_PATH)
-
-
         rospy.loginfo("Started dynamic reconfig server with keys:{}".format(self.ddrc.get_variable_names()))
 
 
