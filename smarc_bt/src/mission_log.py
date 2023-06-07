@@ -201,7 +201,9 @@ class MissionLog(object):
                 current_wp.travel_depth,
                 current_wp.speed_control_mode,
                 current_wp.travel_rpm,
-                current_wp.travel_speed
+                current_wp.travel_speed,
+                xround(current_wp.arrival_heading, 1),
+                current_wp.use_heading
             ])
         else:
             # all the current_wp stuff is None if there is no current action

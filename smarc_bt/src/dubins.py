@@ -31,7 +31,7 @@ class Waypoint:
         self.psi = psi
 
     def __str__(self):
-        return 'x: {x}, y: {y}, psi: {psi} + str(self.x)'.format(x=self.x, y=self.y, psi=self.psi)
+        return 'x: {x}, y: {y}, psi: {psi}'.format(x=self.x, y=self.y, psi=self.psi)
 
 class Param:
     def __init__(self, p_init, seg_final, turn_radius,):
@@ -318,17 +318,32 @@ def create_dubins_path(vehicle,
     :param turning_radius: Turning radius in meters of the vehicle.
     :return [waypoints...]: List of MissionPlan.Waypoint objects.
     """
+    def heading_to_yaw(a):
+        return (90-a)%360
+    def yaw_to_heading(b):
+        return (-(b-90))%360
+
+    RADTODEG = 360 / (math.pi * 2)
+    def directed_angle(v1,v2):
+        """
+        returns angle in a directed fashion, from v1 to v2, v1+angle = v2
+        negative value means v2 is closer if v1 rotates cw
+        """
+        x1,x2 = v1[0],v2[0]
+        y1,y2 = v1[1],v2[1]
+
+        dot = x1*x2 + y1*y2      # dot product
+        det = x1*y2 - y1*x2      # determinant
+        angle_diff = np.arctan2(det, dot)  # atan2(y, x) or atan2(sin, cos)
+
+        return angle_diff
+
     dubins_wp = []
     # for each user-given WP, we want to compute
     # a sample path between such that the path leads into the
     # next WP in the heading that it wants
     for wp_i in range(len(waypoints)):
         wp_current = waypoints[wp_i]
-        if wp_current.wp.arrival_heading is None:
-            # this WP doesnt care about the heading
-            # so we just keep it as is
-            dubins_wp.append(wp_current)
-            continue
 
         # so this WP wants a specific heading on arrival
         # then we need to dubins from the previous one
@@ -337,16 +352,37 @@ def create_dubins_path(vehicle,
             # previous WP is the current pose of the vehicle
             d_wp_prev = Waypoint(vehicle.position_utm[0],
                                 vehicle.position_utm[1],
-                                vehicle.heading)
+                                heading_to_yaw(vehicle.heading))
         else:
             wp_prev = waypoints[wp_i-1]
             d_wp_prev = Waypoint(wp_prev.wp.pose.pose.position.x,
                                  wp_prev.wp.pose.pose.position.y,
-                                 wp_prev.wp.arrival_heading)
+                                 heading_to_yaw(wp_prev.wp.arrival_heading))
 
-        d_wp_current = Waypoint(wp_current.wp.pose.pose.position.x,
-                                wp_current.wp.pose.pose.position.y,
-                                wp_current.wp.arrival_heading)
+        x = wp_current.wp.pose.pose.position.x
+        y = wp_current.wp.pose.pose.position.y
+        if not wp_current.wp.use_heading:
+            # this WP doesnt care about the heading
+            # so we calculate the heading according to
+            # the next wp if it exists, previous wp if it doesnt
+            if wp_i == len(waypoints)-1:
+                # last WP, use the prev_wp for the heading
+                px = d_wp_prev.x
+                py = d_wp_prev.y
+                a = directed_angle((1,0), (x-px, y-py)) * RADTODEG
+            else:
+                # there should be a next wp
+                wp_next = waypoints[wp_i+1]
+                nx = wp_next.wp.pose.pose.position.x
+                ny = wp_next.wp.pose.pose.position.y
+                a = directed_angle((1,0), (nx-x, ny-y)) * RADTODEG
+            # we set the arrival heading here so that the same heading is
+            # used again for the next wp's paths if needed
+            wp_current.wp.arrival_heading = yaw_to_heading(a)
+
+        d_wp_current = Waypoint(x,y,heading_to_yaw(wp_current.wp.arrival_heading))
+
+        print("Dubins from {} to {}".format(d_wp_prev, d_wp_current))
 
         # now we have the simple waypoints so we can sample between them
         # this path does not include the original wps
@@ -561,11 +597,14 @@ if __name__ == "__main__":
     plt.ion()
 
     wps = [
-        Waypoint(0,0,0),
-        Waypoint(20,0,90)
+        Waypoint(0, 0, 90),
+        Waypoint(7, 7, 1),
+        Waypoint(15,9, 0),
+        Waypoint(0, 5, 90),
     ]
-    traj = sample_between_wps(wps[0], wps[1], 5, 2)
-    plt.plot(traj[:,0], traj[:,1])
+    for i in range(len(wps)-1):
+        traj = sample_between_wps(wps[i], wps[i+1], 5, 0.5)
+        plt.plot(traj[:,0], traj[:,1])
 
 
 

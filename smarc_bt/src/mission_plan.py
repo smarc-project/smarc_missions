@@ -54,6 +54,7 @@ class Waypoint:
             float64 lat
             float64 lon
             float64 arrival_heading
+            bool use_heading
             string name
         """
 
@@ -417,7 +418,9 @@ class MissionPlan:
         return utmtolatlon_service
 
 
-    def generate_dubins(self, turning_radius=3, step=1.5):
+    def generate_dubins(self, turning_radius=3, step=None):
+        if step is None:
+            step = turning_radius + 0.5
         rospy.loginfo("Converting to dubins plan with radius {} and step {}".format(turning_radius, step))
         bb = pt.blackboard.Blackboard()
         vehicle = bb.get(bb_enums.VEHICLE_STATE)

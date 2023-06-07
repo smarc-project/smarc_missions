@@ -4,7 +4,6 @@
 geometry_msgs/PoseStamped pose
 # required proximity in meters to waypoint in
 # order to consider the waypoint as reached
-# (should be at least 1m)
 float64 goal_tolerance
 
 # Defines the type of z control used going there
@@ -28,4 +27,6 @@ float64 travel_speed
 float64 lat
 float64 lon
 float64 arrival_heading
+bool use_heading
+
 string name
