@@ -70,16 +70,8 @@ class WPDepthPlanner(object):
     def vel_feedback_cb(self,vel_feedback):
         self.vel_feedback= vel_feedback.data
 
-    def angle_wrap(self,angle):
-        if(abs(angle)>3.141516):
-            angle= angle - (abs(angle)/angle)*2*3.141516 #Angle wrapping between -pi and pi
-            rospy.loginfo_throttle_identical(20, "Angle Error Wrapped")
-        return angle
-
-
     def vel_wp_following(sefl, vel_setpoint, yaw_setpoint):
         print("It'll come!")
-
 
     def rpm_wp_following(self, forward_rpm, yaw_setpoint):
         rospy.loginfo_throttle_identical(5,"Using Constant RPM")
@@ -159,11 +151,6 @@ class WPDepthPlanner(object):
                     self.disengage_actuators()
                     self._as.set_preempted(self._result, "Preempted WP action")
                     return
-
-                # Publish setpoints to controllers
-                # call function that uses vbs at low speeds, dynamic depth at higher speeds
-                #self.publish_depth_setpoint(
-                #    self.nav_goal.waypoint.pose.pose.position.z)
 
                 # Current yaw error on local coordinates
                 yaw_error = math.atan2(

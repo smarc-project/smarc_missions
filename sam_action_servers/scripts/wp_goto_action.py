@@ -71,12 +71,6 @@ class WPDepthPlanner(object):
     def vel_feedback_cb(self,vel_feedback):
         self.vel_feedback= vel_feedback.data
 
-    def angle_wrap(self,angle):
-        if(abs(angle)>3.141516):
-            angle= angle - (abs(angle)/angle)*2*3.141516 #Angle wrapping between -pi and pi
-            rospy.loginfo_throttle_identical(20, "Angle Error Wrapped")
-        return angle
-
     # def turbo_turn(self,angle_error):
     #     rpm = self.turbo_turn_rpm
     #     rudder_angle = self.rudder_angle
@@ -127,10 +121,8 @@ class WPDepthPlanner(object):
         rospy.loginfo_throttle_identical(5,"Using Constant RPM")
         
         # Thruster forward
-        rpm1 = ThrusterRPM()
-        rpm2 = ThrusterRPM()
-        rpm1.rpm = int(forward_rpm)
-        rpm2.rpm = int(forward_rpm)
+        rpm1 = ThrusterRPM(int(forward_rpm))
+        rpm2 = ThrusterRPM(int(forward_rpm))
         
         self.rpm1_pub.publish(rpm1)
         #self.rpm1_pub.publish(0.)
@@ -154,12 +146,8 @@ class WPDepthPlanner(object):
     def disengage_actuators(self):
 
         # Stop thrusters
-        rpm1 = ThrusterRPM()
-        rpm2 = ThrusterRPM()
-        rpm1.rpm = 0
-        rpm2.rpm = 0
-        self.rpm1_pub.publish(rpm1)
-        self.rpm2_pub.publish(rpm2)
+        self.rpm1_pub.publish(ThrusterRPM(0))
+        self.rpm2_pub.publish(ThrusterRPM(0))
         self.yaw_pid_enable.publish(False)
         # self.elev_pid_enable.publish(False)
         
