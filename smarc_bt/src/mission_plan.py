@@ -191,13 +191,6 @@ class MissionPlan:
         # keep track of which waypoint we are going to
         # start at -1 to indicate that _we are not going to any yet_
         self.current_wp_index = -1
-        # test if the service is usable!
-        # if not, test the backup
-        # if that fails too, raise exception
-        self.latlontoutm_service_name = self._config.LATLONTOUTM_SERVICE
-        self._wait_for_ll_to_utm_service()
-        self.utmtolatlon_service_name = self._config.UTMTOLATLON_SERVICE
-        self._wait_for_utm_to_ll_service()
         # and finally read from the mission control message all
         # the fields above
         self.waypoints = []
@@ -369,52 +362,19 @@ class MissionPlan:
         return (res.utm_point.x, res.utm_point.y)
 
 
-    def _wait_for_ll_to_utm_service(self):
-        no_service = True
-        while no_service:
-            rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
-            rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
-            no_service = False
-        rospy.loginfo("Got it")
-
-    def _wait_for_utm_to_ll_service(self):
-        no_service = True
-        while no_service:
-            rospy.loginfo("Waiting (0.5s) utm_to_lat_lon service:{}".format(self.utmtolatlon_service_name))
-            rospy.wait_for_service(self.utmtolatlon_service_name, timeout=0.5)
-            no_service = False
-        rospy.loginfo("Got it")
-
-
     def _get_latlon_to_utm_service(self):
-        try:
-            rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
-        except:
-            rospy.logwarn(str(self.latlontoutm_service_name)+" service not found!")
-            return (None, None)
-
-        try:
-            latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
-                                                     LatLonToUTM)
-        except rospy.service.ServiceException:
-            rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
-            return None
+        bb = pt.blackboard.Blackboard()
+        s = bb.get(bb_enums.LLTOUTM_SERVICE_NAME)
+        rospy.wait_for_service(s, timeout=1)
+        latlontoutm_service = rospy.ServiceProxy(s, LatLonToUTM)
         return latlontoutm_service
 
 
     def _get_utm_to_latlon_service(self):
-        try:
-            rospy.wait_for_service(self.utmtolatlon_service_name, timeout=5)
-        except:
-            rospy.logwarn(str(self.utmtolatlon_service_name)+" service not found!")
-            return (None, None)
-
-        try:
-            utmtolatlon_service = rospy.ServiceProxy(self.utmtolatlon_service_name,
-                                                     UTMToLatLon)
-        except rospy.service.ServiceException:
-            rospy.logerr_throttle_identical(5, "UTM to LatLon service failed! namespace:{}".format(self.utmtolatlon_service_name))
-            return None
+        bb = pt.blackboard.Blackboard()
+        s = bb.get(bb_enums.UTMTOLL_SERVICE_NAME)
+        rospy.wait_for_service(s, timeout=1)
+        utmtolatlon_service = rospy.ServiceProxy(s, UTMToLatLon)
         return utmtolatlon_service
 
 
