@@ -191,6 +191,7 @@ install(PROGRAMS
   src/reconfig_server.py
   src/coverage_planner.py
   src/vehicle.py
+  src/dubins.py
   src/nodered_handler.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

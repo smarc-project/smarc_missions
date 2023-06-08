@@ -71,8 +71,7 @@ class AUVConfig(object):
         # services need to look like /$(arg robot_name)/service_name
         # so add the robot_name part
         for k in ['LATLONTOUTM_SERVICE',
-                  'UTM_TO_LATLON_SERVICE',
-                  'LATLONTOUTM_SERVICE_ALTERNATIVE',
+                  'UTMTOLATLON_SERVICE',
                   'GOTO_ACTION_NAMESPACE',
                   'EMERGENCY_ACTION_NAMESPACE']:
             self.__dict__[k] = '/' + self.robot_name + '/' + self.__dict__[k]

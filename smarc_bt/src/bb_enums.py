@@ -44,3 +44,6 @@ LIVE_WP = 'live_wp'
 # gui-wp that can be updated continually
 GUI_WP_ENABLE = 'gui_wp_enable'
 GUI_WP = 'gui_wp'
+
+LLTOUTM_SERVICE_NAME = 'll2utm_service'
+UTMTOLL_SERVICE_NAME = 'utm2ll_service'

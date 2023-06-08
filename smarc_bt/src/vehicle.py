@@ -3,7 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-import time
+import time, math
 
 import rospy, tf
 from geometry_msgs.msg import PointStamped
@@ -13,6 +13,7 @@ from smarc_bt.msg import GotoWaypoint
 from sensor_msgs.msg import NavSatFix, BatteryState
 from sam_msgs.msg import PercentStamped
 
+RADTODEG = 360 / (math.pi * 2)
 
 class StringAnimation(object):
     """
@@ -128,6 +129,8 @@ class Vehicle(object):
         self.position_utm = [None, None]
         self.orientation_quat = [None, None, None, None]
         self.orientation_rpy = [None, None, None]
+        # northing, north = 0, east = 90, south = 180
+        self.heading = None
         self.depth = None
         # for convenicent use in ROS elsewhere
         self.position_point_stamped = None
@@ -186,6 +189,8 @@ class Vehicle(object):
         self.orientation_quat = [ori[0], ori[1], ori[2], ori[3]]
         rpy = tf.transformations.euler_from_quaternion(ori)
         self.orientation_rpy = [rpy[0], rpy[1], rpy[2]]
+        # heading from yaw. VERY HACKY
+        self.heading = RADTODEG * (math.pi/2 - rpy[2])
 
         ps = PointStamped()
         ps.header.frame_id = self.auv_config.UTM_LINK
