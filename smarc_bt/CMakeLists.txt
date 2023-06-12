@@ -179,26 +179,26 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-install(PROGRAMS
-  src/auv_config.py
-  src/bb_enums.py
-  src/bt_actions.py
-  src/bt_common.py
-  src/bt_conditions.py
-  src/common_globals.py
-  src/mission_plan.py
-  src/mission_log.py
-  src/reconfig_server.py
-  src/coverage_planner.py
-  src/vehicle.py
-  src/dubins.py
-  src/nodered_handler.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+#install(PROGRAMS
+#  src/auv_config.py
+#  src/bb_enums.py
+#  src/bt_actions.py
+#  src/bt_common.py
+#  src/bt_conditions.py
+#  src/common_globals.py
+#  src/mission_plan.py
+#  src/mission_log.py
+#  src/reconfig_server.py
+#  src/coverage_planner.py
+#  src/vehicle.py
+#  src/nodered_handler.py
+#  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#)
 
-catkin_install_python(PROGRAMS src/bt_trunk.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+#catkin_install_python(PROGRAMS src/bt_trunk.py
+#  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#)
+
 
 ## Mark executables and/or libraries for installation
 # install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
@@ -221,7 +221,7 @@ catkin_install_python(PROGRAMS src/bt_trunk.py
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 install(DIRECTORY launch/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+	DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
   PATTERN ".svn" EXCLUDE
 )
 

@@ -52,7 +52,9 @@ class Lolo(object):
                  rudder_Kp = 50,
                  elevator_Kp = 50,
                  rudder_cone_degrees = 5.72,
-                 forward_cone_degrees = 10):
+                 forward_cone_degrees = 10,
+                 enable_spiral = False,
+                 enable_thruster_turn = True):
         """
         A container object that abstracts away ros-related stuff for a nice abstract vehicle
         pose is in NED, x = north, y = east, z = down/depth
@@ -64,6 +66,8 @@ class Lolo(object):
         self.elevator_Kp = elevator_Kp
         self.rudder_cone_degrees = rudder_cone_degrees
         self.forward_cone_degrees = forward_cone_degrees
+        self.enable_spiral = enable_spiral
+        self.enable_thruster_turn = enable_thruster_turn
 
         self.goal = None
         self.control_mode = Lolo.IDLE
@@ -120,10 +124,16 @@ class Lolo(object):
         ####
         # depth control priority
         if np.abs(pitch_diff) > self.forward_cone_degrees and np.abs(depth_diff) > self.goal.tolerance:
-            self._change_mode(Lolo.BACKWARDS_SPIRAL)
+            if self.enable_spiral:
+                self._change_mode(Lolo.BACKWARDS_SPIRAL)
+            else:
+                self._change_mode(Lolo.DRIVE)
         # thruster-turn second priority
         elif np.abs(yaw_diff) > self.rudder_cone_degrees:
-            self._change_mode(Lolo.THRUSTER_TURN)
+            if self.enable_thruster_turn:
+                self._change_mode(Lolo.THRUSTER_TURN)
+            else:
+                self._change_mode(Lolo.DRIVE)
         # no special mode needed, just drive to goal
         else:
             self._change_mode(Lolo.DRIVE)
