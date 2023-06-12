@@ -31,7 +31,8 @@ class ROSLolo(object):
                  control_thrusters=True,
                  control_elevons=True,
                  control_rudder=True,
-                 control_elevator=True):
+                 control_elevator=True,
+                 max_rpm = 500):
         """
         Reads the state of a lolo from ROS topics and updates the given lolo object
         Reads the desired angles and such from the lolo object and publishes setpoints
@@ -41,6 +42,7 @@ class ROSLolo(object):
         self.base_link = robot_name + "/base_link"
         self.reference_link = reference_link
         self.update_freq = update_freq
+        self.max_rpm = max_rpm
 
         self.tf_listener = tf.TransformListener()
         while not rospy.is_shutdown():
@@ -105,8 +107,12 @@ class ROSLolo(object):
         self.update_tf()
 
         if self.control_thrusters:
-            self.t1_pub.publish(int(self.lolo.desired_rpms[0]))
-            self.t2_pub.publish(int(self.lolo.desired_rpms[1]))
+            t1m = min(self.max_rpm, abs(self.lolo.desired_rpms[0]))
+            t2m = min(self.max_rpm, abs(self.lolo.desired_rpms[1]))
+            t1 = int(np.sign(self.lolo.desired_rpms[0]) * t1m)
+            t2 = int(np.sign(self.lolo.desired_rpms[1]) * t2m)
+            self.t1_pub.publish(t1)
+            self.t2_pub.publish(t2)
 
         if self.control_elevons:
             self.elevon_p_pub.publish(self.lolo.desired_elevon_angles[0])

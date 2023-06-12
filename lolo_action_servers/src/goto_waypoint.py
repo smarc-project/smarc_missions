@@ -40,18 +40,21 @@ class LoloGotoWP(object):
     def __init__(self):
 
         # see launch/config.yaml
-        self.lolo = Lolo(max_rpm = get_param("max_rpm", 2000),
+        self.lolo = Lolo(max_rpm = get_param("max_rpm", 500),
                          max_fin_radians = get_param("max_fin_radians", 0.6),
                          rudder_Kp = get_param("rudder_Kp", 50),
                          elevator_Kp = get_param("elevator_Kp", 50),
+                         thruster_drive_Kp = get_param("thruster_drive_Kp", 10),
                          rudder_cone_degrees = get_param("rudder_cone_degrees", 5.72),
                          forward_cone_degrees = get_param("forward_cone_degrees", 10),
                          enable_spiral = get_param("enable_spiral", False),
-                         enable_thruster_turn = get_param("enable_thruster_turn", True))
+                         enable_thruster_turn = get_param("enable_thruster_turn", True),
+                         useless_rudder_depth = get_param("useless_rudder_depth", 0.8))
 
         self.ros_lolo = ROSLolo(lolo = self.lolo,
                                 robot_name = get_param("robot_name", "lolo"),
-                                update_freq = get_param("controller_update_freq", 10))
+                                update_freq = get_param("controller_update_freq", 10),
+                                max_rpm = get_param("max_rpm", 500))
 
         self.update_freq = get_param("action_update_freq", 10)
 

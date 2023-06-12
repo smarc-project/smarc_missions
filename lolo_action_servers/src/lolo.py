@@ -51,10 +51,12 @@ class Lolo(object):
                  max_fin_radians = 0.6,
                  rudder_Kp = 50,
                  elevator_Kp = 50,
+                 thruster_drive_Kp = 10,
                  rudder_cone_degrees = 5.72,
                  forward_cone_degrees = 10,
                  enable_spiral = False,
-                 enable_thruster_turn = True):
+                 enable_thruster_turn = True,
+                 useless_rudder_depth = 0.8):
         """
         A container object that abstracts away ros-related stuff for a nice abstract vehicle
         pose is in NED, x = north, y = east, z = down/depth
@@ -64,10 +66,12 @@ class Lolo(object):
         self.max_fin_radians = max_fin_radians
         self.rudder_Kp = rudder_Kp
         self.elevator_Kp = elevator_Kp
+        self.thruster_drive_Kp = thruster_drive_Kp
         self.rudder_cone_degrees = rudder_cone_degrees
         self.forward_cone_degrees = forward_cone_degrees
         self.enable_spiral = enable_spiral
         self.enable_thruster_turn = enable_thruster_turn
+        self.useless_rudder_depth = useless_rudder_depth
 
         self.goal = None
         self.control_mode = Lolo.IDLE
@@ -123,17 +127,14 @@ class Lolo(object):
         # Change mode according to where the goal is relative to us
         ####
         # depth control priority
-        if np.abs(pitch_diff) > self.forward_cone_degrees and np.abs(depth_diff) > self.goal.tolerance:
-            if self.enable_spiral:
+        if np.abs(pitch_diff) > self.forward_cone_degrees and\
+           np.abs(depth_diff) > self.goal.tolerance and\
+           self.enable_spiral:
                 self._change_mode(Lolo.BACKWARDS_SPIRAL)
-            else:
-                self._change_mode(Lolo.DRIVE)
         # thruster-turn second priority
-        elif np.abs(yaw_diff) > self.rudder_cone_degrees:
-            if self.enable_thruster_turn:
+        elif np.abs(yaw_diff) > self.rudder_cone_degrees and\
+             self.enable_thruster_turn:
                 self._change_mode(Lolo.THRUSTER_TURN)
-            else:
-                self._change_mode(Lolo.DRIVE)
         # no special mode needed, just drive to goal
         else:
             self._change_mode(Lolo.DRIVE)
@@ -206,8 +207,8 @@ class Lolo(object):
 
     def _thruster_turn_to_yaw(self, turn_direction, turn_mag):
         self.desired_rudder_angle = turn_direction * turn_mag * self.max_fin_radians * self.rudder_Kp
-        self.desired_rpms[0] = -turn_direction * self.max_rpm
-        self.desired_rpms[1] =  turn_direction * self.max_rpm
+        self.desired_rpms[0] = -turn_direction * self.goal.rpm
+        self.desired_rpms[1] =  turn_direction * self.goal.rpm
 
 
     def _drive_to_yaw(self, turn_direction, turn_mag):
@@ -218,9 +219,18 @@ class Lolo(object):
         # super simple P controller for rudder
         self.desired_rudder_angle = turn_direction * turn_mag * self.max_fin_radians * self.rudder_Kp
         # and just drive forward
-        # TODO possibly tune these for some light P control too
         self.desired_rpms[0] = self.goal.rpm
         self.desired_rpms[1] = self.goal.rpm
+        # if we are not deep enough for rudders to be useful, help with thrusters
+        if self.depth < self.useless_rudder_depth:
+            if turn_direction < 0:
+                self.desired_rpms[0] = self.goal.rpm
+                self.desired_rpms[1] = self.goal.rpm * (1-(self.thruster_drive_Kp*turn_mag))
+            elif turn_direction > 0:
+                self.desired_rpms[0] = self.goal.rpm * (1-(self.thruster_drive_Kp*turn_mag))
+                self.desired_rpms[1] = self.goal.rpm
+
+
 
 
 
