@@ -45,7 +45,9 @@ class LoloGotoWP(object):
                          rudder_Kp = get_param("rudder_Kp", 50),
                          elevator_Kp = get_param("elevator_Kp", 50),
                          rudder_cone_degrees = get_param("rudder_cone_degrees", 5.72),
-                         forward_cone_degrees = get_param("forward_cone_degrees", 10))
+                         forward_cone_degrees = get_param("forward_cone_degrees", 10),
+                         enable_spiral = get_param("enable_spiral", False),
+                         enable_thruster_turn = get_param("enable_thruster_turn", True))
 
         self.ros_lolo = ROSLolo(lolo = self.lolo,
                                 robot_name = get_param("robot_name", "lolo"),

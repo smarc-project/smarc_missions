@@ -27,3 +27,7 @@ rudder_cone_degrees : 18
 # make spirals to dive or rise towards the depth of the point until the point is
 # within the cone again
 forward_cone_degrees : 3
+
+# Obvious
+enable_spiral : false
+enable_thruster_turn : true
