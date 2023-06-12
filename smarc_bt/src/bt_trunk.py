@@ -354,7 +354,8 @@ def main():
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
     tf_listener = None
-    while tf_listener is None:
+    tf_retry_rate = rospy.Rate(0.2)
+    while tf_listener is None and not rospy.is_shutdown():
         try:
             rospy.loginfo("Setting up tf_listener for vehicle object before BT")
             tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
@@ -364,7 +365,7 @@ def main():
 
         if tf_listener is None:
             rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
-            time.sleep(5)
+            tf_retry_rate.sleep()
 
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
