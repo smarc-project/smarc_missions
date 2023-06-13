@@ -12,6 +12,7 @@ from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWay
 import actionlib
 import rospy
 import tf
+import tf2_ros
 from sam_msgs.msg import ThrusterAngles
 from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Float64, Header, Bool, Int32
@@ -20,6 +21,7 @@ import math
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler
 import time   
+from geometry_msgs.msg import Quaternion, TransformStamped
 
 from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
 
@@ -86,7 +88,39 @@ class WPDepthPlanner(object):
         # Stop thrusters
         self.yaw_ctrl_enable.publish(False)
         self.rpm_ctrl_enable.publish(False)        
+
+    def bc_wp_tf(self, goal_point):
         
+        try:
+            (world_trans, world_rot) = self.listener.lookupTransform(self.map_frame, 
+                                                                    "wp_" + str(self.wp_cnt),
+                                                                    rospy.Time(0))
+
+        except (tf.LookupException, tf.ConnectivityException):
+            
+            try:
+                goal_point_local = self.listener.transformPoint(
+                    self.map_frame, goal_point)
+
+                rot = [0., 0., 0., 1.]
+                rospy.loginfo("WP vis node: broadcasting transform %s to %s" % (self.map_frame, "wp_" + str(self.wp_cnt)))            
+                transformStamped = TransformStamped()
+                transformStamped.transform.translation.x = goal_point_local.point.x
+                transformStamped.transform.translation.y = goal_point_local.point.y
+                transformStamped.transform.translation.z = 0.
+                transformStamped.transform.rotation = Quaternion(*rot)               
+                transformStamped.header.frame_id = self.map_frame
+                transformStamped.child_frame_id = "wp_" + str(self.wp_cnt)
+                transformStamped.header.stamp = rospy.Time.now()
+                self.static_tf_bc.sendTransform(transformStamped)
+
+                self.wp_cnt += 1
+                return
+            
+            except(tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                print("Heading controller: Could not transform WP to base_link")
+                pass
+    
     def execute_cb(self, goal):
 
         rospy.loginfo("Goal received")
@@ -175,6 +209,8 @@ class WPDepthPlanner(object):
                 self.rpm_wp_following(self.forward_rpm, yaw_setpoint)
                 # self.rpm_wp_following(0., yaw_setpoint)
 
+                self.bc_wp_tf(goal_point)
+
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 print("Heading controller: Could not transform WP to base_link")
                 pass
@@ -186,6 +222,7 @@ class WPDepthPlanner(object):
 
         self._action_name = name
         self.base_frame = rospy.get_param('~base_frame', "sam/base_link")
+        self.map_frame = rospy.get_param('~map_frame', "sam/map")
         self.base_frame_2d = rospy.get_param('~base_frame_2d', "sam/base_link")
         self.wp_tolerance = rospy.get_param('~wp_tolerance', 5.) #default value, overriden by Neptus if it is set in Neptus
         self.node_freq = rospy.get_param("~node_freq", "20.")
@@ -198,6 +235,8 @@ class WPDepthPlanner(object):
         self.vel_ctrl_flag = False
         self.nav_goal = None
         self.listener = tf.TransformListener()
+        self.static_tf_bc = tf2_ros.StaticTransformBroadcaster()
+        self.wp_cnt = 0
         
         self.yaw_ctrl_sp = rospy.Publisher(heading_setpoint_topic, Float64, queue_size=10)
         self.yaw_ctrl_enable = rospy.Publisher(heading_enable_topic, Bool, queue_size=10)

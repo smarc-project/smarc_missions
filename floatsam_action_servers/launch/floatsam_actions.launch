@@ -14,7 +14,8 @@
 			</node> -->
 
 		<node name="goto_waypoint" pkg="floatsam_action_servers" type="usv_wp_goto_action.py" output="screen">
-			<param name="base_frame" value="$$(arg namespace)/base_link"/>
+			<param name="base_frame" value="$(arg namespace)/base_link"/>
+			<param name="map_frame" value="map"/>
 			<param name="base_frame_2d" value="$(arg namespace)/base_link_2d"/>
 			<param name="wp_tolerance" value="2."/>
 			<param name="node_freq" value="40." />
