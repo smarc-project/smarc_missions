@@ -23,7 +23,7 @@ from smarc_msgs.msg import ThrusterRPM
 from std_msgs.msg import Bool
 #from move_base_msgs.msg import MoveBaseFeedback, MoveBaseResult, MoveBaseAction
 from smarc_bt.msg import GotoWaypointActionFeedback, GotoWaypointResult, GotoWaypointAction
-from toggle_controller import ToggleController     
+#from toggle_controller import ToggleController     
 
 class EmergencySurface(object):
 
