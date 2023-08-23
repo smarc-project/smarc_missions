@@ -159,6 +159,13 @@ class MissionLog(object):
             except:
                 return num
 
+        try:
+            gps_lat = xround(v.raw_gps_obj.latitude, 6),
+            gps_lon = xround(v.raw_gps_obj.longitude, 6),
+        except:
+            gps_lat = None
+            gps_lon = None
+
         record = [
             int(time.time()),
             annotation,
@@ -179,8 +186,8 @@ class MissionLog(object):
             v.t2,
             xround(v.batt_v, 1),
             v.batt_percent,
-            xround(v.raw_gps_obj.latitude, 6),
-            xround(v.raw_gps_obj.longitude, 6),
+            gps_lat,
+            gps_lon,
             tip.name,
             status_strings.get(tip.status, "unknown")[0],
             plan.plan_id
