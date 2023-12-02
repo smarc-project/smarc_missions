@@ -144,7 +144,7 @@ class Vehicle(object):
         try:
             listener.waitForTransform(self.auv_config.UTM_LINK,
                                       self.auv_config.BASE_LINK,
-                                      rospy.Time(),
+                                      rospy.Time(0),
                                       rospy.Duration(secs=timeout_secs))
             self._status_str_tf = "Got xform"
             return listener
@@ -172,6 +172,7 @@ class Vehicle(object):
                                                  self.auv_config.BASE_LINK,
                                                  rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException):
+            print("Cannot catch tf transform")
             self._status_str_tf = "lookupTransform failed from '{}' to '{}', is the TF tree in one piece?".format(self.auv_config.UTM_LINK, self.auv_config.BASE_LINK)
             return
         except Exception as e:

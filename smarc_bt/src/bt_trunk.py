@@ -7,7 +7,6 @@ import os, time, sys
 
 import rospy
 
-
 import py_trees as pt
 import py_trees_ros as ptr
 
@@ -338,18 +337,19 @@ def main():
     # first construct a vehicle that will hold and sub to most things
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
+    # tf_listener = tf.TransformListener()
     tf_listener = None
     while tf_listener is None:
         try:
-            rospy.loginfo("Setting up tf_listener for vehicle object before BT")
+            rospy.loginfo_throttle(5, "Setting up tf_listener for vehicle object before BT")
             tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
         except Exception as e:
             tf_listener = None
-            rospy.logerr("Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
+            rospy.logerr_throttle(5, "Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
 
         if tf_listener is None:
-            rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
-            time.sleep(5)
+            rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
+            time.sleep(0.1)
 
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
