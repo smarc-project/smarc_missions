@@ -121,21 +121,15 @@ def const_tree(auv_config):
 
         read_reloc_wp = A_ReadWaypoint(
             ps_topic = auv_config.LIVE_WP,
-            bb_key = bb_enums.LIVE_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
-            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
+            bb_key = bb_enums.LIVE_WP)
 
         read_algae_follow_wp = A_ReadWaypoint(
             ps_topic = auv_config.ALGAE_FOLLOW_WP,
-            bb_key = bb_enums.ALGAE_FOLLOW_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
-            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
+            bb_key = bb_enums.ALGAE_FOLLOW_WP)
 
         read_gui_wp = A_ReadWaypoint(
             ps_topic = auv_config.GUI_WP,
-            bb_key = bb_enums.GUI_WP,
-            utm_to_lat_lon_service_name=auv_config.UTM_TO_LATLON_SERVICE,
-            lat_lon_to_utm_service_name=auv_config.LATLONTOUTM_SERVICE)
+            bb_key = bb_enums.GUI_WP)
 
 
         publish_heartbeat = A_SimplePublisher(topic = auv_config.HEARTBEAT_TOPIC,
@@ -319,6 +313,27 @@ def const_tree(auv_config):
 
     return ptr.trees.BehaviourTree(root,record_rosbag=False)
 
+def _wait_for_service(service_name, alternative_name=None, retries=5):
+    no_service = True
+    tried = 1
+    while no_service and tried <= retries:
+        rospy.loginfo("Waiting (0.5s) for service: {}".format(service_name))
+        try:
+            rospy.wait_for_service(service_name, timeout=0.5)
+            rospy.loginfo("Got it")
+            return service_name
+        except rospy.exceptions.ROSException:
+            rospy.loginfo("Trying the alternative {}".format(alternative_name))
+            try:
+                rospy.wait_for_service(alternative_name, timeout=0.5)
+                rospy.loginfo("Got it")
+                return alternative_name
+            except rospy.exceptions.ROSException:
+                rospy.loginfo("Retrying...{}/{}".format(tried, retries))
+                tried += 1
+                continue
+    rospy.logwarn("Neither of the services worked... giving up!")
+    return None
 
 def main():
 
@@ -339,7 +354,8 @@ def main():
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
     tf_listener = None
-    while tf_listener is None:
+    tf_retry_rate = rospy.Rate(0.2)
+    while tf_listener is None and not rospy.is_shutdown():
         try:
             rospy.loginfo("Setting up tf_listener for vehicle object before BT")
             tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
@@ -349,11 +365,34 @@ def main():
 
         if tf_listener is None:
             rospy.logerr("TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
-            time.sleep(5)
+            tf_retry_rate.sleep()
 
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.VEHICLE_STATE, vehicle)
+
+    # then we need the utm-ll conversion service in lotsa places in the BT
+    # so we acquire that...
+    lltoutm_service_name = _wait_for_service(service_name = config.LATLONTOUTM_SERVICE,
+                                            alternative_name = config.LATLONTOUTM_SERVICE_ALT,
+                                            retries=20)
+    if lltoutm_service_name is None:
+        rospy.logwarn("Couldn't get LL to UTM service!")
+        sys.exit(5)
+
+    utmtoll_service_name = _wait_for_service(service_name = config.UTMTOLATLON_SERVICE,
+                                            alternative_name = config.UTMTOLATLON_SERVICE_ALT,
+                                            retries=20)
+    if utmtoll_service_name is None:
+        rospy.logwarn("Couldn't get UTM to LL service!")
+        sys.exit(6)
+
+    bb.set(bb_enums.LLTOUTM_SERVICE_NAME, lltoutm_service_name)
+    bb.set(bb_enums.UTMTOLL_SERVICE_NAME, utmtoll_service_name)
+    rospy.loginfo("Got the UTM-LL conversion services")
+
+
+
 
     # this object will handle all the messages from nodered interface
     # in and out

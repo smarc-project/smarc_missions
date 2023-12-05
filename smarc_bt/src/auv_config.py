@@ -18,7 +18,11 @@ class AUVConfig(object):
     Base config object, with default values for SAM.
     """
     def __init__(self):
-        self._read_rosparams()
+        # read the config.yaml file in the launch directory to construct this object
+        # the file location itself is a launch arg
+        configyaml = get_param("config_file")
+        rospy.loginfo("Reading config file {}".format(configyaml))
+        self._read_rosparams(configyaml)
         self._handle_robot_name_subs()
 
     def __str__(self):
@@ -51,10 +55,7 @@ class AUVConfig(object):
 
 
 
-    def _read_rosparams(self):
-        # read the config.yaml file in the launch directory to construct this object
-        # the file location itself is a launch arg
-        configyaml = get_param("config_file")
+    def _read_rosparams(self, configyaml):
         # read that yaml file
         # and then internalize its fields only
         # the values will come from rosparams
@@ -70,11 +71,14 @@ class AUVConfig(object):
     def _handle_robot_name_subs(self):
         # services need to look like /$(arg robot_name)/service_name
         # so add the robot_name part
-        for k in ['LATLONTOUTM_SERVICE',
-                  'UTM_TO_LATLON_SERVICE',
-                  'LATLONTOUTM_SERVICE_ALTERNATIVE',
-                  'GOTO_ACTION_NAMESPACE',
-                  'EMERGENCY_ACTION_NAMESPACE']:
+        for k in [
+            'LATLONTOUTM_SERVICE',
+            'UTMTOLATLON_SERVICE',
+            'LATLONTOUTM_SERVICE_ALT',
+            'UTMTOLATLON_SERVICE_ALT',
+            'GOTO_ACTION_NAMESPACE',
+            'EMERGENCY_ACTION_NAMESPACE'
+            ]:
             self.__dict__[k] = '/' + self.robot_name + '/' + self.__dict__[k]
 
         # and base link needs $(arg robot_name)/base_link

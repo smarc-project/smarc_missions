@@ -159,6 +159,13 @@ class MissionLog(object):
             except:
                 return num
 
+        try:
+            gps_lat = xround(v.raw_gps_obj.latitude, 6),
+            gps_lon = xround(v.raw_gps_obj.longitude, 6),
+        except:
+            gps_lat = None
+            gps_lon = None
+
         record = [
             int(time.time()),
             annotation,
@@ -167,7 +174,7 @@ class MissionLog(object):
             xround(v.position_utm[0], 2),
             xround(v.position_utm[1], 2),
             self.utm_z,
-            xround(RADTODEG * (math.pi/2 - v.orientation_rpy[2]), 2), #heading
+            xround(v.heading, 2),
             xround(v.orientation_rpy[0], 2),
             xround(v.orientation_rpy[1], 2),
             xround(v.depth, 2),
@@ -179,8 +186,8 @@ class MissionLog(object):
             v.t2,
             xround(v.batt_v, 1),
             v.batt_percent,
-            xround(v.raw_gps_obj.latitude, 6),
-            xround(v.raw_gps_obj.longitude, 6),
+            gps_lat,
+            gps_lon,
             tip.name,
             status_strings.get(tip.status, "unknown")[0],
             plan.plan_id
@@ -201,7 +208,9 @@ class MissionLog(object):
                 current_wp.travel_depth,
                 current_wp.speed_control_mode,
                 current_wp.travel_rpm,
-                current_wp.travel_speed
+                current_wp.travel_speed,
+                xround(current_wp.arrival_heading, 1),
+                current_wp.use_heading
             ])
         else:
             # all the current_wp stuff is None if there is no current action
