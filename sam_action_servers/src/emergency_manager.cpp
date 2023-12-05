@@ -92,7 +92,7 @@ class GenericSensorMonitor
 
 public:
 
-    std::string topic_name_;
+    std::string topic_name_, topic_end_;
     double rate_;
     ros::CallbackQueue queue;
     ros::Subscriber subscriber_;
@@ -100,10 +100,14 @@ public:
     actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> *ac_;
     ros::NodeHandle *nh_;
     ros::Publisher thrust_1_cmd_pub_, thrust_2_cmd_pub_, vbs_cmd_pub_;
+    bool queue_init_, subs_init_;
+    ros::master::V_TopicInfo master_topics_;
 
-    GenericSensorMonitor(std::string &topic, double rate): topic_name_(topic), rate_(rate)
+    GenericSensorMonitor(std::string &topic, double rate) : topic_name_(topic), rate_(rate)
     {
         nh_ = new ros::NodeHandle("~");
+        nh_->setCallbackQueue(&queue);
+        
         std::string abort_top, emergency_as;
         nh_->param<std::string>(("abort_top"), abort_top, "/sam/core/abort");
         abort_pub_ = nh_->advertise<std_msgs::Empty>(abort_top, 10);
@@ -116,47 +120,71 @@ public:
         thrust_2_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_2_top, 1);
         vbs_cmd_pub_ = nh_->advertise<sam_msgs::PercentStamped>(vbs_cmd_top, 1);
 
-        nh_->setCallbackQueue(&queue);
-        subscriber_ = nh_->subscribe(topic_name_, 10, &GenericSensorMonitor::topicCB, this);
-        
         // Get last word of the topic name. It'll be used to find the heartbeat one
         std::string delimiter = "/";
         size_t pos = 0;
         std::string token;
-        while ((pos = topic_name_.find(delimiter)) != std::string::npos)
+        topic_end_ = topic_name_;
+        while ((pos = topic_end_.find(delimiter)) != std::string::npos)
         {
-            token = topic_name_.substr(0, pos);
-            topic_name_.erase(0, pos + delimiter.length());
+            token = topic_end_.substr(0, pos);
+            topic_end_.erase(0, pos + delimiter.length());
         }
 
+        // Flags to monitor topics
+        queue_init_ = false;
+        subs_init_ = false;
         std::thread(&GenericSensorMonitor::CheckQueue, this).detach();
     }
 
     void CheckQueue()
     {
         ros::Rate r(rate_);
-        bool queue_init = false;
         while(ros::ok())
         {
+            // Check if topic exists, then subscribe 
+            if(!subs_init_)
+            {
+                ros::master::getTopics(master_topics_);
+
+                for (ros::master::V_TopicInfo::iterator it = master_topics_.begin(); it != master_topics_.end(); it++)
+                {
+                    const ros::master::TopicInfo &info = *it;
+                    if(topic_name_ == info.name)
+                    {
+                        ROS_INFO_STREAM_NAMED("Emergency manager: ", "listening to " << topic_name_);
+                        subscriber_ = nh_->subscribe(topic_name_, 10, &GenericSensorMonitor::topicCB, this);
+                        subs_init_ = true;
+                    }
+                }
+            }
+            // If msg in queue
             if(!queue.isEmpty())
             {
                 queue.callOne(ros::WallDuration(0.01));
-                queue_init = true;
+                queue_init_ = true;
             }
+            // If no msg 
             else
             {
-                if(queue_init)
+                // And the queue has already been initialized, error
+                if(queue_init_)
                 {
                     ROS_ERROR_STREAM_NAMED("Emergency manager: ", "data not coming in " << topic_name_ + " aborting mission");
                     std_msgs::Empty abort;
                     abort_pub_.publish(abort);
-                    if (topic_name_ == "heartbeat")
+                    if (topic_end_ == "heartbeat")
                     {
                         ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, aborting mission");
                         this->emergency_no_bt();
                     }
                     break;
                 }
+            }
+            // If data flow has not started, throw warning
+            if (!queue_init_)
+            {
+                ROS_WARN_STREAM_THROTTLE_NAMED(int(rate_), "Emergency manager: ", "data stream not initialized " << topic_name_);
             }
             r.sleep();
         }    
@@ -233,6 +261,7 @@ int main(int argn, char* args[])
             std::string topic_name = value["name"].as<std::string>();
             double freq = value["freq"].as<double>();
             std::string topic = "/" + robot_name + "/" + topic_name;
+            ros::Duration(0.01).sleep();
             monitors.emplace_back(new GenericSensorMonitor(topic, freq * 0.9)); // Decrease slightly freq to account for slow transmission at times
         }
     }

@@ -13,9 +13,6 @@ monitor:
       name: core/heartbeat
       freq: 3.
   - topic:
-      name: core/leak
-      freq: 4.
-  - topic:
       name: core/vbs_fb
       freq: 5.
   - topic:
@@ -28,5 +25,5 @@ monitor:
       name: core/depth20_pressure
       freq: 10.
   - topic:
-      name: uwcomms/heartbeat
+      name: uwcomms/uw_heartbeat
       freq: 0.1
