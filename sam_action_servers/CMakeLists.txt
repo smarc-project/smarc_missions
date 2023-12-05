@@ -27,7 +27,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS filesystem)
+find_package(yaml-cpp)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -131,7 +132,9 @@ catkin_package(
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
+  ${yaml_cpp_INCLUDE_DIRS}
 )
+
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -163,6 +166,7 @@ ${catkin_EXPORTED_TARGETS})
 ## Specify libraries to link a library or executable target against
 target_link_libraries(emergency_manager_node
   ${catkin_LIBRARIES}
+  yaml-cpp
 )
 
 #############
