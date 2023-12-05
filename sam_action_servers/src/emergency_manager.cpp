@@ -158,16 +158,17 @@ public:
                     }
                 }
             }
+
             // If msg in queue
             if(!queue.isEmpty())
             {
                 queue.callOne(ros::WallDuration(0.01));
                 queue_init_ = true;
             }
-            // If no msg 
+            // If the queue is empty: 
             else
             {
-                // And the queue has already been initialized, error
+                // If the queue is empty but it shouldn't be, emergency
                 if(queue_init_)
                 {
                     ROS_ERROR_STREAM_NAMED("Emergency manager: ", "data not coming in " << topic_name_ + " aborting mission");
@@ -180,12 +181,13 @@ public:
                     }
                     break;
                 }
+                // If the queue is empty because the data flow has not started yet, throw warning
+                else
+                {
+                    ROS_WARN_STREAM_THROTTLE_NAMED(int(rate_), "Emergency manager: ", "data stream not initialized " << topic_name_);
+                }
             }
-            // If data flow has not started, throw warning
-            if (!queue_init_)
-            {
-                ROS_WARN_STREAM_THROTTLE_NAMED(int(rate_), "Emergency manager: ", "data stream not initialized " << topic_name_);
-            }
+            
             r.sleep();
         }    
     }
