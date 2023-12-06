@@ -3,7 +3,7 @@
 # vim:fenc=utf-8
 # Ozer Ozkahraman (ozero@kth.se)
 
-import time
+import time, math
 
 import rospy, tf
 from geometry_msgs.msg import PointStamped
@@ -13,6 +13,7 @@ from smarc_bt.msg import GotoWaypoint
 from sensor_msgs.msg import NavSatFix, BatteryState
 from sam_msgs.msg import PercentStamped
 
+RADTODEG = 360 / (math.pi * 2)
 
 class StringAnimation(object):
     """
@@ -128,6 +129,8 @@ class Vehicle(object):
         self.position_utm = [None, None]
         self.orientation_quat = [None, None, None, None]
         self.orientation_rpy = [None, None, None]
+        # northing, north = 0, east = 90, south = 180
+        self.heading = None
         self.depth = None
         # for convenicent use in ROS elsewhere
         self.position_point_stamped = None
@@ -142,10 +145,9 @@ class Vehicle(object):
         """
         listener = tf.TransformListener()
         try:
-            listener.waitForTransform(self.auv_config.UTM_LINK,
+            listener.lookupTransform(self.auv_config.UTM_LINK,
                                       self.auv_config.BASE_LINK,
-                                      rospy.Time(0),
-                                      rospy.Duration(secs=timeout_secs))
+                                      rospy.Time(0))
             self._status_str_tf = "Got xform"
             return listener
         except:
@@ -172,7 +174,8 @@ class Vehicle(object):
                                                  self.auv_config.BASE_LINK,
                                                  rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException):
-            print("Cannot catch tf transform")
+            rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying soon.")
+            rospy.logerr_throttle(5, "")
             self._status_str_tf = "lookupTransform failed from '{}' to '{}', is the TF tree in one piece?".format(self.auv_config.UTM_LINK, self.auv_config.BASE_LINK)
             return
         except Exception as e:
@@ -187,6 +190,8 @@ class Vehicle(object):
         self.orientation_quat = [ori[0], ori[1], ori[2], ori[3]]
         rpy = tf.transformations.euler_from_quaternion(ori)
         self.orientation_rpy = [rpy[0], rpy[1], rpy[2]]
+        # heading from yaw. VERY HACKY
+        self.heading = RADTODEG * (math.pi/2 - rpy[2])
 
         ps = PointStamped()
         ps.header.frame_id = self.auv_config.UTM_LINK

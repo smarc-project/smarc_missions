@@ -59,8 +59,6 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
     def __init__(self,
                  ps_topic,
                  bb_key,
-                 utm_to_lat_lon_service_name,
-                 lat_lon_to_utm_service_name,
                  reset = False):
         """
         subs to a GotoWaypoint topic and read it into the given bb variable
@@ -72,8 +70,6 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         self.last_read_wp = None
         self.last_read_time = None
         self.bb_key = bb_key
-        self.utm_to_lat_lon_service_name = utm_to_lat_lon_service_name
-        self.lat_lon_to_utm_service_name = lat_lon_to_utm_service_name
         self.got_utm_service = False
         self.got_latlon_service = False
         self.reset = reset
@@ -83,17 +79,17 @@ class A_ReadWaypoint(pt.behaviour.Behaviour):
         self.ps_sub = rospy.Subscriber(self.ps_topic, GotoWaypoint, self.cb)
         try:
             rospy.loginfo("Waiting for utm to latlon service")
-            rospy.wait_for_service(self.utm_to_lat_lon_service_name, timeout=timeout)
+            rospy.wait_for_service(self.bb.get(bb_enums.UTMTOLL_SERVICE_NAME), timeout=timeout)
             self.got_utm_service = True
         except:
-            rospy.logwarn("Could not connect to {}, live WPs wont be updated in the map".format(self.utm_to_lat_lon_service_name))
+            rospy.logwarn("Could not connect to UTM->LL, live WPs wont be updated in the map")
 
         try:
             rospy.loginfo("Waiting for latlon to utm service")
-            rospy.wait_for_service(self.lat_lon_to_utm_service_name, timeout=timeout)
+            rospy.wait_for_service(self.bb.get(bb_enums.LLTOUTM_SERVICE_NAME), timeout=timeout)
             self.got_latlon_service = True
         except:
-            rospy.logwarn("Could not connect to {}, we cant read WPs from a GUI".format(self.lat_lon_to_utm_service_name))
+            rospy.logwarn("Could not connect to LL->UTM, we cant read WPs from a GUI")
         return True
 
     def cb(self, msg):

@@ -7,18 +7,20 @@ import rospy
 import time
 import math
 import numpy as np
+import py_trees as pt
 
 from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
-from smarc_msgs.srv import LatLonToUTM
+from smarc_msgs.srv import LatLonToUTM, UTMToLatLon
 from smarc_bt.msg import GotoWaypoint, MissionControl
 
-from coverage_planner import create_coverage_path
+# from coverage_planner import create_coverage_path
+from dubins import create_dubins_path
 from mission_log import MissionLog
-
+import bb_enums
 
 class Waypoint:
-    def __init__(self, goto_waypoint = None):
+    def __init__(self, goto_waypoint = None, source=None):
         """
         goto_waypoint message reference:
             uint8 Z_CONTROL_NONE=0
@@ -51,11 +53,15 @@ class Waypoint:
             float64 travel_speed
             float64 lat
             float64 lon
+            float64 arrival_heading
+            bool use_heading
             string name
         """
 
         # the GotoWaypoint object from smarc_msgs.msg
         self.wp = goto_waypoint
+        # use this to distinguish generated WPs and user-given WPs
+        self.source = source
 
 
     def set_utm_from_latlon(self, lat_lon_to_utm_serv, set_frame=False):
@@ -185,10 +191,6 @@ class MissionPlan:
         # keep track of which waypoint we are going to
         # start at -1 to indicate that _we are not going to any yet_
         self.current_wp_index = -1
-        # test if the service is usable!
-        # if not, test the backup
-        # if that fails too, raise exception
-        self._set_latlon_to_utm_service_name()
         # and finally read from the mission control message all
         # the fields above
         self.waypoints = []
@@ -216,6 +218,7 @@ class MissionPlan:
 
 
 
+
     def _change_state(self, new_state):
         if self.state == MissionControl.FB_EMERGENCY:
             rospy.logwarn("Mission in emergency state! Not changing that!")
@@ -231,21 +234,20 @@ class MissionPlan:
 
     def _read_mission_control(self, msg):
         """
-        read the waypoints off a smarc_msgs/MissionControl message
+        read the waypoints off a smarc_bt/MissionControl message
         and set our plan_id from its name
         """
         self.plan_id = msg.name
         self.hash = msg.hash
         self.timeout = msg.timeout
-        waypoints = []
-        serv = self._get_latlon_to_utm_service()
+        self.waypoints = []
+        ll_to_utm_serv = self._get_latlon_to_utm_service()
         for wp_msg in msg.waypoints:
             wp = Waypoint(goto_waypoint = wp_msg)
             # also make sure they are in utm
-            wp.set_utm_from_latlon(serv, set_frame=True)
-            waypoints.append(wp)
+            wp.set_utm_from_latlon(ll_to_utm_serv, set_frame=True)
+            self.waypoints.append(wp)
 
-        self.waypoints = waypoints
         self._change_state(MissionControl.FB_RECEIVED)
         rospy.loginfo("Got mission: name:{}, timeout:{}, num wps:{}, hash:{}".format(
             self.plan_id,
@@ -360,45 +362,41 @@ class MissionPlan:
         return (res.utm_point.x, res.utm_point.y)
 
 
-    def _set_latlon_to_utm_service_name(self):
-        try:
-            self.no_service = False
-            self.latlontoutm_service_name = self._config.LATLONTOUTM_SERVICE
-            rospy.loginfo("Waiting (0.5s) lat_lon_to_utm service:{}".format(self.latlontoutm_service_name))
-            rospy.wait_for_service(self.latlontoutm_service_name, timeout=0.5)
-            rospy.loginfo("Got it")
-        except:
-            rospy.logwarn(str(self.latlontoutm_service_name)+" service could be connected to!")
-            self.latlontoutm_service_name = self._config.LATLONTOUTM_SERVICE_ALTERNATIVE
-            rospy.logwarn("Setting the service to the alternative:{}".format(self.latlontoutm_service_name))
-            try:
-                rospy.loginfo("Waiting (10s) lat_lon_to_utm service alternative:{}".format(self.latlontoutm_service_name))
-                rospy.wait_for_service(self.latlontoutm_service_name, timeout=10)
-                rospy.loginfo("Got it")
-            except:
-                rospy.logerr("No lat_lon_to_utm service could be reached! The BT can not accept missions in this state!")
-                rospy.logerr("The BT received a mission, tried to convert it to UTM coordinates using {} as the backup and neither of them could be reached! Check the navigation/DR stack, the TF tree and the services!".format(self.latlontoutm_service_name))
-                self.no_service = True
-
-
-
     def _get_latlon_to_utm_service(self):
-        try:
-            rospy.wait_for_service(self.latlontoutm_service_name, timeout=1)
-        except:
-            rospy.logwarn(str(self.latlontoutm_service_name)+" service not found!")
-            return (None, None)
-
-        try:
-            latlontoutm_service = rospy.ServiceProxy(self.latlontoutm_service_name,
-                                                     LatLonToUTM)
-        except rospy.service.ServiceException:
-            rospy.logerr_throttle_identical(5, "LatLon to UTM service failed! namespace:{}".format(self.latlontoutm_service_name))
-            return None
+        bb = pt.blackboard.Blackboard()
+        s = bb.get(bb_enums.LLTOUTM_SERVICE_NAME)
+        rospy.wait_for_service(s, timeout=1)
+        latlontoutm_service = rospy.ServiceProxy(s, LatLonToUTM)
         return latlontoutm_service
 
 
-    def _generate_coverage_pattern(self, polygon):
-        return create_coverage_path(polygon,
-                                    self._config.SWATH,
-                                    self._config.LOCALIZATION_ERROR_GROWTH)
+    def _get_utm_to_latlon_service(self):
+        bb = pt.blackboard.Blackboard()
+        s = bb.get(bb_enums.UTMTOLL_SERVICE_NAME)
+        rospy.wait_for_service(s, timeout=1)
+        utmtolatlon_service = rospy.ServiceProxy(s, UTMToLatLon)
+        return utmtolatlon_service
+
+
+    def generate_dubins(self, turning_radius=3, step=None):
+        if step is None:
+            step = turning_radius + 0.5
+        rospy.loginfo("Converting to dubins plan with radius {} and step {}".format(turning_radius, step))
+        bb = pt.blackboard.Blackboard()
+        vehicle = bb.get(bb_enums.VEHICLE_STATE)
+        # only give waypoints that are not generated by anything
+        # in case someone clicks "plan" 10 times
+        waypoints = []
+        for wp in self.waypoints:
+            if wp.source is None:
+                waypoints.append(wp)
+        dubins_waypoints = create_dubins_path(vehicle,
+                                              waypoints,
+                                              step,
+                                              turning_radius)
+        utm_to_ll_serv = self._get_utm_to_latlon_service()
+        for wp in dubins_waypoints:
+            wp.set_latlon_from_utm(utm_to_ll_serv, set_frame=False)
+
+        self.waypoints = dubins_waypoints
+        rospy.loginfo("The plan now has {} WPs".format(len(self.waypoints)))
