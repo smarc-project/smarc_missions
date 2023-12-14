@@ -12,6 +12,7 @@
 #include <smarc_bt/GotoWaypointAction.h>
 #include <smarc_msgs/ThrusterRPM.h>
 #include <sam_msgs/PercentStamped.h>
+#include <smarc_msgs/Leak.h>
 
 #include <thread>
 #include <boost/filesystem.hpp>
@@ -214,21 +215,43 @@ public:
 
 };
 
+void handle_leak(const smarc_msgs::Leak::ConstPtr &msg,
+                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
+                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_emerg,
+                  bool &emergency_trigger)
+{
+    if(msg->value)
+    {
+        if (!emergency_trigger)
+        {
+            emergency_trigger = true;
+            ROS_ERROR("-------------------------------------------------------------------");
+            ROS_ERROR_STREAM("Emergency manager: "
+                            << "leak msg received, starting emergency surfacing");
+            ROS_ERROR("-------------------------------------------------------------------");
+            // Cancel current goal of WP follower
+            ac_g2wp.cancelAllGoals();
+            // Request emergency surface action
+            smarc_bt::GotoWaypointGoal goal;
+            ac_emerg.sendGoal(goal);
+        }
+    }
+}
 
-void handle_abort_leak(const ShapeShifter::ConstPtr &msg,
-                       actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
-                       actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_emerg,
-                       bool& emergency_trigger)
+void handle_abort(const std_msgs::Empty::ConstPtr &msg,
+                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
+                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_emerg,
+                  bool &emergency_trigger)
 {
     if(!emergency_trigger)
     {
-        const std::string &datatype = msg->getDataType();
         emergency_trigger = true;
+        ROS_ERROR("-------------------------------------------------------------------");
         ROS_ERROR_STREAM("Emergency manager: "
-                        << datatype << " received, starting emergency surfacing");
+                        << "abort msg received, starting emergency surfacing");
+        ROS_ERROR("-------------------------------------------------------------------");
         // Cancel current goal of WP follower
         ac_g2wp.cancelAllGoals();
-
         // Request emergency surface action
         smarc_bt::GotoWaypointGoal goal;
         ac_emerg.sendGoal(goal);
@@ -330,16 +353,22 @@ int main(int argn, char* args[])
 
     // Handle leaks or abort messages, equally and only once
     bool emergency_trigger = false;
-    boost::function<void(const ShapeShifter::ConstPtr &)> abort_leak_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger]
-    (const ShapeShifter::ConstPtr &msg)
+    boost::function<void(const std_msgs::Empty::ConstPtr &)> abort_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger]
+    (const std_msgs::Empty::ConstPtr &msg)
     {
-        handle_abort_leak(msg, ac_g2wp, ac_emerg, emergency_trigger);
+        handle_abort(msg, ac_g2wp, ac_emerg, emergency_trigger);
+    };
+
+    boost::function<void(const smarc_msgs::Leak::ConstPtr &)> leak_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger]
+    (const smarc_msgs::Leak::ConstPtr &msg)
+    {
+        handle_leak(msg, ac_g2wp, ac_emerg, emergency_trigger);
     };
 
     std::string leak_top;
     nh.param<std::string>(("leak_top"), leak_top, "leak");
-    ros::Subscriber leak_subs = nh.subscribe(leak_top, 1, abort_leak_cb);
-    ros::Subscriber abort_subs = nh.subscribe(abort_top, 1, abort_leak_cb);
+    ros::Subscriber leak_subs = nh.subscribe(leak_top, 1, leak_cb);
+    ros::Subscriber abort_subs = nh.subscribe(abort_top, 1, abort_cb);
 
     ros::spin();
 
