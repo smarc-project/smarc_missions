@@ -190,6 +190,14 @@ class WPDepthPlanner(object):
             goal_point.point.y = self.nav_goal.waypoint.pose.pose.position.y
             goal_point.point.z = self.nav_goal.waypoint.pose.pose.position.z
             
+            # Preempted
+            if self._as.is_preempt_requested():
+                rospy.logwarn('%s: Preempted' % self._action_name)
+                self.nav_goal = None
+                self.disengage_actuators()
+                self._as.set_preempted(self._result, "Preempted WP action")
+                return
+            
             try:
                 goal_point_local = self.listener.transformPoint(
                     self.base_frame_2d, goal_point)
@@ -205,14 +213,6 @@ class WPDepthPlanner(object):
                     self._result.reached_waypoint = True
                     self.disengage_actuators()
                     self._as.set_succeeded(self._result, "WP Reached")
-                    return
-
-                # Preempted
-                if self._as.is_preempt_requested():
-                    rospy.loginfo('%s: Preempted' % self._action_name)
-                    self.nav_goal = None
-                    self.disengage_actuators()
-                    self._as.set_preempted(self._result, "Preempted WP action")
                     return
 
                 # Publish setpoints to controllers
