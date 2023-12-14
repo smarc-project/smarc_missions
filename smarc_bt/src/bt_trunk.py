@@ -167,7 +167,7 @@ def const_tree(auv_config):
                         blackbox_level=1,
                         children=[
                             C_NoAbortReceived(),
-                            C_CheckTFTree(),
+                            # C_CheckTFTree(),
                             # C_CheckExternalSafety(),
                             C_AltOK(),
                             C_DepthOK(),
@@ -328,23 +328,25 @@ def const_tree(auv_config):
 def _wait_for_service(service_name, alternative_name=None, retries=5):
     no_service = True
     tried = 1
-    while no_service and tried <= retries:
-        rospy.loginfo("Waiting (0.5s) for service: {}".format(service_name))
+    # while no_service and tried <= retries:
+    while no_service and not rospy.is_shutdown():
+        rospy.logwarn_throttle(2., "BT node: waiting for service: {}".format(service_name))
         try:
             rospy.wait_for_service(service_name, timeout=0.5)
-            rospy.loginfo("Got it")
+            rospy.loginfo("BT node: Got service {}".format(service_name))
             return service_name
         except rospy.exceptions.ROSException:
-            rospy.loginfo("Trying the alternative {}".format(alternative_name))
+            # rospy.loginfo("Trying the alternative {}".format(alternative_name))
             try:
                 rospy.wait_for_service(alternative_name, timeout=0.5)
-                rospy.loginfo("Got it")
+                rospy.loginfo("BT node: Got service {}".format(service_name))
                 return alternative_name
             except rospy.exceptions.ROSException:
-                rospy.loginfo("Retrying...{}/{}".format(tried, retries))
+                # rospy.loginfo("Retrying...{}/{}".format(tried, retries))
+                # rospy.loginfo("Retrying...")
                 tried += 1
                 continue
-    rospy.logwarn("Neither of the services worked... giving up!")
+    # rospy.logwarn("Neither of the services worked... giving up!")
     return None
 
 def main():
@@ -363,7 +365,7 @@ def main():
     reconfig = ReconfigServer(config)
 
     # first construct a vehicle that will hold and sub to most things
-    rospy.loginfo("Setting up vehicle")
+    rospy.loginfo("BT node: Setting up vehicle")
     vehicle = Vehicle(config)
     tf_listener = tf.TransformListener()
 
@@ -402,9 +404,7 @@ def main():
 
     bb.set(bb_enums.LLTOUTM_SERVICE_NAME, lltoutm_service_name)
     bb.set(bb_enums.UTMTOLL_SERVICE_NAME, utmtoll_service_name)
-    rospy.loginfo("Got the UTM-LL conversion services")
-
-
+    rospy.loginfo("BT node: got the UTM-LL conversion services")
 
 
     # this object will handle all the messages from nodered interface
@@ -412,15 +412,15 @@ def main():
     nodered_handler = NoderedHandler(config, vehicle, bb)
 
     # construct the BT with the config and a vehicle model
-    rospy.loginfo("Constructing tree")
+    rospy.loginfo("BT node: Constructing tree")
     tree = const_tree(config)
-    rospy.loginfo("Setting up tree")
+    rospy.loginfo("BT node: Setting up tree")
     setup_ok = False
     # make sure the BT is happy
     while not setup_ok:
         setup_ok = tree.setup(timeout=common_globals.SETUP_TIMEOUT)
         if not setup_ok:
-            rospy.logerr("Tree could not be setup! Retrying in 5s!")
+            rospy.logerr("BT node: Tree could not be setup! Retrying in 5s!")
             time.sleep(5)
 
 
@@ -431,7 +431,7 @@ def main():
     # setup the ticking freq and the BlackBoard
     rate = rospy.Rate(common_globals.BT_TICK_RATE)
 
-    rospy.loginfo("Ticktocking....")
+    rospy.loginfo("BT node: Ticktocking....")
     while not rospy.is_shutdown():
         # some info _about the tree_ in the BB.
         # better do this outside the tree

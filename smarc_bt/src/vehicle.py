@@ -175,14 +175,16 @@ class Vehicle(object):
             posi, ori = listener.lookupTransform(self.auv_config.UTM_LINK,
                                                  self.auv_config.BASE_LINK,
                                                  rospy.Time(0))
-            
+            rospy.loginfo_once("BT node: UTM frame connected to base link. TF listener on the BT setup")
+
         except (tf.LookupException, tf.ConnectivityException):
-            rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull, retrying soon.")
+            rospy.logwarn_throttle(5, "BT node: TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull, retrying soon.")
             self._status_str_tf = "lookupTransform failed from '{}' to '{}', is the TF tree in one piece?".format(self.auv_config.UTM_LINK, self.auv_config.BASE_LINK)
             self.tf_ok = False
             return 
+        
         except Exception as e:
-            rospy.logerr_throttle(5, "Error TF Listener not setup {}".format(e))
+            rospy.logwarn_throttle(5, "BT node: Error TF Listener not setup {}".format(e))
             self._status_str_tf = "lookupTransform failed:\n{}".format(e)
             self.tf_ok = False
             return 
