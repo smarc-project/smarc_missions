@@ -33,8 +33,11 @@ from bt_conditions import C_DepthOK, \
                           C_NoAbortReceived, \
                           C_AltOK, \
                           C_LeakOK, \
+                          C_CheckExternalSafety, \
                           C_ExpectPlanState, \
-                          C_TimeoutNotReached
+                          C_TimeoutNotReached, \
+                          C_CheckTFTree 
+
 
 from bt_common import Sequence, \
                       CheckBlackboardVariableValue, \
@@ -111,6 +114,13 @@ def const_tree(auv_config):
             blackboard_variables={bb_enums.GUI_WP_ENABLE : 'data'}
         )
 
+        read_external_safety = ReadTopic(
+            name = "A_ReadExternalSafety",
+            topic_name = auv_config.EXTERNAL_SAFETY_TOPIC,
+            topic_type = Bool,
+            blackboard_variables={bb_enums.EXTERNAL_SAFETY : 'data'}
+        )
+
         read_algae_follow_enable = ReadTopic(
             name = "A_ReadAlgaeEnable",
             topic_name = auv_config.ALGAE_FOLLOW_ENABLE_TOPIC,
@@ -142,6 +152,7 @@ def const_tree(auv_config):
                         children=[
                             publish_heartbeat,
                             read_abort,
+                            read_external_safety,
                             read_reloc_enable,
                             read_reloc_wp,
                             read_gui_enable,
@@ -152,13 +163,13 @@ def const_tree(auv_config):
 
 
 
-
-
     def const_safety_tree():
         safety_checks = Sequence(name="SQ_SafetyChecks",
                         blackbox_level=1,
                         children=[
                             C_NoAbortReceived(),
+                            C_CheckTFTree(),
+                            C_CheckExternalSafety(),
                             C_AltOK(),
                             C_DepthOK(),
                             C_LeakOK(),
@@ -353,9 +364,9 @@ def main():
     # first construct a vehicle that will hold and sub to most things
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
-    tf_listener = tf.TransformListener()
-    # tf_listener = None
-    # tf_retry_rate = rospy.Rate(0.2)
+    # tf_listener = tf.TransformListener()
+    tf_listener = None
+    tf_retry_rate = rospy.Rate(0.2)
     # while tf_listener is None and not rospy.is_shutdown():
     #     try:
     #         rospy.loginfo_throttle(5, "Setting up tf_listener for vehicle object before BT")

@@ -101,7 +101,9 @@ class Vehicle(object):
         self.batt_v = None
         self.batt_percent = None
         self._batt_sub = rospy.Subscriber(self.auv_config.BATT_TOPIC, BatteryState, self._batt_cb, queue_size=2)
-
+        
+        # TF ok
+        self.tf_ok = False
 
 
     def __str__(self):
@@ -177,10 +179,12 @@ class Vehicle(object):
             rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying soon.")
             rospy.logerr_throttle(5, "")
             self._status_str_tf = "lookupTransform failed from '{}' to '{}', is the TF tree in one piece?".format(self.auv_config.UTM_LINK, self.auv_config.BASE_LINK)
-            return
+            self.tf_ok = False
+            return 
         except Exception as e:
             self._status_str_tf = "lookupTransform failed:\n{}".format(e)
-            return
+            self.tf_ok = False
+            return 
 
 
         # position for x,y
@@ -204,6 +208,8 @@ class Vehicle(object):
         self._status_str_tf = "TF Up to date"
         self._last_update_tf = time.time()
         self._animation.update(0)
+
+        self.tf_ok = True
 
 
     def _dvl_cb(self, msg):
