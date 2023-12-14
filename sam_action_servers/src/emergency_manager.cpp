@@ -51,8 +51,14 @@ public:
 
     void emergencyCB(const smarc_bt::GotoWaypointGoalConstPtr &goal)
     {
+        this->handle_emergency();
+    }
+
+    void handle_emergency()
+    {
         ROS_ERROR("-------------------------------------------------------------------");
-        ROS_ERROR_STREAM("Emergency manager " << "Emergency CB received. Bringing vehicle to surface");
+        ROS_ERROR_STREAM("Emergency manager: "
+                         << "Emergency CB received. Bringing vehicle to surface");
         ROS_ERROR("-------------------------------------------------------------------");
 
         ros::Time start_t = ros::Time::now();
@@ -63,7 +69,8 @@ public:
         vbs_msg.value = 0.;
         ros::Rate r(10.);
 
-        while(!as_->isPreemptRequested() && ros::ok())
+        // The only way out of this loop is preemtion or killing the node
+        while (!as_->isPreemptRequested())
         {
             if (ros::Time::now() < start_t + backup_duration)
             {
@@ -99,37 +106,20 @@ public:
     ros::CallbackQueue queue;
     ros::Subscriber subscriber_;
     ros::Publisher abort_pub_;
-    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>* ac_;
+    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> *ac_g2wp_;
+    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> *ac_emerg_;
     ros::NodeHandle *nh_;
-    ros::Publisher thrust_1_cmd_pub_, thrust_2_cmd_pub_, vbs_cmd_pub_;
     bool topic_up_, subs_init_;
     ros::master::V_TopicInfo master_topics_;
 
-    GenericSensorMonitor(std::string &topic, double rate) : topic_name_(topic), rate_(rate)
+    GenericSensorMonitor(std::string &topic, double rate, actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
+                         actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>& ac_emerg, ros::Publisher& abort_pub) : 
+                         topic_name_(topic), rate_(rate), ac_g2wp_(&ac_g2wp), ac_emerg_(&ac_emerg), abort_pub_(abort_pub)
     {
+        // Each monitor has its own nh and queue
         nh_ = new ros::NodeHandle("~");
         nh_->setCallbackQueue(&queue);
         
-        std::string abort_top, emergency_as;
-        nh_->param<std::string>(("abort_top"), abort_top, "/sam/core/abort");
-        abort_pub_ = nh_->advertise<std_msgs::Empty>(abort_top, 10);
-
-        std::string thruster_1_top, thruster_2_top, vbs_cmd_top, goto_wp_action;
-        nh_->param<std::string>(("thruster_1_top"), thruster_1_top, "core/thruster_1_cmd");
-        nh_->param<std::string>(("thruster_2_top"), thruster_2_top, "core/thruster_2_cmd");
-        nh_->param<std::string>(("vbs_cmd_top"), vbs_cmd_top, "vbs_cmd_top");
-        thrust_1_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_1_top, 1);
-        thrust_2_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_2_top, 1);
-        vbs_cmd_pub_ = nh_->advertise<sam_msgs::PercentStamped>(vbs_cmd_top, 1);
-
-        nh_->param<std::string>(("goto_wp_action"), goto_wp_action, "goto_wp_action");
-        ac_ = new actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>(goto_wp_action, true);
-        while (!ac_->waitForServer() && ros::ok())
-        {
-            ROS_WARN("Waiting for go to WP server ");
-            ros::Duration(1).sleep();
-        }
-
         // Get last word of the topic name. It'll be used to find the heartbeat one
         std::string delimiter = "/";
         size_t pos = 0;
@@ -156,13 +146,12 @@ public:
             if(!subs_init_)
             {
                 ros::master::getTopics(master_topics_);
-
                 for (ros::master::V_TopicInfo::iterator it = master_topics_.begin(); it != master_topics_.end(); it++)
                 {
                     const ros::master::TopicInfo &info = *it;
                     if(topic_name_ == info.name)
                     {
-                        ROS_INFO_STREAM("Emergency manager: listening to " << topic_name_);
+                        ROS_INFO_STREAM("Sensor monitor: listening to " << topic_name_);
                         subscriber_ = nh_->subscribe(topic_name_, 10, &GenericSensorMonitor::topicCB, this);
                         subs_init_ = true;
                     }
@@ -186,7 +175,7 @@ public:
                 // If the queue is empty because the data flow has not started yet, throw warning
                 else
                 {
-                    ROS_WARN_STREAM_THROTTLE(int(rate_), "Emergency manager: data stream not initialized " << topic_name_);
+                    ROS_WARN_STREAM_THROTTLE(int(rate_), "Sensor monitor: data stream not initialized " << topic_name_);
                 }
             }
             
@@ -197,50 +186,24 @@ public:
     void emergency_detected()
     {
         ROS_ERROR("-------------------------------------------------------------------");
-        ROS_ERROR_STREAM("Emergency manager: data not coming in " << topic_name_ + " aborting mission");
+        ROS_ERROR_STREAM("Sensor monitor: data not coming in " << topic_name_ + " aborting mission");
         ROS_ERROR("-------------------------------------------------------------------");
         std_msgs::Empty abort;
         abort_pub_.publish(abort);
         topic_up_ = false; // And reset monitor
+
         // If the BT itself is down, handle the emergency yourself
         if (topic_end_ == "heartbeat")
         {
-            ROS_ERROR_STREAM("Emergency manager " << "BT is down, emergency surfacing triggered manually");
-            this->emergency_manual();
-        }
-    }
+            ROS_ERROR_STREAM("Sensor monitor: "
+                             << "BT is down, triggering emergency surfacing manually");
 
-    void emergency_manual()
-    {
-        ros::Time start_t = ros::Time::now();
-        ros::Duration backup_duration(1.0);
+            // Cancel current goal of WP follower
+            ac_g2wp_->cancelAllGoals();
 
-        smarc_msgs::ThrusterRPM rpm_msg;
-        sam_msgs::PercentStamped vbs_msg;
-        vbs_msg.value = 0.;
-        ros::Rate r(10.);
-
-        ac_->cancelAllGoals();
-
-        while (ros::ok())
-        {
-            if (ros::Time::now() < start_t + backup_duration)
-            {
-                rpm_msg.rpm = -500;
-                thrust_1_cmd_pub_.publish(rpm_msg);
-                thrust_2_cmd_pub_.publish(rpm_msg);
-            }
-            else
-            {
-                // TODO: disable thrusters controllers here
-                rpm_msg.rpm = 0;
-                thrust_1_cmd_pub_.publish(rpm_msg);
-                thrust_2_cmd_pub_.publish(rpm_msg);
-            }
-            // TODO: disable VBS controller here
-            vbs_msg.header.stamp = ros::Time::now();
-            vbs_cmd_pub_.publish(vbs_msg);
-            r.sleep();
+            // Request emergency surface action
+            smarc_bt::GotoWaypointGoal goal;
+            ac_emerg_->sendGoalAndWait(goal);
         }
     }
 
@@ -253,14 +216,15 @@ public:
 
 // Monitors that all relevant topics are up and running and the state of the ROS master
 void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monitors,
-                      ros::Publisher& vehicle_state_pub)
+                      ros::Publisher &vehicle_state_pub, std::shared_ptr<EmergencyServer> emergency_server)
 {
     if (!ros::master::check())
     {
         ROS_ERROR("-------------------------------------------------------------------");
-        ROS_ERROR("ROS master is down. Emergency surfacing");
+        ROS_ERROR("Sensor monitor: ROS master is down, triggering emergency surfacing manually");
         ROS_ERROR("-------------------------------------------------------------------");
-        monitors.at(0)->emergency_manual();
+        // If the master is down, the action server will no respond. Carry out emergency surfacing manually
+        emergency_server->handle_emergency();
     }
 
     std_msgs::Bool vehicle_ready;
@@ -281,14 +245,14 @@ void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monito
 
 int main(int argn, char* args[])
 {
-    ros::init(argn, args, "emergency_management");
+    ros::init(argn, args, "emergency_manager");
     ros::NodeHandle nh("~");
     
     // Emergency surface action server
     std::shared_ptr<EmergencyServer> emergency_server(new EmergencyServer(nh));
 
     // Basic topics monitors: check that data is coming in on the defined topics. Signals an emergency when it stops
-    std::string emerg_config, vehicle_ready_top;
+    std::string emerg_config, vehicle_ready_top, goto_wp_action, emergency_as;
     double vehicle_ready_period;
     nh.param<std::string>(("emergency_config_file"), emerg_config, "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_missions/sam_action_servers/config/emergency_config.yaml");
     boost::filesystem::path emerg_config_path(emerg_config);
@@ -297,7 +261,22 @@ int main(int argn, char* args[])
         ROS_ERROR_STREAM("Emergency manager config file doesn't exit " << emerg_config_path.string());
         exit(0);
     }
-    
+
+    nh.param<std::string>(("goto_wp_action"), goto_wp_action, "goto_wp_action");
+    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>  ac_g2wp(goto_wp_action, true);
+    nh.param<std::string>(("emergency_as"), emergency_as, "emergency_as");
+    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> ac_emerg(emergency_as, true);
+    while (!ac_g2wp.waitForServer() && !ac_emerg.waitForServer() && ros::ok())
+    {
+        ROS_WARN("Waiting for servers ");
+        ros::Duration(1.).sleep();
+    }
+    ROS_INFO("Emergency node: action servers instantiated");
+
+    std::string abort_top;
+    nh.param<std::string>(("abort_top"), abort_top, "/sam/core/abort");
+    ros::Publisher abort_pub = nh.advertise<std_msgs::Empty>(abort_top, 10);
+
     YAML::Node config = YAML::LoadFile(emerg_config_path.string());
     std::string robot_name = config["namespace"].as<std::string>();
     const YAML::Node &monitor = config["monitor"];
@@ -311,7 +290,7 @@ int main(int argn, char* args[])
             double freq = value["freq"].as<double>();
             std::string topic = "/" + robot_name + "/" + topic_name;
             ros::Duration(0.01).sleep();
-            monitors.emplace_back(new GenericSensorMonitor(topic, freq * 0.9)); // Decrease slightly freq to account for slow transmission at times
+            monitors.emplace_back(new GenericSensorMonitor(topic, freq * 0.9, ac_g2wp, ac_emerg, abort_pub)); // Decrease slightly freq to account for slow transmission at times
         }
     }
 
@@ -320,9 +299,9 @@ int main(int argn, char* args[])
     nh.param<double>(("vehicle_ready_period"), vehicle_ready_period, 1.);
     ros::Publisher vehicle_state_pub = nh.advertise<std_msgs::Bool>(vehicle_ready_top, 1);
     boost::function<void (const ros::TimerEvent&)> timer_cb;
-    timer_cb = [&monitors, &vehicle_state_pub](const ros::TimerEvent &)
+    timer_cb = [&monitors, &vehicle_state_pub, &emergency_server](const ros::TimerEvent &)
     {
-        vehicle_state_cb(monitors, vehicle_state_pub);
+        vehicle_state_cb(monitors, vehicle_state_pub, emergency_server);
     };
     ros::Timer vehicle_state_timer = nh.createTimer(ros::Duration(vehicle_ready_period), timer_cb);
 
