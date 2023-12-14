@@ -192,7 +192,7 @@ class WPDepthPlanner(object):
             
             # Preempted
             if self._as.is_preempt_requested():
-                rospy.logwarn('%s: Preempted' % self._action_name)
+                rospy.logwarn('%s: WP preempted' % self._action_name)
                 self.nav_goal = None
                 self.disengage_actuators()
                 self._as.set_preempted(self._result, "Preempted WP action")
@@ -203,7 +203,7 @@ class WPDepthPlanner(object):
                     self.base_frame_2d, goal_point)
                 wp_pos = np.array(
                     [goal_point_local.point.x, goal_point_local.point.y])
-                rospy.loginfo_throttle(1, "Dist to WP " + str(np.linalg.norm(wp_pos)))
+                rospy.loginfo_throttle(1, "Distance to WP " + str(np.linalg.norm(wp_pos)))
 
                 # Goal reached
                 if np.linalg.norm(wp_pos) < self.wp_tolerance:
@@ -254,8 +254,7 @@ class WPDepthPlanner(object):
                     # self.rpm_wp_following(0., yaw_setpoint)
 
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                print("Heading controller: Could not transform WP to {}".format(self.base_frame_2d))
-                pass
+                rospy.logwarn_throttle(2., "Heading controller: Could not transform WP to {}, vehicle not moving".format(self.base_frame_2d))
             
             rate.sleep()
 
