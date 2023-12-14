@@ -83,11 +83,10 @@ public:
             vbs_cmd_pub_.publish(vbs_msg);
             r.sleep();
         }
-        ROS_INFO_STREAM("Emergency preempted ");
+        ROS_INFO_STREAM("Emergency manager: emergency preempted ");
         // set the action state to preempted
         as_->setPreempted();
     }
-
 };
 
 class GenericSensorMonitor
@@ -163,7 +162,7 @@ public:
                     const ros::master::TopicInfo &info = *it;
                     if(topic_name_ == info.name)
                     {
-                        ROS_INFO_STREAM_NAMED("Emergency manager: ", "listening to " << topic_name_);
+                        ROS_INFO_STREAM("Emergency manager: listening to " << topic_name_);
                         subscriber_ = nh_->subscribe(topic_name_, 10, &GenericSensorMonitor::topicCB, this);
                         subs_init_ = true;
                     }
@@ -187,7 +186,7 @@ public:
                 // If the queue is empty because the data flow has not started yet, throw warning
                 else
                 {
-                    ROS_WARN_STREAM_THROTTLE_NAMED(int(rate_), "Emergency manager: ", "data stream not initialized " << topic_name_);
+                    ROS_WARN_STREAM_THROTTLE(int(rate_), "Emergency manager: data stream not initialized " << topic_name_);
                 }
             }
             
@@ -198,7 +197,7 @@ public:
     void emergency_detected()
     {
         ROS_ERROR("-------------------------------------------------------------------");
-        ROS_ERROR_STREAM_NAMED("Emergency manager: ", "data not coming in " << topic_name_ + " aborting mission");
+        ROS_ERROR_STREAM("Emergency manager: data not coming in " << topic_name_ + " aborting mission");
         ROS_ERROR("-------------------------------------------------------------------");
         std_msgs::Empty abort;
         abort_pub_.publish(abort);
@@ -206,7 +205,7 @@ public:
         // If the BT itself is down, handle the emergency yourself
         if (topic_end_ == "heartbeat")
         {
-            ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, emergency surfacing triggered manually");
+            ROS_ERROR_STREAM("Emergency manager " << "BT is down, emergency surfacing triggered manually");
             this->emergency_manual();
         }
     }
@@ -295,7 +294,7 @@ int main(int argn, char* args[])
     boost::filesystem::path emerg_config_path(emerg_config);
     if (!boost::filesystem::exists(emerg_config_path))
     {
-        ROS_ERROR_STREAM_NAMED("Emergency manager ", "config file doesn't exit " << emerg_config_path.string());
+        ROS_ERROR_STREAM("Emergency manager config file doesn't exit " << emerg_config_path.string());
         exit(0);
     }
     
