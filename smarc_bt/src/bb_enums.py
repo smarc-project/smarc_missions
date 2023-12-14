@@ -7,6 +7,7 @@ ROBOT_NAME = 'robot_name'
 
 VEHICLE_STATE = 'vehicle_state'
 ABORT = 'abort'
+EXTERNAL_SAFETY = 'external_safety'
 MAX_DEPTH = 'max_depth'
 MIN_ALTITUDE = 'min_altitude'
 
