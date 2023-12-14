@@ -341,9 +341,16 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         self.server_feedback_msg = msg
 
     def send_goal(self):
+        self.sent_goal = True
+
+        # Nacho: I'm bypassing this for now. The emergency surface action will be handled by the emergency_node
+        if self.goalless:
+            rospy.logerr("BT node: emergency triggered")
+            return
+        
+        rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
         self.server_feedback_msg = None
         self.action_goal_handle = self.action_client.send_goal(self.action_goal, feedback_cb=self.feedback_cb)
-        self.sent_goal = True
         self.vehicle.last_goto_wp = self.action_goal.waypoint
 
 
@@ -432,7 +439,6 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
         # if goal hasn't been sent yet
         if not self.sent_goal:
             self.send_goal()
-            rospy.loginfo("Sent goal to action server:"+str(self.action_goal))
             self.feedback_message = "Goal sent"
             return pt.Status.RUNNING
 
@@ -443,7 +449,10 @@ class A_GotoWaypoint(ptr.actions.ActionClient):
             rospy.loginfo(self.feedback_message)
             return pt.Status.FAILURE
 
-        result = self.action_client.get_result()
+        # Nacho: don't call this if it is an emergency action
+        result = None
+        if not self.goalless:
+            result = self.action_client.get_result()
 
         # if the goal was accomplished
         if result is not None and result.reached_waypoint:

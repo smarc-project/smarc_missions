@@ -7,7 +7,7 @@ import os, time, sys
 
 import rospy
 import tf
-
+import rosgraph
 import py_trees as pt
 import py_trees_ros as ptr
 
@@ -433,6 +433,11 @@ def main():
 
     rospy.loginfo("BT node: Ticktocking....")
     while not rospy.is_shutdown():
+        # If ros master is down
+        if not rosgraph.is_master_online():
+            rospy.logerr_throttle(2., "BT node: rosmaster is down. Waiting for it to come back")
+            continue
+
         # some info _about the tree_ in the BB.
         # better do this outside the tree
         bb.set(bb_enums.TREE_TIP, tree.tip())

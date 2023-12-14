@@ -287,13 +287,13 @@ class NoderedHandler(object):
                 # If an abort is received before a mission, handle the emergency anyway
                 rospy.logwarn("Mission had not been received yet but broadcasting mission abort anyway")
                 self._abort_pub.publish(Empty())
-                emergency_ac = A_GotoWaypoint(auv_config = self._config,
-                                            action_namespace = self._config.EMERGENCY_ACTION_NAMESPACE,
-                                            node_name = 'A_EmergencySurface',
-                                            goalless = True)
-                emergency_ac.setup(1.)
-                emergency_ac.initialise()
-                emergency_ac.send_goal()
+                # emergency_ac = A_GotoWaypoint(auv_config = self._config,
+                #                             action_namespace = self._config.EMERGENCY_ACTION_NAMESPACE,
+                #                             node_name = 'A_EmergencySurface',
+                #                             goalless = True)
+                # emergency_ac.setup(1.)
+                # emergency_ac.initialise()
+                # emergency_ac.send_goal()
             return
 
 
