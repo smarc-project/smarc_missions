@@ -54,6 +54,7 @@
   <build_depend>smarc_msgs</build_depend>
   <build_depend>sam_msgs</build_depend>
   <build_depend>tf</build_depend>
+  <build_depend>smarc_bt</build_depend>
   <build_depend>rospy</build_depend>
   <build_depend>actionlib</build_depend>
   <!-- <build_depend>uuv_gazebo_ros_plugins_msgs</build_depend> -->
@@ -74,6 +75,7 @@
   <exec_depend>tf</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>actionlib</exec_depend>
+  <exec_depend>smarc_bt</exec_depend>
   <!-- <exec_depend>uuv_gazebo_ros_plugins_msgs</exec_depend> -->
   <!--depend>sam_msgs</depend>
   <depend>smarc_msgs</depend-->

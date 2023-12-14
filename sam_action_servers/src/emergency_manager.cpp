@@ -97,7 +97,7 @@ public:
     ros::CallbackQueue queue;
     ros::Subscriber subscriber_;
     ros::Publisher abort_pub_;
-    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> *ac_;
+    actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>* ac_;
     ros::NodeHandle *nh_;
     ros::Publisher thrust_1_cmd_pub_, thrust_2_cmd_pub_, vbs_cmd_pub_;
     bool queue_init_, subs_init_;
@@ -112,13 +112,21 @@ public:
         nh_->param<std::string>(("abort_top"), abort_top, "/sam/core/abort");
         abort_pub_ = nh_->advertise<std_msgs::Empty>(abort_top, 10);
 
-        std::string thruster_1_top, thruster_2_top, vbs_cmd_top;
+        std::string thruster_1_top, thruster_2_top, vbs_cmd_top, goto_wp_action;
         nh_->param<std::string>(("thruster_1_top"), thruster_1_top, "core/thruster_1_cmd");
         nh_->param<std::string>(("thruster_2_top"), thruster_2_top, "core/thruster_2_cmd");
         nh_->param<std::string>(("vbs_cmd_top"), vbs_cmd_top, "core/thruster_2_cmd");
         thrust_1_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_1_top, 1);
         thrust_2_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_2_top, 1);
         vbs_cmd_pub_ = nh_->advertise<sam_msgs::PercentStamped>(vbs_cmd_top, 1);
+
+        nh_->param<std::string>(("goto_wp_action"), goto_wp_action, "core/thruster_2_cmd");
+        ac_ = new actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>(goto_wp_action, true);
+        while (!ac_->waitForServer() && ros::ok())
+        {
+            ROS_WARN("Waiting for go to WP server ");
+            ros::Duration(1).sleep();
+        }
 
         // Get last word of the topic name. It'll be used to find the heartbeat one
         std::string delimiter = "/";
@@ -201,6 +209,8 @@ public:
         sam_msgs::PercentStamped vbs_msg;
         vbs_msg.value = 0.;
         ros::Rate r(10.);
+
+        ac_->cancelAllGoals();
 
         while (ros::ok())
         {

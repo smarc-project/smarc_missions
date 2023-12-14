@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   ddynamic_reconfigure_python
   ros_type_introspection
   topic_tools
+  smarc_bt
 )
 
 ## System dependencies are found with CMake's conventions

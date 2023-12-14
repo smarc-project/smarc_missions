@@ -14,6 +14,7 @@
 				<param name="thruster_1_top" value="/$(arg namespace)/core/thruster1_cmd" />
 				<param name="thruster_2_top" value="/$(arg namespace)/core/thruster2_cmd" />
 				<param name="vbs_cmd_top" value="/$(arg namespace)/core/vbs_cmd" />
+				<param name="goto_wp_action" value="/$(arg namespace)/ctrl/goto_waypoint" />
 			</node>
 
 		<node name="goto_waypoint" pkg="sam_action_servers" type="wp_goto_action.py" output="screen">
