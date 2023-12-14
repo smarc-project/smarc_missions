@@ -216,9 +216,10 @@ public:
 };
 
 void handle_leak(const smarc_msgs::Leak::ConstPtr &msg,
-                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
-                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_emerg,
-                  bool &emergency_trigger)
+                 actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
+                 actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_emerg,
+                 ros::Publisher &abort_pub,
+                 bool &emergency_trigger)
 {
     if(msg->value)
     {
@@ -234,6 +235,9 @@ void handle_leak(const smarc_msgs::Leak::ConstPtr &msg,
             // Request emergency surface action
             smarc_bt::GotoWaypointGoal goal;
             ac_emerg.sendGoal(goal);
+            // Let the rest of the system now
+            std_msgs::Empty abort;
+            abort_pub.publish(abort);
         }
     }
 }
@@ -359,10 +363,10 @@ int main(int argn, char* args[])
         handle_abort(msg, ac_g2wp, ac_emerg, emergency_trigger);
     };
 
-    boost::function<void(const smarc_msgs::Leak::ConstPtr &)> leak_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger]
+    boost::function<void(const smarc_msgs::Leak::ConstPtr &)> leak_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger, &abort_pub]
     (const smarc_msgs::Leak::ConstPtr &msg)
     {
-        handle_leak(msg, ac_g2wp, ac_emerg, emergency_trigger);
+        handle_leak(msg, ac_g2wp, ac_emerg, abort_pub, emergency_trigger);
     };
 
     std::string leak_top;
