@@ -40,7 +40,7 @@ public:
         thrust_1_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_1_top, 1);
         thrust_2_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_2_top, 1);
         vbs_cmd_pub_ = nh_->advertise<sam_msgs::PercentStamped>(vbs_cmd_top, 1);
-        
+
         std::string emergency_as;
         nh_->param<std::string>(("emergency_as"), emergency_as, "emergency_as");
         as_ = new actionlib::SimpleActionServer<smarc_bt::GotoWaypointAction>(*nh_, emergency_as,
@@ -62,14 +62,14 @@ public:
         ROS_ERROR("-------------------------------------------------------------------");
 
         ros::Time start_t = ros::Time::now();
-        ros::Duration backup_duration(3.0);
+        ros::Duration backup_duration(1.0);
 
         smarc_msgs::ThrusterRPM rpm_msg;
         sam_msgs::PercentStamped vbs_msg;
         vbs_msg.value = 0.;
         ros::Rate r(10.);
 
-        // The only way out of this loop is preemtion or killing the node
+        // The only way out of this loop is preemption or killing the node
         while (!as_->isPreemptRequested())
         {
             if (ros::Time::now() < start_t + backup_duration)
@@ -192,19 +192,19 @@ public:
         abort_pub_.publish(abort);
         topic_up_ = false; // And reset monitor
 
-        // If the BT itself is down, handle the emergency yourself
-        if (topic_end_ == "heartbeat")
-        {
-            ROS_ERROR_STREAM("Sensor monitor: "
-                             << "BT is down, triggering emergency surfacing manually");
+        // // If the BT itself is down, handle the emergency yourself
+        // if (topic_end_ == "heartbeat")
+        // {
+        //     ROS_ERROR_STREAM("Sensor monitor: "
+        //                      << "BT is down, triggering emergency surfacing manually");
 
-            // Cancel current goal of WP follower
-            ac_g2wp_->cancelAllGoals();
+        //     // Cancel current goal of WP follower
+        //     ac_g2wp_->cancelAllGoals();
 
-            // Request emergency surface action
-            smarc_bt::GotoWaypointGoal goal;
-            ac_emerg_->sendGoalAndWait(goal);
-        }
+        //     // Request emergency surface action
+        //     smarc_bt::GotoWaypointGoal goal;
+        //     ac_emerg_->sendGoalAndWait(goal);
+        // }
     }
 
     // Callbacks
@@ -213,6 +213,27 @@ public:
     }
 
 };
+
+
+void handle_abort_leak(const ShapeShifter::ConstPtr &msg,
+                       actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
+                       actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_emerg,
+                       bool& emergency_trigger)
+{
+    if(!emergency_trigger)
+    {
+        const std::string &datatype = msg->getDataType();
+        emergency_trigger = true;
+        ROS_ERROR_STREAM("Emergency manager: "
+                        << datatype << " received, starting emergency surfacing");
+        // Cancel current goal of WP follower
+        ac_g2wp.cancelAllGoals();
+
+        // Request emergency surface action
+        smarc_bt::GotoWaypointGoal goal;
+        ac_emerg.sendGoal(goal);
+    }
+}
 
 // Monitors that all relevant topics are up and running and the state of the ROS master
 void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monitors,
@@ -224,6 +245,7 @@ void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monito
         ROS_ERROR("Sensor monitor: ROS master is down, triggering emergency surfacing manually");
         ROS_ERROR("-------------------------------------------------------------------");
         // If the master is down, the action server will no respond. Carry out emergency surfacing manually
+        // There's no point here on trying to preempt the current WP action. It will not be transmitted
         emergency_server->handle_emergency();
     }
 
@@ -243,6 +265,7 @@ void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monito
     }
 }
 
+
 int main(int argn, char* args[])
 {
     ros::init(argn, args, "emergency_manager");
@@ -258,7 +281,7 @@ int main(int argn, char* args[])
     boost::filesystem::path emerg_config_path(emerg_config);
     if (!boost::filesystem::exists(emerg_config_path))
     {
-        ROS_ERROR_STREAM("Emergency manager config file doesn't exit " << emerg_config_path.string());
+        ROS_ERROR_STREAM("Emergency manager config file doesn't exist " << emerg_config_path.string());
         exit(0);
     }
 
@@ -298,12 +321,25 @@ int main(int argn, char* args[])
     nh.param<std::string>(("vehicle_ready_top"), vehicle_ready_top, "vehicle_ready");
     nh.param<double>(("vehicle_ready_period"), vehicle_ready_period, 1.);
     ros::Publisher vehicle_state_pub = nh.advertise<std_msgs::Bool>(vehicle_ready_top, 1);
-    boost::function<void (const ros::TimerEvent&)> timer_cb;
-    timer_cb = [&monitors, &vehicle_state_pub, &emergency_server](const ros::TimerEvent &)
+    boost::function<void (const ros::TimerEvent&)> timer_cb = [&monitors, &vehicle_state_pub, &emergency_server]
+    (const ros::TimerEvent &)
     {
         vehicle_state_cb(monitors, vehicle_state_pub, emergency_server);
     };
     ros::Timer vehicle_state_timer = nh.createTimer(ros::Duration(vehicle_ready_period), timer_cb);
+
+    // Handle leaks or abort messages, equally and only once
+    bool emergency_trigger = false;
+    boost::function<void(const ShapeShifter::ConstPtr &)> abort_leak_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger]
+    (const ShapeShifter::ConstPtr &msg)
+    {
+        handle_abort_leak(msg, ac_g2wp, ac_emerg, emergency_trigger);
+    };
+
+    std::string leak_top;
+    nh.param<std::string>(("leak_top"), leak_top, "leak");
+    ros::Subscriber leak_subs = nh.subscribe(leak_top, 1, abort_leak_cb);
+    ros::Subscriber abort_subs = nh.subscribe(abort_top, 1, abort_leak_cb);
 
     ros::spin();
 

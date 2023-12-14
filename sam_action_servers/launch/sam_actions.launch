@@ -11,6 +11,7 @@
 				<param name="emergency_config_file" value="$(arg emergency_config_file)"/>
 				<param name="emergency_as" value="/$(arg namespace)/ctrl/emergency_surface_action" />
 				<param name="abort_top" value="/$(arg namespace)/core/abort" />
+				<param name="leak_top" value="/$(arg namespace)/core/leak" />
 				<param name="thruster_1_top" value="/$(arg namespace)/core/thruster1_cmd" />
 				<param name="thruster_2_top" value="/$(arg namespace)/core/thruster2_cmd" />
 				<param name="vbs_cmd_top" value="/$(arg namespace)/core/vbs_cmd" />

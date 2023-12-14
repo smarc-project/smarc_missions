@@ -21,6 +21,7 @@ from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler
 #from toggle_controller import ToggleController  
 import time   
+import rosgraph
 
 from ddynamic_reconfigure_python.ddynamic_reconfigure import DDynamicReconfigure
 
@@ -182,6 +183,18 @@ class WPDepthPlanner(object):
         
         while not rospy.is_shutdown() and self.nav_goal is not None:
 
+            # Check if ros master is down
+            if not rosgraph.is_master_online():
+                rospy.logerr("WP follower node: rosmaster is down, preempting WP")
+                result=self._as.get_default_result()
+                self._as.set_aborted(result, "Error")
+                return
+            
+            # if : # Checks the master uri and results boolean (True or False)
+            #     print ('ROS MASTER is Online')
+            # else:
+            #     print ('ROS MASTER is Offline')
+
             # Check if the goal has been reached
             goal_point = PointStamped()
             goal_point.header.frame_id = self.nav_goal.waypoint.pose.header.frame_id
@@ -257,7 +270,6 @@ class WPDepthPlanner(object):
                 rospy.logwarn_throttle(2., "Heading controller: Could not transform WP to {}, vehicle not moving".format(self.base_frame_2d))
             
             rate.sleep()
-
 
 
     def __init__(self, name):
