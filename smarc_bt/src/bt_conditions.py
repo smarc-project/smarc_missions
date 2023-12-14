@@ -17,25 +17,6 @@ from mission_plan import MissionPlan
 from smarc_bt.msg import MissionControl
 
 
-
-class C_CheckExternalSafety(pt.behaviour.Behaviour):
-    """
-    check if mission has reached timeout
-    """
-    def __init__(self):
-        self.bb = pt.blackboard.Blackboard()
-        super(C_CheckExternalSafety, self).__init__(name="C_CheckExternalSafety")
-
-    def update(self):
-        external_safety = self.bb.get(bb_enums.EXTERNAL_SAFETY)
-        if external_safety:
-            self.feedback_message = "Vehicle ready for mission"
-            return pt.Status.SUCCESS
-        else:
-            self.feedback_message = "Vehicle not ready for mission"
-            return pt.Status.FAILURE
-
-
 class C_CheckTFTree(pt.behaviour.Behaviour):
     """
     check if mission has reached timeout

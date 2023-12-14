@@ -33,7 +33,6 @@ from bt_conditions import C_DepthOK, \
                           C_NoAbortReceived, \
                           C_AltOK, \
                           C_LeakOK, \
-                          C_CheckExternalSafety, \
                           C_ExpectPlanState, \
                           C_TimeoutNotReached, \
                           C_CheckTFTree 
@@ -114,11 +113,11 @@ def const_tree(auv_config):
             blackboard_variables={bb_enums.GUI_WP_ENABLE : 'data'}
         )
 
-        read_external_safety = ReadTopic(
-            name = "A_ReadExternalSafety",
-            topic_name = auv_config.EXTERNAL_SAFETY_TOPIC,
+        read_vehicle_ready = ReadTopic(
+            name = "A_ReadVehicleReady",
+            topic_name = auv_config.VEHICLE_READY_TOPIC,
             topic_type = Bool,
-            blackboard_variables={bb_enums.EXTERNAL_SAFETY : 'data'}
+            blackboard_variables={bb_enums.VEHICLE_READY : 'data'}
         )
 
         read_algae_follow_enable = ReadTopic(
@@ -152,7 +151,7 @@ def const_tree(auv_config):
                         children=[
                             publish_heartbeat,
                             read_abort,
-                            read_external_safety,
+                            read_vehicle_ready,
                             read_reloc_enable,
                             read_reloc_wp,
                             read_gui_enable,
@@ -169,7 +168,7 @@ def const_tree(auv_config):
                         children=[
                             C_NoAbortReceived(),
                             C_CheckTFTree(),
-                            C_CheckExternalSafety(),
+                            # C_CheckExternalSafety(),
                             C_AltOK(),
                             C_DepthOK(),
                             C_LeakOK(),
@@ -214,15 +213,19 @@ def const_tree(auv_config):
         #######################
         goto_action = A_GotoWaypoint(auv_config = auv_config)
 
+        vehicle_ready = CheckBlackboardVariableValue(bb_enums.VEHICLE_READY,
+                                                       True,
+                                                       "C_VehicleReady")
+
         unfinalize = pt.blackboard.SetBlackboardVariable(variable_name = bb_enums.MISSION_FINALIZED,
                                                          variable_value = False,
                                                          name = 'A_MissionFinalized->False')
-
 
         # and then execute them in order
         follow_plan = Sequence(name="SQ_FollowMissionPlan",
                                children=[
                                          C_ExpectPlanState(MissionControl.FB_RUNNING),
+                                         vehicle_ready,
                                          unfinalize,
                                          goto_action,
                                          A_SetNextPlanAction()
@@ -364,9 +367,9 @@ def main():
     # first construct a vehicle that will hold and sub to most things
     rospy.loginfo("Setting up vehicle")
     vehicle = Vehicle(config)
-    # tf_listener = tf.TransformListener()
-    tf_listener = None
-    tf_retry_rate = rospy.Rate(0.2)
+    tf_listener = tf.TransformListener()
+
+    # tf_retry_rate = rospy.Rate(0.2)
     # while tf_listener is None and not rospy.is_shutdown():
     #     try:
     #         rospy.loginfo_throttle(5, "Setting up tf_listener for vehicle object before BT")
