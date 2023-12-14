@@ -176,7 +176,7 @@ public:
                     abort_pub_.publish(abort);
                     if (topic_end_ == "heartbeat")
                     {
-                        ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, aborting mission");
+                        ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, emergency action triggered manually");
                         this->emergency_no_bt();
                     }
                     break;
