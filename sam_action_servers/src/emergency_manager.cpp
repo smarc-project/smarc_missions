@@ -36,7 +36,7 @@ public:
         std::string thruster_1_top, thruster_2_top, vbs_cmd_top;
         nh_->param<std::string>(("thruster_1_top"), thruster_1_top, "core/thruster_1_cmd");
         nh_->param<std::string>(("thruster_2_top"), thruster_2_top, "core/thruster_2_cmd");
-        nh_->param<std::string>(("vbs_cmd_top"), vbs_cmd_top, "core/thruster_2_cmd");
+        nh_->param<std::string>(("vbs_cmd_top"), vbs_cmd_top, "vbs_cmd_top");
         thrust_1_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_1_top, 1);
         thrust_2_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_2_top, 1);
         vbs_cmd_pub_ = nh_->advertise<sam_msgs::PercentStamped>(vbs_cmd_top, 1);
@@ -51,7 +51,10 @@ public:
 
     void emergencyCB(const smarc_bt::GotoWaypointGoalConstPtr &goal)
     {
-        ROS_ERROR_STREAM_NAMED("Emergency manager ", "Emergency CB received");
+        ROS_ERROR("-------------------------------------------------------------------");
+        ROS_ERROR_STREAM("Emergency manager " << "Emergency CB received. Bringing vehicle to surface");
+        ROS_ERROR("-------------------------------------------------------------------");
+
         ros::Time start_t = ros::Time::now();
         ros::Duration backup_duration(3.0);
 
@@ -115,12 +118,12 @@ public:
         std::string thruster_1_top, thruster_2_top, vbs_cmd_top, goto_wp_action;
         nh_->param<std::string>(("thruster_1_top"), thruster_1_top, "core/thruster_1_cmd");
         nh_->param<std::string>(("thruster_2_top"), thruster_2_top, "core/thruster_2_cmd");
-        nh_->param<std::string>(("vbs_cmd_top"), vbs_cmd_top, "core/thruster_2_cmd");
+        nh_->param<std::string>(("vbs_cmd_top"), vbs_cmd_top, "vbs_cmd_top");
         thrust_1_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_1_top, 1);
         thrust_2_cmd_pub_ = nh_->advertise<smarc_msgs::ThrusterRPM>(thruster_2_top, 1);
         vbs_cmd_pub_ = nh_->advertise<sam_msgs::PercentStamped>(vbs_cmd_top, 1);
 
-        nh_->param<std::string>(("goto_wp_action"), goto_wp_action, "core/thruster_2_cmd");
+        nh_->param<std::string>(("goto_wp_action"), goto_wp_action, "goto_wp_action");
         ac_ = new actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>(goto_wp_action, true);
         while (!ac_->waitForServer() && ros::ok())
         {
@@ -179,16 +182,7 @@ public:
                 // If the queue is empty but it shouldn't be, emergency
                 if(topic_up_)
                 {
-                    ROS_ERROR_STREAM_NAMED("Emergency manager: ", "data not coming in " << topic_name_ + " aborting mission");
-                    std_msgs::Empty abort;
-                    abort_pub_.publish(abort);
-                    topic_up_ = false; // And reset monitor
-                    // If the BT itself is down, handle the emergency yourself
-                    if (topic_end_ == "heartbeat")
-                    {
-                        ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, emergency action triggered manually");
-                        this->emergency_no_bt();
-                    }
+                    this->emergency_detected();
                 }
                 // If the queue is empty because the data flow has not started yet, throw warning
                 else
@@ -201,7 +195,23 @@ public:
         }    
     }
 
-    void emergency_no_bt()
+    void emergency_detected()
+    {
+        ROS_ERROR("-------------------------------------------------------------------");
+        ROS_ERROR_STREAM_NAMED("Emergency manager: ", "data not coming in " << topic_name_ + " aborting mission");
+        ROS_ERROR("-------------------------------------------------------------------");
+        std_msgs::Empty abort;
+        abort_pub_.publish(abort);
+        topic_up_ = false; // And reset monitor
+        // If the BT itself is down, handle the emergency yourself
+        if (topic_end_ == "heartbeat")
+        {
+            ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, emergency surfacing triggered manually");
+            this->emergency_manual();
+        }
+    }
+
+    void emergency_manual()
     {
         ros::Time start_t = ros::Time::now();
         ros::Duration backup_duration(1.0);
@@ -242,9 +252,18 @@ public:
 
 };
 
+// Monitors that all relevant topics are up and running and the state of the ROS master
 void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monitors,
                       ros::Publisher& vehicle_state_pub)
 {
+    if (!ros::master::check())
+    {
+        ROS_ERROR("-------------------------------------------------------------------");
+        ROS_ERROR("ROS master is down. Emergency surfacing");
+        ROS_ERROR("-------------------------------------------------------------------");
+        monitors.at(0)->emergency_manual();
+    }
+
     std_msgs::Bool vehicle_ready;
     vehicle_ready.data = true;
     for (std::shared_ptr<GenericSensorMonitor> monitor : monitors)
@@ -272,7 +291,7 @@ int main(int argn, char* args[])
     // Basic topics monitors: check that data is coming in on the defined topics. Signals an emergency when it stops
     std::string emerg_config, vehicle_ready_top;
     double vehicle_ready_period;
-    nh.param<std::string>(("emergency_config_file"), emerg_config, "emergency_config.yaml");
+    nh.param<std::string>(("emergency_config_file"), emerg_config, "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_missions/sam_action_servers/config/emergency_config.yaml");
     boost::filesystem::path emerg_config_path(emerg_config);
     if (!boost::filesystem::exists(emerg_config_path))
     {
