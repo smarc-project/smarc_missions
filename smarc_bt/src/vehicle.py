@@ -177,8 +177,7 @@ class Vehicle(object):
                                                  rospy.Time(0))
             
         except (tf.LookupException, tf.ConnectivityException):
-            rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying soon.")
-            rospy.logerr_throttle(5, "")
+            rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull, retrying soon.")
             self._status_str_tf = "lookupTransform failed from '{}' to '{}', is the TF tree in one piece?".format(self.auv_config.UTM_LINK, self.auv_config.BASE_LINK)
             self.tf_ok = False
             return 

@@ -195,8 +195,6 @@ def const_tree(auv_config):
                                             goalless = True)
                          ])
 
-
-
         return Fallback(name='FB_SafetyOK',
                         children = [
                             safety_checks,

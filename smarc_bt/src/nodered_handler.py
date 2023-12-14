@@ -5,11 +5,13 @@
 import rospy, time, os
 import numpy as np
 import json
+from std_msgs.msg import Empty
 
 from mission_plan import MissionPlan
 import bb_enums
 
 from smarc_bt.msg import MissionControl, BTCommand
+from bt_actions import A_GotoWaypoint
 
 from rospy_message_converter import json_message_converter
 
@@ -49,6 +51,10 @@ class NoderedHandler(object):
         self._btc_msg = BTCommand()
         self._bt_command_pub = rospy.Publisher(self._config.BTCOMMAND_TOPIC,
                                                     BTCommand,
+                                                    queue_size=1)
+
+        self._abort_pub = rospy.Publisher(self._config.ABORT_TOPIC,
+                                                    Empty,
                                                     queue_size=1)
 
     def _mission_control_cb(self, msg):
@@ -247,7 +253,6 @@ class NoderedHandler(object):
 
 
 
-
     def _handle_mission_control(self):
         if self._last_received_mc_msg is None:
             return
@@ -275,8 +280,20 @@ class NoderedHandler(object):
         # handle that
         if msg.command == MissionControl.CMD_EMERGENCY:
             rospy.loginfo("EMERGENCY command received")
-            current_mission.emergency()
-            rospy.logwarn("Aborted")
+            if current_mission is not None:
+                current_mission.emergency()
+                rospy.logwarn("Mission aborted")
+            else:
+                # If an abort is received before a mission, handle the emergency anyway
+                rospy.logwarn("Mission had not been received yet but broadcasting mission abort anyway")
+                self._abort_pub.publish(Empty())
+                emergency_ac = A_GotoWaypoint(auv_config = self._config,
+                                            action_namespace = self._config.EMERGENCY_ACTION_NAMESPACE,
+                                            node_name = 'A_EmergencySurface',
+                                            goalless = True)
+                emergency_ac.setup(1.)
+                emergency_ac.initialise()
+                emergency_ac.send_goal()
             return
 
 
