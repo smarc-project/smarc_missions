@@ -254,7 +254,7 @@ class WPDepthPlanner(object):
                     # self.rpm_wp_following(0., yaw_setpoint)
 
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                print("Heading controller: Could not transform WP to base_link")
+                print("Heading controller: Could not transform WP to {}".format(self.base_frame_2d))
                 pass
             
             rate.sleep()

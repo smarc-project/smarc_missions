@@ -100,7 +100,7 @@ public:
     actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction>* ac_;
     ros::NodeHandle *nh_;
     ros::Publisher thrust_1_cmd_pub_, thrust_2_cmd_pub_, vbs_cmd_pub_;
-    bool queue_init_, subs_init_;
+    bool topic_up_, subs_init_;
     ros::master::V_TopicInfo master_topics_;
 
     GenericSensorMonitor(std::string &topic, double rate) : topic_name_(topic), rate_(rate)
@@ -140,12 +140,12 @@ public:
         }
 
         // Flags to monitor topics
-        queue_init_ = false;
+        topic_up_ = false;
         subs_init_ = false;
-        std::thread(&GenericSensorMonitor::CheckQueue, this).detach();
+        std::thread(&GenericSensorMonitor::MonitorTopic, this).detach();
     }
 
-    void CheckQueue()
+    void MonitorTopic()
     {
         ros::Rate r(rate_);
         while(ros::ok())
@@ -171,23 +171,24 @@ public:
             if(!queue.isEmpty())
             {
                 queue.callOne(ros::WallDuration(0.01));
-                queue_init_ = true;
+                topic_up_ = true;
             }
             // If the queue is empty: 
             else
             {
                 // If the queue is empty but it shouldn't be, emergency
-                if(queue_init_)
+                if(topic_up_)
                 {
                     ROS_ERROR_STREAM_NAMED("Emergency manager: ", "data not coming in " << topic_name_ + " aborting mission");
                     std_msgs::Empty abort;
                     abort_pub_.publish(abort);
+                    topic_up_ = false; // And reset monitor
+                    // If the BT itself is down, handle the emergency yourself
                     if (topic_end_ == "heartbeat")
                     {
                         ROS_ERROR_STREAM_NAMED("Emergency manager ", "BT is down, emergency action triggered manually");
                         this->emergency_no_bt();
                     }
-                    break;
                 }
                 // If the queue is empty because the data flow has not started yet, throw warning
                 else
@@ -241,6 +242,24 @@ public:
 
 };
 
+void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monitors,
+                      ros::Publisher& vehicle_state_pub)
+{
+    std_msgs::Bool vehicle_ready;
+    vehicle_ready.data = true;
+    for (std::shared_ptr<GenericSensorMonitor> monitor : monitors)
+    {
+        if(!monitor->topic_up_)
+        {
+            vehicle_ready.data = false;
+            break;
+        }
+    }
+    if(vehicle_ready.data)
+    {
+        vehicle_state_pub.publish(vehicle_ready);
+    }
+}
 
 int main(int argn, char* args[])
 {
@@ -250,11 +269,11 @@ int main(int argn, char* args[])
     // Emergency surface action server
     std::shared_ptr<EmergencyServer> emergency_server(new EmergencyServer(nh));
 
-    // Basic topics monitors
-    std::string emerg_config;
+    // Basic topics monitors: check that data is coming in on the defined topics. Signals an emergency when it stops
+    std::string emerg_config, vehicle_ready_top;
+    double vehicle_ready_period;
     nh.param<std::string>(("emergency_config_file"), emerg_config, "emergency_config.yaml");
     boost::filesystem::path emerg_config_path(emerg_config);
-
     if (!boost::filesystem::exists(emerg_config_path))
     {
         ROS_ERROR_STREAM_NAMED("Emergency manager ", "config file doesn't exit " << emerg_config_path.string());
@@ -277,6 +296,17 @@ int main(int argn, char* args[])
             monitors.emplace_back(new GenericSensorMonitor(topic, freq * 0.9)); // Decrease slightly freq to account for slow transmission at times
         }
     }
+
+    // Monitor state of the vehicle to let the BT know when it's ready for a mission
+    nh.param<std::string>(("vehicle_ready_top"), vehicle_ready_top, "vehicle_ready");
+    nh.param<double>(("vehicle_ready_period"), vehicle_ready_period, 1.);
+    ros::Publisher vehicle_state_pub = nh.advertise<std_msgs::Bool>(vehicle_ready_top, 1);
+    boost::function<void (const ros::TimerEvent&)> timer_cb;
+    timer_cb = [&monitors, &vehicle_state_pub](const ros::TimerEvent &)
+    {
+        vehicle_state_cb(monitors, vehicle_state_pub);
+    };
+    ros::Timer vehicle_state_timer = nh.createTimer(ros::Duration(vehicle_ready_period), timer_cb);
 
     ros::spin();
 
