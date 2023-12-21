@@ -10,9 +10,6 @@ monitor:
       name: core/sbg_imu
       freq: 40.
   - topic:
-      name: core/heartbeat
-      freq: 3.
-  - topic:
       name: core/vbs_fb
       freq: 10.
   - topic:

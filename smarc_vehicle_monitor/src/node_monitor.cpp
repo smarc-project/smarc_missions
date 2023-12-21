@@ -31,7 +31,7 @@ void MonNodeMonitor::MonitorNodes()
             // If the queue is empty but it shouldn't be, emergency
             if (node_up_)
             {
-                this->emergency_detected(topic_name_);
+                this->emergency_detected("mon launch session " + topic_name_);
             }
             // If the queue is empty because the data flow has not started yet, throw warning
             else
@@ -72,7 +72,7 @@ void MonNodeMonitor::MonCB(const rosmon_msgs::State::ConstPtr& state_msg)
                 ROS_DEBUG_STREAM("Node " << node.name << " running");
                 break;
             case node.CRASHED:
-                this->emergency_detected(node.name);
+                this->emergency_detected("node " + node.name);
                 break;
             case node.WAITING:
                 ROS_DEBUG_STREAM("Node " << node.name << " waiting");
@@ -84,7 +84,7 @@ void MonNodeMonitor::MonCB(const rosmon_msgs::State::ConstPtr& state_msg)
 void MonNodeMonitor::emergency_detected(std::string name)
 {
     ROS_ERROR("-------------------------------------------------------------------");
-    ROS_ERROR_STREAM("Rosmon monitor: node " << name + " crahed, aborting mission");
+    ROS_ERROR_STREAM("Rosmon monitor: " << name << " crahed, aborting mission");
     ROS_ERROR("-------------------------------------------------------------------");
     std_msgs::Empty abort;
     abort_pub_.publish(abort);
