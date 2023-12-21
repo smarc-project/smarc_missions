@@ -1,0 +1,32 @@
+namespace: sam
+monitor:
+  - topic:
+      name: core/dvl_raw
+      freq: 0.1 # If the DVL is gone for more than 10 sec, abort mission
+  - topic:
+      name: core/imu
+      freq: 20.
+  - topic:
+      name: core/sbg_imu
+      freq: 40.
+  - topic:
+      name: core/heartbeat
+      freq: 3.
+  - topic:
+      name: core/vbs_fb
+      freq: 10.
+  - topic:
+      name: core/thruster1_fb
+      freq: 5.
+  - topic:
+      name: core/thruster2_fb
+      freq: 5.
+  - topic:
+      name: core/depth20_pressure
+      freq: 20.
+  - topic:
+      name: uwcomms/uw_heartbeat
+      freq: 0.05
+  - topic:
+      name: dr/odom
+      freq: 20
