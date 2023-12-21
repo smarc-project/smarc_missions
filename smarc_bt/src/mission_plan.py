@@ -166,7 +166,7 @@ class MissionPlan:
         "RECEIVED",
         "COMPLETED"]
     def __init__(self,
-                 auv_config,
+                 auv_config = None,
                  mission_control_msg = None
                  ):
         """
@@ -200,7 +200,9 @@ class MissionPlan:
         # A track recording, in case this is a useful mission
         # Need to do this after read_mission_control otherwise
         # it wont know the name of the mission
-        self.track = MissionLog(self)
+        # Nacho: add if here because the MissionLog will crash with empty plans
+        if self._config is not None:
+            self.track = MissionLog(self)
 
 
     def tick(self):
@@ -213,10 +215,8 @@ class MissionPlan:
         # given the state of the mission plan
         # We want to start a recording when the mission starts
         # and end it when its stopped for whatever reason
-        if self.track.recording:
+        if self._config is not None and self.track.recording:        
             self.track.record()
-
-
 
 
     def _change_state(self, new_state):
@@ -294,7 +294,8 @@ class MissionPlan:
         self.current_wp_index = -1
         rospy.logwarn("{} EMERGENCY".format(self.plan_id))
         self._change_state(MissionControl.FB_EMERGENCY)
-        self.track.stop_recording()
+        if self._config is not None:
+            self.track.stop_recording()
 
     def time_remaining(self):
         if self.mission_start_time is None:

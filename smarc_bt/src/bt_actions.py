@@ -43,6 +43,9 @@ class A_AbortPlan(pt.behaviour.Behaviour):
         plan = self.bb.get(bb_enums.MISSION_PLAN_OBJ)
         if plan is None:
             self.feedback_message = "No plan"
+            # Nacho: we still want to catch an abort when there's no plan, so create an empty one here
+            plan = MissionPlan()
+            self.bb.set(bb_enums.MISSION_PLAN_OBJ, plan)
             return pt.Status.FAILURE
 
         if plan.state == MissionControl.FB_EMERGENCY:

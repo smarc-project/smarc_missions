@@ -104,6 +104,8 @@ class Vehicle(object):
         
         # TF ok
         self.tf_ok = False
+        self.got_utmtoll_service = False
+        self.got_lltoutm_service = False
 
 
     def __str__(self):
@@ -161,9 +163,26 @@ class Vehicle(object):
         """
         mimic the behaviour of the BT, since this should be in lock-step with it
         """
+        if not self.got_utmtoll_service:
+            self.got_utmtoll_service = self._wait_for_utm_service(self.auv_config.UTMTOLATLON_SERVICE)
+            return
+
+        if not self.got_lltoutm_service:
+            self.got_lltoutm_service = self._wait_for_utm_service(self.auv_config.LATLONTOUTM_SERVICE)
+            return
+
         self._update_tf(tf_listener)
         self._last_wp_pub.publish(self.last_goto_wp)
 
+
+    def _wait_for_utm_service(self, service_name):
+        try:
+            rospy.wait_for_service(service_name, timeout=0.5)
+            rospy.loginfo("BT node: Got service {}".format(service_name))
+            return True
+        except rospy.exceptions.ROSException:
+            rospy.logwarn_throttle(5, "BT node: could not get service {}".format(service_name))
+            return False
 
     def _update_tf(self, listener):
         # init the vars so that we can catch later if they are

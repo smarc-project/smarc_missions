@@ -325,29 +325,6 @@ def const_tree(auv_config):
 
     return ptr.trees.BehaviourTree(root,record_rosbag=False)
 
-def _wait_for_service(service_name, alternative_name=None, retries=5):
-    no_service = True
-    tried = 1
-    # while no_service and tried <= retries:
-    while no_service and not rospy.is_shutdown():
-        rospy.logwarn_throttle(2., "BT node: waiting for service: {}".format(service_name))
-        try:
-            rospy.wait_for_service(service_name, timeout=0.5)
-            rospy.loginfo("BT node: Got service {}".format(service_name))
-            return service_name
-        except rospy.exceptions.ROSException:
-            # rospy.loginfo("Trying the alternative {}".format(alternative_name))
-            try:
-                rospy.wait_for_service(alternative_name, timeout=0.5)
-                rospy.loginfo("BT node: Got service {}".format(service_name))
-                return alternative_name
-            except rospy.exceptions.ROSException:
-                # rospy.loginfo("Retrying...{}/{}".format(tried, retries))
-                # rospy.loginfo("Retrying...")
-                tried += 1
-                continue
-    # rospy.logwarn("Neither of the services worked... giving up!")
-    return None
 
 def main():
 
@@ -369,43 +346,13 @@ def main():
     vehicle = Vehicle(config)
     tf_listener = tf.TransformListener()
 
-    # tf_retry_rate = rospy.Rate(0.2)
-    # while tf_listener is None and not rospy.is_shutdown():
-    #     try:
-    #         rospy.loginfo_throttle(5, "Setting up tf_listener for vehicle object before BT")
-    #         tf_listener = vehicle.setup_tf_listener(timeout_secs=common_globals.SETUP_TIMEOUT)
-    #     except Exception as e:
-    #         tf_listener = None
-    #         rospy.logerr_throttle(5, "Exception when trying to setup tf_listener for vehicle:\n{}".format(e))
-
-    #     if tf_listener is None:
-    #         rospy.logerr_throttle(5, "TF Listener could not be setup! Is there a UTM frame connected to base link? The BT will not work until this is succesfull. \n retrying in 5s.")
-    #         time.sleep(0.1)
-
     # put the vehicle model inside the bb
     bb = pt.blackboard.Blackboard()
     bb.set(bb_enums.VEHICLE_STATE, vehicle)
 
-    # then we need the utm-ll conversion service in lotsa places in the BT
-    # so we acquire that...
-    lltoutm_service_name = _wait_for_service(service_name = config.LATLONTOUTM_SERVICE,
-                                            alternative_name = config.LATLONTOUTM_SERVICE_ALT,
-                                            retries=20)
-    if lltoutm_service_name is None:
-        rospy.logwarn("Couldn't get LL to UTM service!")
-        sys.exit(5)
-
-    utmtoll_service_name = _wait_for_service(service_name = config.UTMTOLATLON_SERVICE,
-                                            alternative_name = config.UTMTOLATLON_SERVICE_ALT,
-                                            retries=20)
-    if utmtoll_service_name is None:
-        rospy.logwarn("Couldn't get UTM to LL service!")
-        sys.exit(6)
-
-    bb.set(bb_enums.LLTOUTM_SERVICE_NAME, lltoutm_service_name)
-    bb.set(bb_enums.UTMTOLL_SERVICE_NAME, utmtoll_service_name)
+    bb.set(bb_enums.LLTOUTM_SERVICE_NAME, config.LATLONTOUTM_SERVICE)
+    bb.set(bb_enums.UTMTOLL_SERVICE_NAME, config.UTMTOLATLON_SERVICE)
     rospy.loginfo("BT node: got the UTM-LL conversion services")
-
 
     # this object will handle all the messages from nodered interface
     # in and out
