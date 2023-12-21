@@ -8,6 +8,7 @@ project(sam_action_servers)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  roscpp
   geometry_msgs
   nav_msgs
   std_msgs
@@ -22,14 +23,14 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   #math
   ddynamic_reconfigure_python
-  ros_type_introspection
-  topic_tools
+  # ros_type_introspection
+  # topic_tools
   smarc_bt
 )
 
 ## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS filesystem)
-find_package(yaml-cpp)
+# find_package(Boost REQUIRED COMPONENTS filesystem)
+# find_package(yaml-cpp)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -118,8 +119,8 @@ find_package(yaml-cpp)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES bezier_planner
+ INCLUDE_DIRS include
+ LIBRARIES emergency_server
 #  CATKIN_DEPENDS geometry_msgs nav_msgs std_msgs uuv_gazebo_ros_plugins_msgs
 #  DEPENDS system_lib
 )
@@ -131,16 +132,22 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+include
   ${catkin_INCLUDE_DIRS}
-  ${yaml_cpp_INCLUDE_DIRS}
+  # ${yaml_cpp_INCLUDE_DIRS}
 )
 
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/bezier_planner.cpp
-# )
+add_library(emergency_server
+  src/emergency_server.cpp
+)
+
+target_include_directories(emergency_server PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    PRIVATE src)
+
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -150,7 +157,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(emergency_manager_node src/emergency_manager.cpp)
+# add_executable(emergency_server src/emergency_manager.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -160,14 +167,14 @@ add_executable(emergency_manager_node src/emergency_manager.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(emergency_manager_node 
+add_dependencies(emergency_server 
 ${${PROJECT_NAME}_EXPORTED_TARGETS} 
 ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(emergency_manager_node
+target_link_libraries(emergency_server
   ${catkin_LIBRARIES}
-  yaml-cpp
+  # yaml-cpp
 )
 
 #############
@@ -188,19 +195,19 @@ catkin_install_python(PROGRAMS scripts/emergency_surface_action.py scripts/leade
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-## Mark executables and/or libraries for installation
-# install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+# Mark executables and/or libraries for installation
+install(TARGETS emergency_server EXPORT EmergencyServerConfig
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+  PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
@@ -209,10 +216,18 @@ catkin_install_python(PROGRAMS scripts/emergency_surface_action.py scripts/leade
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 
-install(DIRECTORY launch/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-  PATTERN ".svn" EXCLUDE
-)
+# install(DIRECTORY launch/
+#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+#   PATTERN ".svn" EXCLUDE
+# )
+
+# This makes the project importable from the install directory
+# Put config file in per-project dir (name MUST match), can also
+# just go into 'cmake'.
+# install(EXPORT EmergencyServerConfig DESTINATION share/sam_action_servers/cmake)
+
+# This makes the project importable from the build directory
+# export(TARGETS emergency_server FILE EmergencyServerConfig.cmake)
 
 #############
 ## Testing ##

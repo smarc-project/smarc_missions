@@ -1,12 +1,12 @@
 <launch>
 
     <arg name="namespace" default="sam"/>
-	<arg name="emergency_config_file" default="$(find sam_action_servers)/config/emergency_config.yaml"/>
+	<arg name="emergency_config_file" default="$(find smarc_vehicle_monitor)/config/sensor_monitor.yaml"/>
 
     <group ns="$(arg namespace)">
     	<group ns="ctrl">
 			<!-- Emergency surface action -->
-			<node name="emergency_manager_node" pkg="sam_action_servers" type="emergency_manager_node" output="screen">
+			<node name="system_monitor_node" pkg="smarc_vehicle_monitor" type="vehicle_monitor_node" output="screen">
 				<rosparam file="$(arg emergency_config_file)" command="load"/>
 				<param name="emergency_config_file" value="$(arg emergency_config_file)"/>
 				<param name="emergency_as" value="/$(arg namespace)/ctrl/emergency_surface_action" />
