@@ -18,25 +18,27 @@
 				<param name="goto_wp_action" value="/$(arg namespace)/ctrl/goto_waypoint" />
 				<param name="vehicle_ready_top" value="/$(arg namespace)/core/vehicle_ready" />
 				<param name="vehicle_ready_period" value="1." />
+				<param name="utm_frame" value="utm" />
+                <param name="base_frame" value="$(arg namespace)/base_link" />
 			</node>
 
-		<node name="goto_waypoint" pkg="sam_action_servers" type="wp_goto_action.py" output="screen">
-			<param name="base_frame" value="$$(arg namespace)/base_link"/>
-			<param name="base_frame_2d" value="$(arg namespace)/base_link_2d"/>
-			<param name="wp_tolerance" value="2."/>
-			<param name="node_freq" value="40." />
-			<!-- <param name="depth_tolerance" value="0.5"/> -->
-			<param name="rpm1_cmd_topic" value="/$(arg namespace)/core/thruster1_cmd" />
-			<param name="rpm2_cmd_topic" value="/$(arg namespace)/core/thruster2_cmd" />
-			<param name="heading_setpoint_topic" value="/$(arg namespace)/ctrl/heading_pid/setpoint" />
-			<param name="heading_state_topic" value="/$(arg namespace)/ctrl/heading_pid/state" />
-			<param name="heading_enable_topic" value="/$(arg namespace)/ctrl/heading_pid/pid_enable" />
-			<param name="elevator_setpoint_topic" value="/$(arg namespace)/ctrl/elevator_pid/setpoint" />
-			<param name="elevator_enable_topic" value="/$(arg namespace)/ctrl/elevator_pid/pid_enable" />
-			<param name="vbs_setpoint_topic" value="/$(arg namespace)/ctrl/vbs/setpoint" />
-			<param name="rudder_angle" value="0.1" />
-		</node>
-	</group>
+			<node name="goto_waypoint" pkg="sam_action_servers" type="wp_goto_action.py" output="screen">
+				<param name="base_frame" value="$$(arg namespace)/base_link"/>
+				<param name="base_frame_2d" value="$(arg namespace)/base_link_2d"/>
+				<param name="wp_tolerance" value="2."/>
+				<param name="node_freq" value="40." />
+				<!-- <param name="depth_tolerance" value="0.5"/> -->
+				<param name="rpm1_cmd_topic" value="/$(arg namespace)/core/thruster1_cmd" />
+				<param name="rpm2_cmd_topic" value="/$(arg namespace)/core/thruster2_cmd" />
+				<param name="heading_setpoint_topic" value="/$(arg namespace)/ctrl/heading_pid/setpoint" />
+				<param name="heading_state_topic" value="/$(arg namespace)/ctrl/heading_pid/state" />
+				<param name="heading_enable_topic" value="/$(arg namespace)/ctrl/heading_pid/pid_enable" />
+				<param name="elevator_setpoint_topic" value="/$(arg namespace)/ctrl/elevator_pid/setpoint" />
+				<param name="elevator_enable_topic" value="/$(arg namespace)/ctrl/elevator_pid/pid_enable" />
+				<param name="vbs_setpoint_topic" value="/$(arg namespace)/ctrl/vbs/setpoint" />
+				<param name="rudder_angle" value="0.1" />
+			</node>
+		</group>
 
 	</group>
 
