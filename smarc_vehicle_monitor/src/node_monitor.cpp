@@ -9,6 +9,7 @@ MonNodeMonitor::MonNodeMonitor(std::string topic_name, double rate, ros::Publish
     ROS_INFO_STREAM("Node monitor: listening to " << topic_name_);
     subscriber_ = nh_->subscribe(topic_name_, 1, &MonNodeMonitor::MonCB, this);
     node_up_ = false;
+    emergency_ = false;
 
     std::thread(&MonNodeMonitor::MonitorNodes, this).detach();
 }
@@ -52,7 +53,7 @@ void MonNodeMonitor::MonCB(const rosmon_msgs::State::ConstPtr& state_msg)
         auto result = nodes_.emplace(node_i.ns + "/" + node_i.name, nodes_.size());
         if (result.second)
         {
-            std::cout << "Node monitor: monitoring " << node_i.ns + "/" + node_i.name << std::endl;
+            ROS_INFO_STREAM("Node monitor: monitoring " << node_i.ns << "/" << node_i.name);
         }
 
         // std::cout << (result.second ? "Inserted: " : "ignored: ") << node_i.ns + "/" + node_i.name << std::endl;
@@ -83,10 +84,14 @@ void MonNodeMonitor::MonCB(const rosmon_msgs::State::ConstPtr& state_msg)
 
 void MonNodeMonitor::emergency_detected(std::string name)
 {
-    ROS_ERROR("-------------------------------------------------------------------");
-    ROS_ERROR_STREAM("Rosmon monitor: " << name << " crahed, aborting mission");
-    ROS_ERROR("-------------------------------------------------------------------");
-    std_msgs::Empty abort;
-    abort_pub_.publish(abort);
-    node_up_ = false; // And reset monitor
+    if(!emergency_)
+    {
+        ROS_ERROR("-------------------------------------------------------------------");
+        ROS_ERROR_STREAM("Rosmon monitor: " << name << " crahed, aborting mission");
+        ROS_ERROR("-------------------------------------------------------------------");
+        std_msgs::Empty abort;
+        abort_pub_.publish(abort);
+        node_up_ = false; // And reset monitor
+        emergency_ = true; // And set emergency to true
+    }
 }

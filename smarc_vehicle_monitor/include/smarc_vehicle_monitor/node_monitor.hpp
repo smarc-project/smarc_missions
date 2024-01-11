@@ -15,7 +15,7 @@ public:
     ros::Subscriber subscriber_;
     ros::Publisher abort_pub_;
     ros::NodeHandle *nh_;
-    bool node_up_;
+    bool node_up_, emergency_;
     std::map<std::string, int> nodes_;
     
     MonNodeMonitor(std::string topic_name, double rate, ros::Publisher& abort_pub);

@@ -14,6 +14,11 @@
 #include "smarc_vehicle_monitor/sensor_monitor.hpp"
 #include "sam_action_servers/emergency_server.hpp"
 #include "smarc_vehicle_monitor/node_monitor.hpp"
+#include "smarc_vehicle_monitor/tf_monitor.hpp"
+
+using namespace tf;
+using namespace ros;
+using namespace std;
 
 void handle_leak(const smarc_msgs::Leak::ConstPtr &msg,
                  actionlib::SimpleActionClient<smarc_bt::GotoWaypointAction> &ac_g2wp,
@@ -63,7 +68,7 @@ void handle_abort(const std_msgs::Empty::ConstPtr &msg,
 }
 
 
-// Monitors that all relevant topics are up and running and the state of the ROS master
+// Monitors that all relevant topics are up and running
 void vehicle_state_cb(std::vector<std::shared_ptr<GenericSensorMonitor>> &monitors,
                       ros::Publisher &vehicle_state_pub)
 {
@@ -103,6 +108,7 @@ void system_state_cb(std::vector<std::shared_ptr<MonNodeMonitor>> &node_monitors
 {
     ros::master::getTopics(master_topics);
     std::string mon_topic = "state";
+    // ROS_INFO("Holaaaaaaaaaaaaaaaaaaaa");
     for (ros::master::V_TopicInfo::iterator it = master_topics.begin(); it != master_topics.end(); it++)
     {
         const ros::master::TopicInfo &topic_i = *it;
@@ -172,19 +178,24 @@ int main(int argn, char *args[])
         }
     }
 
-    // Handle leak or abort messages, equally and only once
+    // Handle abort messages only once
     bool emergency_trigger = false;
     boost::function<void(const std_msgs::Empty::ConstPtr &)> abort_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger]
     (const std_msgs::Empty::ConstPtr &msg)
     {
         handle_abort(msg, ac_g2wp, ac_emerg, emergency_trigger);
     };
+    ros::Subscriber abort_subs = nh.subscribe(abort_top, 1, abort_cb);
 
+    // Handle leak messages only once
     boost::function<void(const smarc_msgs::Leak::ConstPtr &)> leak_cb = [&ac_g2wp, &ac_emerg, &emergency_trigger, &abort_pub]
     (const smarc_msgs::Leak::ConstPtr &msg)
     {
         handle_leak(msg, ac_g2wp, ac_emerg, abort_pub, emergency_trigger);
     };
+    std::string leak_top;
+    nh.param<std::string>(("leak_top"), leak_top, "leak");
+    ros::Subscriber leak_subs = nh.subscribe(leak_top, 1, leak_cb);
 
     // Monitor state of the vehicle to let the BT know when it's ready for a mission
     nh.param<std::string>(("vehicle_ready_top"), vehicle_ready_top, "vehicle_ready");
@@ -204,6 +215,7 @@ int main(int argn, char *args[])
     nh.param<double>(("master_check_period"), master_check_period, 1.);
     ros::Timer master_state_timer = nh.createTimer(ros::Duration(master_check_period), master_cb);
 
+    // Monitor states of nodes
     std::vector<std::shared_ptr<MonNodeMonitor>> node_monitors;
     ros::master::V_TopicInfo master_topics;
     std::vector<std::string> mon_topics;
@@ -215,12 +227,15 @@ int main(int argn, char *args[])
     nh.param<double>(("nodes_check_period"), nodes_check_period, 2.);
     ros::Timer nodes_monitor_timer = nh.createTimer(ros::Duration(nodes_check_period), mon_timer_cb);
 
-    std::string leak_top;
-    nh.param<std::string>(("leak_top"), leak_top, "leak");
-    ros::Subscriber leak_subs = nh.subscribe(leak_top, 1, leak_cb);
-    ros::Subscriber abort_subs = nh.subscribe(abort_top, 1, abort_cb);
+
+    // TF monitor: let's the user know when the tree is fully built and raises and alarm if it hasn't been updated in 5 seconds
+    bool using_specific_chain = true;
+    std::string tf_prefix, framea, frameb;
+    nh.param<std::string>(("utm_frame"), frameb, "utm");
+    nh.param<std::string>(("base_frame"), framea, "base_link");
+    smarc::TFMonitor tf_monitor(abort_pub, tf::resolve(tf_prefix, framea), tf::resolve(tf_prefix, frameb));
 
     ros::spin();
-
+    
     return 0;
 }

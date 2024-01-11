@@ -56,8 +56,6 @@ class A_AbortPlan(pt.behaviour.Behaviour):
         return pt.Status.SUCCESS
 
 
-
-
 class A_ReadWaypoint(pt.behaviour.Behaviour):
     def __init__(self,
                  ps_topic,
